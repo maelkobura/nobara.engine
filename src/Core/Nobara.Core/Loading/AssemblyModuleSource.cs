@@ -79,10 +79,24 @@ public sealed class AssemblyModuleSource : IModuleSource
                 $"Module '{module.Id}': '{path}' differs from the assembly the distribution was built with.");
         }
 
-        byte[] manifest = ReadManifestResource(image)
-            ?? throw new ModuleDiscoveryException(
+        byte[]? manifest;
+        try
+        {
+            manifest = ReadManifestResource(image);
+        }
+        catch (BadImageFormatException exception)
+        {
+            throw new ModuleDiscoveryException(
+                CompositionProblemKind.InvalidManifest, $"Module '{module.Id}': '{path}' is not a valid assembly: {exception.Message}", exception);
+        }
+
+        if (manifest is null)
+        {
+            throw new ModuleDiscoveryException(
                 CompositionProblemKind.InvalidManifest,
                 $"Module '{module.Id}': '{path}' has no module manifest ({ManifestResource}); it was not built as a module.");
+        }
+
         return new ModuleImage(module.Id, path, manifest);
     }
 

@@ -225,7 +225,35 @@ public sealed class CompositionTests : IDisposable
 
         CompositionProblem problem = Assert.Single(exception.Problems);
         Assert.Equal(CompositionProblemKind.InvalidManifest, problem.Kind);
-        Assert.Contains("expects version 1.1.0", problem.Message);
+        Assert.Contains("Module 'example.mobs': the distribution expects version 1.1.0", problem.Message);
+    }
+
+    [Theory]
+    [InlineData("format", "its manifest has format 2")]
+    [InlineData("level", "its manifest has no level")]
+    [InlineData("side", "its manifest has no side")]
+    public void Refuses_a_manifest_with_an_unsupported_format_or_without_level_or_side(string field, string expected)
+    {
+        _distribution.Module("example.mobs", m =>
+        {
+            switch (field)
+            {
+                case "format":
+                    m.Format = 2;
+                    break;
+                case "level":
+                    m.Level = F.Level.Unspecified;
+                    break;
+                default:
+                    m.Side = F.Side.Unspecified;
+                    break;
+            }
+        });
+
+        CompositionProblem problem = Refused(CompositionProblemKind.InvalidManifest);
+
+        Assert.Equal("example.mobs", problem.ModuleId);
+        Assert.Contains("Module 'example.mobs': " + expected, problem.Message);
     }
 
     [Fact]

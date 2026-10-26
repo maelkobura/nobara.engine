@@ -29,9 +29,9 @@ public sealed class HotPathAttribute : Attribute
 /// code.
 /// </summary>
 /// <remarks>
-/// The mark covers the same members as <see cref="HotPathAttribute"/>. The
-/// interfaces through which a module joins the loop carry it, so their
-/// implementations need no mark of their own.
+/// The mark covers the same members as <see cref="HotPathAttribute"/>. A mark
+/// on an interface method covers its implementations, so an interface through
+/// which code joins the loop carries it once for all of them.
 /// </remarks>
 [AttributeUsage(
     AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Method,

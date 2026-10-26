@@ -183,9 +183,15 @@ It provides no resource type.
 
 ## Known limitations
 
-- The loop, its phases, and the synchronization point are not implemented:
-  the main context is started and stopped by its host.
+- The loop, its phases, the fixed tick, and the synchronization point are
+  not implemented: the main context is started and stopped by its host.
+- No reusable start-up point runs the loop for the entry point of a game yet.
+- The levers on the loop (suspending the simulation phase, time scale, tick
+  rate) and the lever that creates or destroys a context are not
+  implemented.
 - The job system and the profiler are not implemented.
+- The low-level foundations (pools, unmanaged memory, collections, math) are
+  not implemented; only the attributes are.
 - Resources (inventory, decoders, duplicates, overrides, tags, free
   properties) are not loaded.
 - The configuration service, the player configuration file, and module
@@ -201,3 +207,7 @@ It provides no resource type.
   holds several modules is charged to the called module.
 - The `Log` policy leaves a module that threw during registration or
   initialization active, whatever state it is in.
+- The folder of a module (`system/` or `game/`) is not compared with its
+  level.
+- Publications and emergency hooks cannot be withdrawn by the module that
+  made them; the core withdraws them when it disables the module.

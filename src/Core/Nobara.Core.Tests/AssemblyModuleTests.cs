@@ -113,6 +113,7 @@ public sealed class AssemblyModuleTests : IClassFixture<SampleModules>, IDisposa
         CompositionProblem problem = Assert.Single(exception.Problems);
         Assert.Equal(CompositionProblemKind.MissingAssembly, problem.Kind);
         Assert.Equal("example.feature", problem.ModuleId);
+        Assert.Contains("Module 'example.feature': its assembly is not in system/ or game/", problem.Message);
     }
 
     [Fact]
@@ -129,6 +130,22 @@ public sealed class AssemblyModuleTests : IClassFixture<SampleModules>, IDisposa
         CompositionProblem problem = Assert.Single(exception.Problems);
         Assert.Equal(CompositionProblemKind.InvalidManifest, problem.Kind);
         Assert.Contains("has no module manifest", problem.Message);
+    }
+
+    [Fact]
+    public void Refuses_a_file_that_is_not_an_assembly()
+    {
+        (string install, byte[] distribution) = _samples.Install([]);
+        string fake = Path.Combine(install, "game", "example.fake.dll");
+        File.WriteAllText(fake, "not an assembly");
+        var manifest = F.DistributionManifest.Parser.ParseFrom(distribution);
+        manifest.Modules.Add(new F.DistributionModule { Id = "example.fake", Version = "1.0.0", Hash = ByteString.CopyFrom(SHA256.HashData(File.ReadAllBytes(fake))) });
+
+        var exception = Assert.Throws<ModuleCompositionException>(() => Load(install, manifest.ToByteArray()));
+
+        CompositionProblem problem = Assert.Single(exception.Problems);
+        Assert.Equal(CompositionProblemKind.InvalidManifest, problem.Kind);
+        Assert.Contains("Module 'example.fake'", problem.Message);
     }
 
     [Fact]

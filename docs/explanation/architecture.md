@@ -247,16 +247,17 @@ the cause.
 
 ## Lifecycle
 
-Each module goes through ordered steps. Discovery and loading happen once per
-process. Registration, initialization, and start then happen in each
-context, in dependency order, and stop and release in reverse order:
+Each module goes through ordered steps, numbered from 0. Discovery (0) and
+loading (1) happen once per process. The other steps happen in each context,
+in dependency order, and stop and release in reverse order:
 
-1. Registration: the module publishes its services; it resolves none.
-2. Initialization: the module resolves the services of its dependencies,
-   which are all published and initialized, and creates its state.
-3. Start: last preparations before the first tick.
-4. Execution: the loop runs.
-5. Stop and release: the module ends its activity, then frees its resources.
+- 2, registration: the module publishes its services; it resolves none.
+- 3, initialization: the module resolves the services of its dependencies,
+  which are all published and initialized, and creates its state.
+- 4, start: last preparations before the first tick.
+- 5, execution: the loop runs.
+- 6 and 7, stop and release: the module ends its activity, then frees its
+  resources.
 
 Separating registration from initialization removes ordering problems: when
 a module initializes, every service exists and its dependencies are ready.

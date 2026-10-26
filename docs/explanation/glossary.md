@@ -66,7 +66,9 @@ game world.
 
 ### Crash report
 
-A file that the core writes to the logs folder before a context stops on an error. It names the module, the lifecycle step, and the exception. See [the core](../../src/Core/README.md#error-policies).
+A file that the core writes to the logs folder before a context stops on an
+error. It names the module, the lifecycle step, and the exception. See [the
+core](../../src/Core/README.md#error-policies).
 
 ### Distribution
 
@@ -75,7 +77,8 @@ and fixed when it is built. The result is a distribution manifest.
 
 ### Emergency hook
 
-Code that a module registers to run before a context stops on an error, such as an emergency save of the world.
+Code that a module registers to run before a context stops on an error, such
+as an emergency save of the world.
 
 ### Entity
 
@@ -89,7 +92,10 @@ systems. It is provided by a platform module.
 
 ### Error policy
 
-What the core does when a module throws: stop the context, disable the module and every module that requires it, or log and continue. The distribution chooses it for each module; required and platform modules always stop. See [the core](../../src/Core/README.md#error-policies).
+What the core does when a module throws: stop the context, disable the module
+and every module that requires it, or log and continue. The distribution
+chooses it for each module; required and platform modules always stop. See
+[the core](../../src/Core/README.md#error-policies).
 
 ### Event bus
 
@@ -145,7 +151,9 @@ business. The core uses it only for load order and for the dependency rule.
 
 ### Lifecycle
 
-The ordered steps that a module goes through: discovery, loading, registration, initialization, start, execution, stop, and release. See [Lifecycle](architecture.md#lifecycle).
+The ordered steps that a module goes through: discovery, loading,
+registration, initialization, start, execution, stop, and release. See
+[Lifecycle](architecture.md#lifecycle).
 
 ### Loop callback
 
@@ -171,7 +179,8 @@ dependencies. A distribution is an assembly of modules. See
 
 ### Module entry
 
-The class of a module that implements `IModule`, named by the `[assembly: ModuleEntry]` attribute and instantiated once per context.
+The class of a module that implements `IModule`, named by the `[assembly:
+ModuleEntry]` attribute and instantiated once per context.
 
 ### Module map
 
@@ -182,7 +191,9 @@ page](../../tools/Nobara.Sdk/README.md#local-modules).
 
 ### Module source
 
-Where the core finds the modules of a distribution: one assembly per module in the `system/` and `game/` folders, or, on platforms without dynamic loading, modules compiled into the executable.
+Where the core finds the modules of a distribution: one assembly per module in
+the `system/` and `game/` folders, or, on platforms without dynamic loading,
+modules compiled into the executable.
 
 ### nGame
 
@@ -258,7 +269,8 @@ reference](../reference/formats/proto-options.md).
 
 ### Service
 
-An object that a module publishes in the service registry of a context, under a type, for the modules that depend on it.
+An object that a module publishes in the service registry of a context, under
+a type, for the modules that depend on it.
 
 ### Service registry
 
