@@ -37,6 +37,23 @@
   </Target>
 
   <!--
+    Every module references the core, which is not a module and has no
+    module.nobara. The module map may name the project of the core
+    (NobaraCoreProject), as for a local module; otherwise the core is
+    restored as the Nobara.Core package. A project opts out with
+    NobaraReferenceCore set to false.
+  -->
+  <PropertyGroup>
+    <NobaraCoreVersion Condition="'$(NobaraCoreVersion)' == ''">1.0.0</NobaraCoreVersion>
+    <NobaraReferenceCore Condition="'$(NobaraReferenceCore)' == ''">true</NobaraReferenceCore>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(NobaraProjectKind)' == 'Module' and '$(NobaraReferenceCore)' == 'true'">
+    <ProjectReference Include="$(NobaraCoreProject)" Condition="'$(NobaraCoreProject)' != ''" />
+    <PackageReference Include="Nobara.Core" Version="$(NobaraCoreVersion)" Condition="'$(NobaraCoreProject)' == ''" />
+  </ItemGroup>
+
+  <!--
     Extension points. Each target is empty and runs before the C# compiler. A
     tool that plugs into the build adds its targets to the matching
     DependsOn property instead of redefining the target. The targets run in

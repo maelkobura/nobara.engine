@@ -90,10 +90,12 @@ later is required; Node.js is required for markdownlint.
   `NuGet.config`), so a fresh clone runs the pack command of the table above
   once, and again after changing `tools/Nobara.Sdk`, `tools/Nobara.Analyzers`, or the resource compiler (then run
   `dotnet build-server shutdown` so no build node keeps the old task assembly). The tests of the SDK pack
-  it themselves.
+  it themselves; the tests of the core build sample modules with the packed SDK of `artifacts/packages`.
 - Until the command-line tool can generate it, write `obj/nobara/modules.props`
   by hand: it maps the identifier of each local module to its project, and a
-  dependency that is not listed is restored as a NuGet package. `obj/` is not
+  dependency that is not listed is restored as a NuGet package. Set
+  `NobaraCoreProject` in it to the project of the core, which every module
+  references. `obj/` is not
   tracked by Git. The format is described in
   [the SDK page](tools/Nobara.Sdk/README.md#local-modules).
 - Sections of a module `README.md` between `nobara:generated` markers are

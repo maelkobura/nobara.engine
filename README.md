@@ -5,8 +5,8 @@ assembly of modules on top of a small core.
 
 ## Status
 
-Early development: license, CI, and documentation skeleton only. There is
-no engine code and no release yet. Start with
+Early development: the build tools and the first part of the
+[core](src/Core/README.md) exist; there is no module and no release yet. Start with
 [the architecture overview](docs/explanation/architecture.md).
 
 ## Building

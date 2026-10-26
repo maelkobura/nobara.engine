@@ -1,0 +1,54 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The core of the engine. It is not a module: it has no module.nobara and
+    uses the plain .NET SDK. It receives the engine analyzers from the
+    analyzer project, and reads the compiled manifests with classes generated
+    from the format definitions of the resource compiler.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <Version>1.0.0</Version>
+    <PackageId>Nobara.Core</PackageId>
+    <Description>The core of the Nobara engine: module loading, contexts, services, and lifecycle.</Description>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+
+    <!-- The version files of the resource compiler are compiled here as internal types. -->
+    <DefineConstants>$(DefineConstants);NOBARA_CORE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.33.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.80.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+
+  <!-- The engine analyzers check the core like any module. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\tools\Nobara.Analyzers\Nobara.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!--
+    The compiled formats have one definition, in the resource compiler. The
+    core generates its own internal classes from the same files, so it does
+    not depend on a build tool.
+  -->
+  <PropertyGroup>
+    <NobaraFormatsDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../../tools/Nobara.ResourceCompiler/Protos'))</NobaraFormatsDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Protobuf Include="$(NobaraFormatsDirectory)/nobara/formats/*.proto" ProtoRoot="$(NobaraFormatsDirectory)" GrpcServices="None" Access="Internal" />
+    <Compile Include="..\..\..\tools\Nobara.ResourceCompiler\Manifests\SemanticVersion.cs" Link="Loading\Shared\SemanticVersion.cs" />
+    <Compile Include="..\..\..\tools\Nobara.ResourceCompiler\Manifests\VersionRange.cs" Link="Loading\Shared\VersionRange.cs" />
+  </ItemGroup>
+
+</Project>

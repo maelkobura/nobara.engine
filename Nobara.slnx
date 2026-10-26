@@ -4,6 +4,10 @@
   edited by hand.
 -->
 <Solution>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/Nobara.Core/Nobara.Core.csproj" />
+    <Project Path="src/Core/Nobara.Core.Tests/Nobara.Core.Tests.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Nobara.Analyzers/Nobara.Analyzers.csproj" />
     <Project Path="tools/Nobara.Analyzers.Tests/Nobara.Analyzers.Tests.csproj" />

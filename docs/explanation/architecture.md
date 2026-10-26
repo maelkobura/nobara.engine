@@ -4,7 +4,8 @@ This page explains how Nobara is divided into a core, platform modules, and
 business modules, and how a game is assembled from them. Terms in *italics*
 on first use are defined in [the glossary](glossary.md).
 
-The repository does not contain the core or any module yet. This page
+The core lives in `src/Core/`; see [its module sheet](../../src/Core/README.md)
+for what it provides. The repository contains no module yet. This page
 describes the structure that every module follows.
 
 ## Overview
@@ -236,6 +237,36 @@ reference](../reference/formats/nof.md).
 Modules are loaded in dependency order. The build target selects the mode:
 separate assemblies, or a static mode in which modules are linked into the
 executable, for platforms that cannot load assemblies dynamically.
+
+Before any module code runs, the core checks the integrity of each module
+assembly against the hash that the distribution records, reads every module
+manifest from assembly metadata, and checks the composition again:
+dependencies, versions, cycles, conflicts, reservations, and backends. A
+module that fails these checks never runs, and the error names the module and
+the cause.
+
+## Lifecycle
+
+Each module goes through ordered steps, numbered from 0. Discovery (0) and
+loading (1) happen once per process. The other steps happen in each context,
+in dependency order, and stop and release in reverse order:
+
+- 2, registration: the module publishes its services; it resolves none.
+- 3, initialization: the module resolves the services of its dependencies,
+  which are all published and initialized, and creates its state.
+- 4, start: last preparations before the first tick.
+- 5, execution: the loop runs.
+- 6 and 7, stop and release: the module ends its activity, then frees its
+  resources.
+
+Separating registration from initialization removes ordering problems: when
+a module initializes, every service exists and its dependencies are ready.
+
+When a module throws, the core applies the *error policy* that the
+distribution chose for it: stop the context, disable the module and every
+module that requires it, or log and continue. Required and platform modules
+always stop the context. Before stopping, the core runs the emergency hooks
+of the modules, such as an emergency save, and writes a crash report.
 
 ## See also
 

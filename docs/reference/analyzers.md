@@ -444,8 +444,9 @@ internal sealed class RainBridge { }
 
 ## Known limitations
 
-- No assembly of the engine defines the recognized attributes yet; a module
-  that uses them declares them itself, in the `Nobara.Core` namespace.
+- The attributes are defined by the core (`Nobara.Core`), which every module
+  references. The analyzers match them by full name only, so an attribute of
+  the same name declared elsewhere is recognized too.
 - `NOB105` does not follow calls through delegates, nor implicit calls such
   as `GetEnumerator` in `foreach`, `Dispose` in `using`, or `Deconstruct`.
 - `NOB105` reports a call to a throw helper of the project, such as

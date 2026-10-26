@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // This file is also compiled into Nobara.Sdk (netstandard2.0), which reads
-// module.nobara with the same code. Keep it free of newer APIs.
+// module.nobara with the same code. Keep it free of newer APIs. The core
+// compiles it too, as an internal type (NOBARA_CORE), to check versions at run time.
 
 using System.Text.RegularExpressions;
 
@@ -16,7 +17,12 @@ namespace Nobara.ResourceCompiler.Manifests;
 /// lower and an upper comparator separated by spaces (<c>&gt;=1.0 &lt;2.0</c>).
 /// </summary>
 /// <remarks>A bare version such as <c>1.2.3</c> is not a range.</remarks>
-public sealed class VersionRange
+#if NOBARA_CORE
+internal
+#else
+public
+#endif
+sealed class VersionRange
 {
     /// <summary>The forms accepted, for error messages.</summary>
     public const string SupportedForms = "'^1.2', '~1.2', '>= 1.2', '> 1.2', '<= 2.0', '< 2.0', or '>=1.0 <2.0'";

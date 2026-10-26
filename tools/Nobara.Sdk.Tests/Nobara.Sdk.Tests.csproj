@@ -26,6 +26,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nobara.Sdk\Nobara.Sdk.csproj" />
+    <!-- Built before the tests, which pack it for the sample modules. -->
+    <ProjectReference Include="..\..\src\Core\Nobara.Core\Nobara.Core.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

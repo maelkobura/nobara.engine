@@ -64,10 +64,21 @@ modules, runs the loop, schedules jobs, manages configuration, and provides
 the service registry. The core is not a module and knows nothing about the
 game world.
 
+### Crash report
+
+A file that the core writes to the logs folder before a context stops on an
+error. It names the module, the lifecycle step, and the exception. See [the
+core](../../src/Core/README.md#error-policies).
+
 ### Distribution
 
 A game, as a set of modules declared in a project file and an engine file
 and fixed when it is built. The result is a distribution manifest.
+
+### Emergency hook
+
+Code that a module registers to run before a context stops on an error, such
+as an emergency save of the world.
 
 ### Entity
 
@@ -78,6 +89,13 @@ the components attached to it. A grid of voxels is an entity.
 
 The architecture that represents the game world as entities, components, and
 systems. It is provided by a platform module.
+
+### Error policy
+
+What the core does when a module throws: stop the context, disable the module
+and every module that requires it, or log and continue. The distribution
+chooses it for each module; required and platform modules always stop. See
+[the core](../../src/Core/README.md#error-policies).
 
 ### Event bus
 
@@ -131,6 +149,12 @@ never create threads.
 The classification of a module declared in its manifest: platform or
 business. The core uses it only for load order and for the dependency rule.
 
+### Lifecycle
+
+The ordered steps that a module goes through: discovery, loading,
+registration, initialization, start, execution, stop, and release. See
+[Lifecycle](architecture.md#lifecycle).
+
 ### Loop callback
 
 Code that a loop phase runs, marked with the `[LoopCallback]` attribute. It is
@@ -153,12 +177,23 @@ A unit of the engine with a name, a version, a level, and declared
 dependencies. A distribution is an assembly of modules. See
 [Modules](architecture.md#modules).
 
+### Module entry
+
+The class of a module that implements `IModule`, named by the `[assembly:
+ModuleEntry]` attribute and instantiated once per context.
+
 ### Module map
 
 The file `obj/nobara/modules.props`, which associates module identifiers with
 local projects. [Nobara.Sdk](#nobarasdk) turns a dependency into a project
 reference when the map names a project for it. See [the SDK
 page](../../tools/Nobara.Sdk/README.md#local-modules).
+
+### Module source
+
+Where the core finds the modules of a distribution: one assembly per module in
+the `system/` and `game/` folders, or, on platforms without dynamic loading,
+modules compiled into the executable.
 
 ### nGame
 
@@ -231,6 +266,11 @@ page](../../tools/Nobara.ResourceCompiler/README.md#plugins).
 A kind of resource, such as `Block`, defined by a message of a `.proto`
 schema marked with `(nobara.resource_type)`. See [the schema options
 reference](../reference/formats/proto-options.md).
+
+### Service
+
+An object that a module publishes in the service registry of a context, under
+a type, for the modules that depend on it.
 
 ### Service registry
 
