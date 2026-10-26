@@ -114,7 +114,7 @@ order. Another tool plugs in by adding its own targets to the matching
 | `NobaraSchemas` | `NobaraSchemasDependsOn` | Generate C# classes from the `NobaraSchema` items, which default to `Schemas/**/*.proto`. |
 | `NobaraResources` | `NobaraResourcesDependsOn` | Run the resource compiler and embed its output. |
 
-No tool is plugged in yet: these targets do nothing.
+These targets do nothing.
 
 ## Errors
 

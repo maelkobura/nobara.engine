@@ -29,12 +29,12 @@ dependencies of the module. The project file declares none of them.
 ## Root element
 
 `<NobaraModule>` is the root element. Its `format` attribute holds the version
-of the file format. The SDK reads format `1` and reports an error for any other
-value. XML comments are allowed anywhere.
+of the file format. The SDK reads format `1` and reports an error when the
+attribute has any other value. XML comments are allowed anywhere.
 
 ## `<Id>`
 
-Required. The hierarchical name of the module, in lowercase: `nobara.voxel`,
+Required. The hierarchical name of the module, written in lowercase: `nobara.voxel`,
 `nobara.voxel.renderer`. It is the identifier of the NuGet package, the name of
 the assembly, and the name of the project, compared without case: the project
 `Nobara.Voxel` holds the module `nobara.voxel`.
@@ -42,7 +42,7 @@ the assembly, and the name of the project, compared without case: the project
 ## `<Version>`
 
 Required. A semantic version with three numbers and an optional pre-release
-suffix: `1.2.0`, `2.0.0-beta.1`. It becomes the version of the assembly and of
+suffix, and optionally build metadata: `1.2.0`, `2.0.0-beta.1`, `1.0.0+7`. It becomes the version of the assembly and of
 the package.
 
 ## `<Dependencies>`
@@ -58,8 +58,8 @@ Optional. One `<Module>` element per module that this module depends on.
 A dependency is a project reference when the module map names a local project
 for the identifier, and a package reference with the range otherwise. An
 optional dependency is referenced in the same way. Its identifier is also
-passed to the analyzers of the compilation, which check that the code using it
-is isolated.
+exposed to the C# compiler in the `NobaraOptionalModules` build property, which
+an analyzer can read.
 
 ### Version ranges
 
@@ -97,4 +97,5 @@ codes are listed in [the SDK page](../../../tools/Nobara.Sdk/README.md#errors).
 
 - The SDK does not validate `<ShortName>`, `<Level>`, `<Side>`, `<Conflicts>`,
   `<Reserves>`, `<States>`, or `<Settings>`.
+- No analyzer uses `NobaraOptionalModules` yet.
 - A version range is not checked against the version of a local project.

@@ -17,7 +17,6 @@ public sealed class SdkBuildTests : IDisposable
     private static string[] Identities(IEnumerable<JsonElement> items) =>
         items.Select(i => i.GetProperty("Identity").GetString()!).ToArray();
 
-
     private static string VersionOf(JsonElement item) => item.GetProperty("Version").GetString()!;
 
     [Fact]

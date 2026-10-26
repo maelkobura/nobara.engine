@@ -88,7 +88,8 @@ later is required; Node.js is required for markdownlint.
 - Every module project uses `Nobara.Sdk` (`<Project Sdk="Nobara.Sdk/1.0.0">`).
   The SDK is resolved from the local feed `artifacts/packages` (see
   `NuGet.config`), so a fresh clone runs the pack command of the table above
-  once, and again after changing `tools/Nobara.Sdk`. The tests of the SDK pack
+  once, and again after changing `tools/Nobara.Sdk` (then run
+  `dotnet build-server shutdown` so no build node keeps the old task assembly). The tests of the SDK pack
   it themselves.
 - Until the command-line tool can generate it, write `obj/nobara/modules.props`
   by hand: it maps the identifier of each local module to its project, and a
