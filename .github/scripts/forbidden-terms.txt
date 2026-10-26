@@ -1,0 +1,4 @@
+Necromancia
+NobBench
+PlayNob
+nobara-specs

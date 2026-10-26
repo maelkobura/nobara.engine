@@ -1,0 +1,23 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project>
+
+  <!--
+    Only test and benchmark projects are exempt from the documentation rules
+    below; every other project is published.
+  -->
+  <PropertyGroup>
+    <NobaraPublishedProject>true</NobaraPublishedProject>
+    <NobaraPublishedProject Condition="$(MSBuildProjectName.EndsWith(`.Tests`)) Or $(MSBuildProjectName.EndsWith(`.Benchmarks`))">false</NobaraPublishedProject>
+  </PropertyGroup>
+
+  <!-- Every public member of a published project must have an XML comment. -->
+  <PropertyGroup Condition="'$(NobaraPublishedProject)' == 'true'">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
+</Project>
