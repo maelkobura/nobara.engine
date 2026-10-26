@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 // This file is also compiled into Nobara.Sdk (netstandard2.0), which reads
-// module.nobara with the same code. Keep it free of newer APIs.
+// module.nobara with the same code. Keep it free of newer APIs. The core
+// compiles it too, as an internal type (NOBARA_CORE), to check versions at run time.
 
 using System;
 using System.Globalization;
@@ -13,7 +14,12 @@ namespace Nobara.ResourceCompiler.Manifests;
 
 /// <summary>A semantic version: major, minor, and patch numbers, and an optional pre-release suffix.</summary>
 /// <remarks>Build metadata (after <c>+</c>) is kept in <see cref="Text"/> and ignored when comparing.</remarks>
-public sealed class SemanticVersion : IComparable<SemanticVersion>
+#if NOBARA_CORE
+internal
+#else
+public
+#endif
+sealed class SemanticVersion : IComparable<SemanticVersion>
 {
     private static readonly Regex Full = new Regex(
         @"^(?<major>0|[1-9]\d*)\.(?<minor>0|[1-9]\d*)\.(?<patch>0|[1-9]\d*)(-(?<pre>[0-9A-Za-z][0-9A-Za-z.-]*))?(\+[0-9A-Za-z.-]+)?$",

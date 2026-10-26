@@ -23,6 +23,7 @@ the project file, and sets what the project file leaves out:
   module map names a local project for it, a package reference with the
   declared range otherwise;
 - one package reference per `<Package>` in `<Libraries>`;
+- a reference to [the core](#the-core), which every module uses;
 - `net10.0` as the target framework, unless the project file sets one;
 - the [engine analyzers](#engine-analyzers);
 - the compilation of the [schemas and resources](#schemas-and-resources) of the
@@ -70,6 +71,30 @@ without case. `Project` is an absolute path, so write it from
 The command-line tool is meant to generate this file. Until then it is written
 by hand, and `obj/` is not tracked by Git, so each clone writes its own.
 
+## The core
+
+The core is not a module: it has no `module.nobara`, and a module does not
+declare it as a dependency. The SDK adds a reference to it to every module
+project, extensions included, so that modules see `IModule`, `ModuleContext`,
+and the attributes of the engine:
+
+- a project reference when the module map sets `NobaraCoreProject`, the
+  absolute path of the project of the core, as when the engine is built from
+  its sources;
+- a package reference to `Nobara.Core` otherwise, with the version
+  `NobaraCoreVersion`.
+
+```xml
+<Project>
+  <PropertyGroup>
+    <NobaraCoreProject>$(MSBuildThisFileDirectory)../../src/Core/Nobara.Core/Nobara.Core.csproj</NobaraCoreProject>
+  </PropertyGroup>
+</Project>
+```
+
+Auxiliary projects reference the core through their module. A module project
+can leave the core out by setting `NobaraReferenceCore` to `false`.
+
 ## Using the SDK
 
 The SDK is a NuGet package. Resolve it from a local feed:
@@ -100,6 +125,9 @@ clone.
 | `NobaraResourcesDirectory` | `Resources` in the project directory | Folder of the resources. |
 | `NobaraProtobufVersion` | `3.33.0` | Version of `Google.Protobuf` added to modules with schemas. |
 | `NobaraGrpcToolsVersion` | `2.80.0` | Version of `Grpc.Tools` added to modules with schemas. |
+| `NobaraCoreProject` | None | Project of the core, referenced instead of the package. Set it in the module map. |
+| `NobaraCoreVersion` | `1.0.0` | Version of the `Nobara.Core` package. |
+| `NobaraReferenceCore` | `true` | Set to `false` to leave the core out of a module. |
 
 ## Optional dependencies
 

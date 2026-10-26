@@ -19,6 +19,10 @@ public sealed class SdkBuildTests : IDisposable
 
     private static string VersionOf(JsonElement item) => item.GetProperty("Version").GetString()!;
 
+    // Every module also references the core, which the tests of dependencies leave out.
+    private static List<JsonElement> DependencyPackages(Evaluation evaluation) =>
+        evaluation.Items("PackageReference").Where(i => i.GetProperty("Identity").GetString() != "Nobara.Core").ToList();
+
     [Fact]
     public void Builds_a_module_from_a_project_file_that_only_names_the_sdk()
     {
@@ -67,7 +71,7 @@ public sealed class SdkBuildTests : IDisposable
         DotnetResult result = _workspace.Build(voxel);
 
         Assert.Equal([game], Identities(evaluation.Items("ProjectReference")));
-        Assert.Empty(evaluation.Items("PackageReference"));
+        Assert.Empty(DependencyPackages(evaluation));
         Assert.True(result.ExitCode == 0, result.Output);
     }
 
@@ -87,7 +91,7 @@ public sealed class SdkBuildTests : IDisposable
         Evaluation evaluation = _workspace.Evaluate(project, [], ["ProjectReference", "PackageReference"]);
 
         Assert.Empty(evaluation.Items("ProjectReference"));
-        var packages = evaluation.Items("PackageReference");
+        var packages = DependencyPackages(evaluation);
         Assert.Equal(["nobara.game", "nobara.blocks"], Identities(packages));
         Assert.Equal(["[1.2,2.0.0)", "[2.0,)"], packages.Select(VersionOf));
     }
@@ -111,7 +115,7 @@ public sealed class SdkBuildTests : IDisposable
         Evaluation evaluation = _workspace.Evaluate(project, [], ["ProjectReference", "PackageReference"]);
 
         Assert.Equal([game], Identities(evaluation.Items("ProjectReference")));
-        var packages = evaluation.Items("PackageReference");
+        var packages = DependencyPackages(evaluation);
         Assert.Equal(["nobara.blocks", "K4os.Compression.LZ4"], Identities(packages));
         Assert.Equal(["[1.0,2.0.0)", "1.3.8"], packages.Select(VersionOf));
     }
@@ -209,6 +213,55 @@ public sealed class SdkBuildTests : IDisposable
         Assert.Equal("1.1.0", evaluation.Property("Version"));
         Assert.Equal([voxel], Identities(evaluation.Items("ProjectReference")));
         Assert.True(result.ExitCode == 0, result.Output);
+    }
+
+    [Fact]
+    public void References_the_core_package_from_every_module_and_builds_a_module_entry()
+    {
+        string project = _workspace.WriteModule(
+            "Nobara.Sample",
+            "<Id>nobara.sample</Id><Version>1.0.0</Version>",
+            """
+            [assembly: Nobara.Core.ModuleEntry(typeof(Nobara.Sample.SampleModule))]
+
+            namespace Nobara.Sample;
+
+            public sealed class SampleModule : Nobara.Core.IModule
+            {
+                public void Start(Nobara.Core.ModuleContext context) => context.Logger.Info("started");
+            }
+            """);
+
+        Evaluation evaluation = _workspace.Evaluate(project, [], ["PackageReference"]);
+        DotnetResult result = _workspace.Build(project);
+
+        JsonElement core = Assert.Single(evaluation.Items("PackageReference"), i => i.GetProperty("Identity").GetString() == "Nobara.Core");
+        Assert.Equal("1.0.0", VersionOf(core));
+        Assert.True(result.ExitCode == 0, result.Output);
+    }
+
+    [Fact]
+    public void References_the_core_project_named_by_the_module_map()
+    {
+        string core = _workspace.Write("Engine/Nobara.Core.csproj", """<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>""");
+        string project = _workspace.WriteModule("Nobara.Sample", "<Id>nobara.sample</Id><Version>1.0.0</Version>");
+        _workspace.Write("obj/nobara/modules.props", $"<Project><PropertyGroup><NobaraCoreProject>{core}</NobaraCoreProject></PropertyGroup></Project>");
+
+        Evaluation evaluation = _workspace.Evaluate(project, [], ["ProjectReference", "PackageReference"]);
+
+        Assert.Equal([core], Identities(evaluation.Items("ProjectReference")));
+        Assert.DoesNotContain("Nobara.Core", Identities(evaluation.Items("PackageReference")));
+    }
+
+    [Fact]
+    public void Does_not_reference_the_core_from_an_auxiliary_project_or_when_disabled()
+    {
+        string tests = _workspace.WriteAuxiliary("Nobara.Sample.Tests");
+        string module = _workspace.WriteModule(
+            "Nobara.Sample", "<Id>nobara.sample</Id><Version>1.0.0</Version>", projectBody: "<PropertyGroup><NobaraReferenceCore>false</NobaraReferenceCore></PropertyGroup>");
+
+        Assert.Empty(_workspace.Evaluate(tests, [], ["PackageReference"]).Items("PackageReference"));
+        Assert.Empty(_workspace.Evaluate(module, [], ["PackageReference"]).Items("PackageReference"));
     }
 
     [Fact]

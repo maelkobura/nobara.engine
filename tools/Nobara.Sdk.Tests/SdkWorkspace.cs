@@ -193,9 +193,32 @@ internal sealed class SdkWorkspace : IDisposable
 
         DotnetResult result = Run(start);
         Assert.True(result.ExitCode == 0, "Packing the SDK failed:" + Environment.NewLine + result.Output);
+
+        // Modules reference the core. The test project builds it, so packing
+        // reuses that build, with a nuspec of its own so that concurrent test
+        // runs do not share a file.
+        start = StartInfo(repository);
+        foreach (string argument in new[]
+        {
+            "pack", Path.Combine("src", "Core", "Nobara.Core"), "-c", BuildConfiguration, "--no-build", "--no-restore", "-o", feed, "--nologo",
+            "-p:NuspecOutputPath=" + Path.Combine(feed, "nuspec") + Path.DirectorySeparatorChar,
+        })
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        result = Run(start);
+        Assert.True(result.ExitCode == 0, "Packing the core failed:" + Environment.NewLine + result.Output);
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Directory.Delete(feed, recursive: true);
         return feed;
     }
+
+    // The configuration this test project, and so the core, was built with.
+    private static string BuildConfiguration =>
+        typeof(SdkWorkspace).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyConfigurationAttribute), false)
+            is [System.Reflection.AssemblyConfigurationAttribute { Configuration.Length: > 0 } attribute, ..]
+            ? attribute.Configuration
+            : "Debug";
 
     private static string FindRepositoryRoot()
     {
