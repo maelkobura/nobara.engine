@@ -1,0 +1,7 @@
+{
+  "config": {
+    "default": true,
+    // Prose is not wrapped by hand.
+    "MD013": false
+  }
+}
