@@ -172,6 +172,29 @@ public sealed class ResourceBuildTests : IDisposable
     }
 
     [Fact]
+    public void Refuses_a_type_of_a_module_that_is_only_a_transitive_dependency()
+    {
+        string gems = WriteGems();
+        string shop = _workspace.WriteModule(
+            "Sample.Shop",
+            """<Id>sample.shop</Id><Version>1.0.0</Version><Level>business</Level><Dependencies><Module id="sample.gems" version="^1.0" /></Dependencies>""");
+        string market = _workspace.WriteModule(
+            "Sample.Market",
+            """<Id>sample.market</Id><Version>1.0.0</Version><Level>business</Level><Dependencies><Module id="sample.shop" version="^1.0" /></Dependencies>""");
+        _workspace.Write("Sample.Market/Resources/market.nof", """
+            <Nobara version="1.0.0" namespace="Sample/Market">
+              <Gem><Name>Topaz</Name><Content><DisplayName>gem.topaz</DisplayName></Content></Gem>
+            </Nobara>
+            """);
+        _workspace.MapModules(("sample.gems", gems), ("sample.shop", shop));
+
+        DotnetResult result = _workspace.Build(market);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("error NRC302", result.Output);
+    }
+
+    [Fact]
     public void Compiles_nothing_again_when_nothing_changed()
     {
         string project = WriteGems();

@@ -101,8 +101,8 @@ never the module. Two resources of the same type, namespace, and name are a
 duplicate, even when their names differ only by case. A duplicate is an error
 when both are in the module, or when one of them comes from a dependency.
 
-Content never declares an identifier field: an element such as `<Id>` is an
-error.
+Identifiers are always derived: a resource has no identifier element of its
+own, and `<Id>` next to `<Name>` is an error.
 
 ## Content
 
@@ -145,7 +145,10 @@ A field marked [`(nobara.ref)`](proto-options.md#ref) holds an object
 identifier of the given type, such as `item:example.blocks.dirt`. A field
 marked [`(nobara.resource)`](proto-options.md#resource) holds a resource
 identifier, such as `texture://Example/Textures/Dirt`. The referenced object
-must be defined by the module or by one of its dependencies.
+must be defined by the module or by one of the dependencies declared in its
+`module.nobara`. A module that is only a dependency of a dependency provides
+neither types nor resources: declare a dependency on it to use them, which
+also loads its plugin.
 
 ### Binary files
 

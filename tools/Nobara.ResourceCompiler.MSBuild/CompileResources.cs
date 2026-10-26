@@ -83,7 +83,10 @@ public sealed class CompileResources : Microsoft.Build.Utilities.Task
             embedded.Add((CompiledModule.SchemasResource, Path.GetFullPath(SchemaFile)));
         }
 
-        List<CompiledModule> dependencies = ReadDependencies(manifest.Id, diagnostics);
+        // Only the declared dependencies provide types and resources: a module
+        // referenced transitively would bring types without their plugins.
+        var declared = new HashSet<string>(manifest.Dependencies.Select(d => d.Id), StringComparer.OrdinalIgnoreCase);
+        List<CompiledModule> dependencies = ReadDependencies(manifest.Id, diagnostics).Where(m => declared.Contains(m.Id)).ToList();
         List<string> probe = References.Select(r => Path.GetDirectoryName(Path.GetFullPath(r.ItemSpec))!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         using PluginLoader plugins = PluginLoader.Load(Plugins.Select(p => p.ItemSpec), probe, diagnostics);
         Report(diagnostics);

@@ -21,7 +21,9 @@ writes to its output folder:
 | `resources.cache` | The cache of the incremental compilation. |
 | `resources.stamp` | Written on every run; the output of the MSBuild target. |
 
-Compiled files are written only when their content changes, so that the C#
+Only the referenced assemblies of the dependencies declared in `module.nobara`
+provide schemas and resources; a module referenced transitively provides
+nothing. Compiled files are written only when their content changes, so that the C#
 compiler stays up to date. Every diagnostic is logged with its file, line,
 and column.
 
