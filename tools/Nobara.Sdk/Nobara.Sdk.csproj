@@ -45,6 +45,27 @@
   </ItemGroup>
 
   <!--
+    The engine analyzers ship inside this package, in analyzers/, because an
+    MSBuild SDK cannot bring package dependencies. Sdk.targets attaches them.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Analyzers\Nobara.Analyzers.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);NobaraPackAnalyzers</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="NobaraPackAnalyzers">
+    <MSBuild Projects="..\Nobara.Analyzers\Nobara.Analyzers.csproj" Targets="Build" RemoveProperties="TargetFramework">
+      <Output TaskParameter="TargetOutputs" ItemName="_NobaraAnalyzerAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_NobaraAnalyzerAssembly)" PackagePath="analyzers" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     The global packages folder keeps an extracted copy of every package
     version, and MSBuild resolves the SDK from that copy. Remove the copy of
     this version after packing so that the next restore extracts the new one.

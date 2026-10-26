@@ -93,7 +93,15 @@ entity. The word *grid* is used for every voxel grid, terrain included.
 
 Code that runs often enough for allocations or slow constructs to matter,
 marked with the `[HotPath]` attribute. Managed allocations, LINQ, capturing
-closures, and boxing are forbidden there.
+closures, and boxing are forbidden there, and the engine analyzers enforce it.
+See [the analyzer reference](../reference/analyzers.md#hot-path-rules).
+
+### Isolation class
+
+A class marked `[UsesOptionalDependency]` that holds all the code of a module
+that uses one of its optional dependencies, so that the module loads when the
+dependency is absent. See [the analyzer
+reference](../reference/analyzers.md#optional-dependency-rules).
 
 ### Job
 
@@ -104,6 +112,11 @@ never create threads.
 
 The classification of a module declared in its manifest: platform or
 business. The core uses it only for load order and for the dependency rule.
+
+### Loop callback
+
+Code that a loop phase runs, marked with the `[LoopCallback]` attribute. It is
+never `async`. See [NOB301](../reference/analyzers.md#nob301).
 
 ### Loop thread
 
