@@ -11,10 +11,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import check_headers  # noqa: E402
-import check_links  # noqa: E402
-import check_pr  # noqa: E402
-import check_terms  # noqa: E402
+import check_headers
+import check_links
+import check_pr
+import check_terms
 
 HEADER_SLASH = (
     "// This Source Code Form is subject to the terms of the Mozilla Public\n"

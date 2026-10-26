@@ -5,9 +5,9 @@ assembly of modules on top of a small core.
 
 ## Status
 
-Early development. The repository currently holds the license, the
-continuous integration, and the documentation skeleton. There is no engine
-code yet and no released version.
+Early development: license, CI, and documentation skeleton only. There is
+no engine code and no release yet. Start with
+[the architecture overview](docs/explanation/architecture.md).
 
 ## Building
 
@@ -20,15 +20,9 @@ dotnet test Nobara.slnx
 python .github/scripts/check_all.py
 ```
 
-## Documentation
-
-Start with [the architecture overview](docs/explanation/architecture.md) and
-[the glossary](docs/explanation/glossary.md).
-
 ## Contributions
 
-Outside contributions are not accepted: pull requests from other authors will
-be closed. The repository is public to be read.
+Outside contributions are not accepted. The repository is public to be read.
 
 ## License
 

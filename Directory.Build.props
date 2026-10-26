@@ -6,13 +6,12 @@
 <Project>
 
   <!--
-    Test and benchmark projects are not published: they are exempt from the
-    documentation rules below. Any other project can opt out explicitly by
-    setting NobaraPublishedProject to false.
+    Only test and benchmark projects are exempt from the documentation rules
+    below; every other project is published.
   -->
   <PropertyGroup>
-    <NobaraPublishedProject Condition="'$(NobaraPublishedProject)' == '' And ($(MSBuildProjectName.EndsWith(`.Tests`)) Or $(MSBuildProjectName.EndsWith(`.Benchmarks`)))">false</NobaraPublishedProject>
-    <NobaraPublishedProject Condition="'$(NobaraPublishedProject)' == ''">true</NobaraPublishedProject>
+    <NobaraPublishedProject>true</NobaraPublishedProject>
+    <NobaraPublishedProject Condition="$(MSBuildProjectName.EndsWith(`.Tests`)) Or $(MSBuildProjectName.EndsWith(`.Benchmarks`))">false</NobaraPublishedProject>
   </PropertyGroup>
 
   <!-- Every public member of a published project must have an XML comment. -->

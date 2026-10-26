@@ -41,9 +41,10 @@ A module is a unit with a name, a version, a level, and declared
 dependencies. The core knows nothing else about it: it has no notion of
 roles such as "renderer" or "user interface".
 
-- Granularity is fine: one feature is one module. A distribution can
-  contain dozens or hundreds of modules, so dependency resolution, assembly
-  loading, and registration must stay cheap at that scale.
+- A module covers a single feature, so a distribution quickly reaches dozens
+  or hundreds of them. Start-up time stays acceptable only if three
+  operations remain cheap at that count: resolving dependencies, loading
+  assemblies, and registering services and resources.
 - A module declares its dependencies in its manifest. The dependency graph
   must be acyclic.
 - A dependency is *required* or *optional*. A missing required dependency is
@@ -87,10 +88,11 @@ written for one of them.
 
 ## Compatibility
 
-No standard interface is imposed across platform modules. Two modules with
-the same purpose may have incompatible models, because a common interface
-would reduce both to the lowest common denominator. The one stable contract
-is the core's, which therefore changes as little as possible.
+Platform modules share no standard interface. Two modules can serve the same
+purpose with incompatible models, and making them interchangeable would
+restrict both to the features they have in common. What stays stable across
+distributions is the contract of the core, so it receives the most careful
+specification and the fewest changes.
 
 A module declares dependencies on specific modules and versions. There is no
 "environment" concept and no mechanism for one module to declare itself
@@ -148,19 +150,19 @@ entities). Those are platform modules.
 
 ### Event bus
 
-The event bus is a platform module, not part of the core. A module that
-publishes or listens to events depends on it like on any other module. The
-bus is not used on hot paths: mass changes, such as thousands of blocks
-destroyed by one explosion, go through the entity component system and
-batched notifications.
+The event bus is a platform module, so publishing or listening to events
+requires a declared dependency on it. Hot paths never use the bus. Bulk
+changes, for example an explosion that destroys thousands of blocks, are
+handled by entity component system systems and by batched voxel
+notifications.
 
 ### Entity component system
 
-The world is an entity component system, provided by a platform module. The
-core does not know the world. A module that acts on the world declares
-components and registers systems with that module. A grid of voxels is an
-entity, and its chunks form a separate structure managed by the voxel module
-and referenced from that entity.
+The game world is modeled as an entity component system supplied by a
+platform module; the core has no knowledge of the world. To act on the world,
+a module declares components and registers systems with that module. Each
+grid of voxels is an entity. Its chunks are kept apart, in a structure owned
+by the voxel module and referenced from the entity.
 
 ### Module extension points
 
@@ -188,11 +190,12 @@ scale, tick rate, and raw clocks per dimension.
 
 ## Configuration
 
-The core manages configuration: player settings and distribution settings.
-Each module declares its keys (name, type, default, bounds, and scope `user`
-or `distribution`) in its manifest. The distribution can change defaults,
-lock values, or fix the keys with distribution scope. The player's file is
-readable XML in the user data folder.
+The core owns two kinds of settings: those of the player and those of the
+distribution. A module lists the keys it reads in its manifest, each with a
+type, a default, bounds, and a scope (`user` or `distribution`). The
+distribution may override defaults and lock values, and it sets every key
+with distribution scope. Player values are saved as a human-readable XML file
+in the user data folder.
 
 ## Performance constraints
 
@@ -203,10 +206,10 @@ which are marked with the `[HotPath]` attribute:
 - large data lives in unmanaged memory or in pools;
 - low-level code uses `Span<T>`, `stackalloc`, `struct`, and `ref struct`.
 
-Fine-grained calls between modules, one per block or per entity, are
-expensive on hot paths. Services favor batch operations, and bulky data
-travels through the entity component system or shared structures such as
-chunks and buffers.
+Calls across modules that handle one block or one entity at a time cost too
+much on hot paths. Services therefore offer operations over batches, and
+large volumes of data move through the entity component system or through
+shared structures such as chunks and buffers.
 
 ## Loading
 

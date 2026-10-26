@@ -20,7 +20,7 @@ mob. It depends on platform modules and on other business modules. See
 
 ### Chunk
 
-A fixed-size block of voxels. The voxel module stores the chunks of a grid
+A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid
 and references them from the grid's entity.
 
 ### Component

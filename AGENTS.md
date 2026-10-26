@@ -44,6 +44,11 @@ documentation rules in full are in
   add filler comments to silence it.
 - A change is complete when it has code, tests, and documentation. See the
   update matrix in the documentation guide.
+- Do not document what is not implemented; list it under *Known
+  limitations* instead.
+- Add every new domain term to the glossary.
+- Code excerpts in guides come from compiled sample files.
+- End each task by listing the documentation files changed, or why none was.
 
 ## Licensing
 

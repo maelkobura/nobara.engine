@@ -18,12 +18,12 @@ date in this repository. It applies to people and to coding agents.
 Each page belongs to exactly one of four types and links to the others
 instead of mixing them.
 
-| Type | The reader asks | Rules |
+| Type | Reader's question | What the page does |
 | --- | --- | --- |
-| Tutorial | "I am new, guide me." | Follows the nominal path only and presents no alternatives. |
-| How-to guide | "I want to do X." | Assumes the basics, solves one problem, lists prerequisites first. |
-| Reference | "What is the exact contract?" | Describes without explaining. Exhaustive, with the same structure for every entry. |
-| Explanation | "Why is it designed this way?" | Contains no instructions. |
+| Tutorial | "I am new, guide me." | Walks one successful path from start to finish; alternatives are left out. |
+| How-to guide | "I want to do X." | Solves one problem for a reader who knows the basics; prerequisites come first. |
+| Reference | "What is the exact contract?" | States facts and nothing else, completely, with every entry laid out the same way. |
+| Explanation | "Why is it designed this way?" | Gives background and reasons, never steps to follow. |
 
 ## Layout
 
@@ -71,30 +71,36 @@ edited by hand:
 <!-- nobara:generated:end -->
 ```
 
-The sheet is written before the module code. It serves as a short interface
-contract, then is kept up to date.
+Write the sheet first: it is the short contract that the code then follows,
+and it is maintained afterward.
 
 ## API reference
 
-- All public API has XML comments (`///`) in American English. Documentation
-  files are generated for every published project, and `CS1591` (missing
-  comment on a public member) is an error. Never suppress it.
-- A comment documents the contract, not the implementation:
-  - `<summary>`: what the member does, in one or two sentences, without
-    repeating its name;
-  - `<param>` and `<returns>`: value domain, units, whether `null` is
-    accepted;
-  - `<exception>`: each exception thrown on purpose and its condition;
-  - `<remarks>`: allowed threads, allocation, cost on hot paths, side
-    effects, required call order;
-  - `<example>` when usage is not obvious.
-- Not allowed: a `<summary>` that paraphrases the name, or filler comments
-  added to silence `CS1591`.
-- Use `<inheritdoc/>` for interface implementations with no behavior of
-  their own.
-- `internal` members are not subject to `CS1591`. Comment them when the
-  reason behind them is not obvious.
-- An `[Obsolete]` message names the replacement.
+Every public member carries an XML comment (`///`) in American English. The
+documentation file is generated for each published project, and the compiler
+treats `CS1591` (public member without a comment) as an error. It must never
+be suppressed.
+
+A comment states the contract and leaves the implementation out. Use each
+element for one purpose:
+
+| Element | Content |
+| --- | --- |
+| `<summary>` | One or two sentences on what the member does, without restating its name. |
+| `<param>`, `<returns>` | Range of valid values, units, and whether `null` is allowed. |
+| `<exception>` | Every exception thrown deliberately, with its condition. |
+| `<remarks>` | Permitted threads, allocations, hot path cost, side effects, call order. |
+| `<example>` | A usage sample, when the usage is not obvious. |
+
+Three further rules apply:
+
+- A summary that merely rewords the member name is rejected, and so is a
+  placeholder comment written only to silence `CS1591`.
+- Interface implementations with no behavior of their own use
+  `<inheritdoc/>`.
+- `internal` members are exempt from `CS1591`; comment them when the reason
+  for their design would not be obvious. The message of an `[Obsolete]`
+  attribute names the replacement.
 
 ## Keeping documentation up to date
 
