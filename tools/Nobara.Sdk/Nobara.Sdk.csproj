@@ -45,6 +45,44 @@
   </ItemGroup>
 
   <!--
+    module.nobara has one definition: the reader of the resource compiler.
+    Its files are compiled into this assembly, which MSBuild loads while it
+    evaluates every module, so they stay compatible with netstandard2.0.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Nobara.ResourceCompiler\Diagnostics\Diagnostic.cs" Link="Shared\Diagnostic.cs" />
+    <Compile Include="..\Nobara.ResourceCompiler\Manifests\ManifestModel.cs" Link="Shared\ManifestModel.cs" />
+    <Compile Include="..\Nobara.ResourceCompiler\Manifests\ManifestXml.cs" Link="Shared\ManifestXml.cs" />
+    <Compile Include="..\Nobara.ResourceCompiler\Manifests\ModuleManifestReader.cs" Link="Shared\ModuleManifestReader.cs" />
+    <Compile Include="..\Nobara.ResourceCompiler\Manifests\SemanticVersion.cs" Link="Shared\SemanticVersion.cs" />
+    <Compile Include="..\Nobara.ResourceCompiler\Manifests\VersionRange.cs" Link="Shared\VersionRange.cs" />
+  </ItemGroup>
+
+  <!--
+    The resource compiler task and its dependencies go to tasks/net10.0/, and
+    the options that schemas import go to protos/.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.ResourceCompiler.MSBuild\Nobara.ResourceCompiler.MSBuild.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" SkipGetTargetFrameworkProperties="true" GlobalPropertiesToRemove="TargetFramework" />
+    <None Include="..\Nobara.ResourceCompiler\Protos\nobara\options.proto" Pack="true" PackagePath="protos\nobara" Link="protos\nobara\options.proto" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);NobaraPackResourceCompiler</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <Target Name="NobaraPackResourceCompiler">
+    <MSBuild Projects="..\Nobara.ResourceCompiler.MSBuild\Nobara.ResourceCompiler.MSBuild.csproj" Targets="Build" RemoveProperties="TargetFramework">
+      <Output TaskParameter="TargetOutputs" ItemName="_NobaraCompilerTaskAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <_NobaraCompilerTaskFile Include="%(_NobaraCompilerTaskAssembly.RootDir)%(_NobaraCompilerTaskAssembly.Directory)*.dll" />
+      <_NobaraCompilerTaskFile Include="%(_NobaraCompilerTaskAssembly.RootDir)%(_NobaraCompilerTaskAssembly.Directory)*.deps.json" />
+      <TfmSpecificPackageFile Include="@(_NobaraCompilerTaskFile)" PackagePath="tasks\net10.0" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     The engine analyzers ship inside this package, in analyzers/, because an
     MSBuild SDK cannot bring package dependencies. Sdk.targets attaches them.
   -->

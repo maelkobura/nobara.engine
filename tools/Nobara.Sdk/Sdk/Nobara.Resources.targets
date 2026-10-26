@@ -1,0 +1,114 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project>
+
+  <!--
+    Schemas and resources of a module. The .proto files in Schemas/ become
+    C# classes (protoc, through Grpc.Tools) and a descriptor set; the
+    resource compiler then compiles module.nobara and Resources/**/*.nof and
+    embeds the results in the assembly. Auxiliary projects are left alone.
+  -->
+  <PropertyGroup>
+    <NobaraProtobufVersion Condition="'$(NobaraProtobufVersion)' == ''">3.33.0</NobaraProtobufVersion>
+    <NobaraGrpcToolsVersion Condition="'$(NobaraGrpcToolsVersion)' == ''">2.80.0</NobaraGrpcToolsVersion>
+    <NobaraResourcesDirectory Condition="'$(NobaraResourcesDirectory)' == ''">$(MSBuildProjectDirectory)/Resources</NobaraResourcesDirectory>
+    <NobaraProtoDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../protos'))</NobaraProtoDirectory>
+    <NobaraCompilerTaskAssembly>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../tasks/net10.0/Nobara.ResourceCompiler.MSBuild.dll'))</NobaraCompilerTaskAssembly>
+    <NobaraIntermediateDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'nobara'))</NobaraIntermediateDirectory>
+    <NobaraSchemaSetFile>$(NobaraIntermediateDirectory)schemas.pb</NobaraSchemaSetFile>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(NobaraProjectKind)' == 'Module'">
+    <NobaraResourceFile Include="$(NobaraResourcesDirectory)/**/*.nof" />
+    <NobaraResourceInput Include="$(NobaraResourcesDirectory)/**/*" Exclude="@(NobaraResourceFile)" />
+  </ItemGroup>
+
+  <!-- A module with schemas generates its classes with protoc and needs the protobuf runtime. -->
+  <ItemGroup Condition="'$(NobaraProjectKind)' == 'Module' and '@(NobaraSchema)' != ''">
+    <PackageReference Include="Google.Protobuf" Version="$(NobaraProtobufVersion)" />
+    <PackageReference Include="Grpc.Tools" Version="$(NobaraGrpcToolsVersion)" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+    <Protobuf Include="@(NobaraSchema)" ProtoRoot="Schemas" GrpcServices="None" AdditionalImportDirs="$(NobaraProtoDirectory)" />
+    <!-- Generated in every module, internal, because the classes of the schemas import it. -->
+    <Protobuf Include="$(NobaraProtoDirectory)/nobara/options.proto" ProtoRoot="$(NobaraProtoDirectory)" GrpcServices="None" Access="Internal" />
+  </ItemGroup>
+
+  <UsingTask TaskName="Nobara.ResourceCompiler.MSBuild.CompileResources"
+             AssemblyFile="$(NobaraCompilerTaskAssembly)"
+             TaskFactory="TaskHostFactory"
+             Runtime="NET" />
+
+  <PropertyGroup>
+    <NobaraSchemasDependsOn>$(NobaraSchemasDependsOn);NobaraCompileSchemaSet</NobaraSchemasDependsOn>
+    <NobaraResourcesDependsOn>$(NobaraResourcesDependsOn);NobaraEmbedResources</NobaraResourcesDependsOn>
+  </PropertyGroup>
+
+  <!-- The descriptor set of the schemas, read by the resource compiler and embedded for dependent modules. -->
+  <Target Name="NobaraCompileSchemaSet"
+          Condition="'$(NobaraProjectKind)' == 'Module' and '@(NobaraSchema)' != ''"
+          DependsOnTargets="Protobuf_ResolvePlatform"
+          Inputs="@(NobaraSchema);$(NobaraProtoDirectory)/nobara/options.proto"
+          Outputs="$(NobaraSchemaSetFile)">
+    <MakeDir Directories="$(NobaraIntermediateDirectory)" />
+    <Exec Command="&quot;$(Protobuf_ProtocFullPath)&quot; --include_imports --descriptor_set_out=&quot;$(NobaraSchemaSetFile)&quot; --proto_path=&quot;$(MSBuildProjectDirectory)/Schemas&quot; --proto_path=&quot;$(NobaraProtoDirectory)&quot; --proto_path=&quot;$(Protobuf_StandardImportsPath)&quot; @(NobaraSchema->'&quot;%(FullPath)&quot;', ' ')"
+          StandardOutputImportance="low" />
+  </Target>
+
+  <!--
+    The plugin of a dependency is the .Build project next to the project of
+    the dependency: src/nX/Nobara.X.Build/ for src/nX/Nobara.X/. It becomes a
+    project reference that is restored and built before the module, without
+    referencing its assembly; its output is a NobaraPlugin item. Plugins of
+    dependencies restored as packages are not found.
+  -->
+  <Target Name="NobaraAddPluginReferences" AfterTargets="NobaraReadModule" Condition="'$(NobaraProjectKind)' == 'Module'">
+    <ItemGroup>
+      <_NobaraPluginCandidate Include="@(_NobaraModuleProjectReference->'%(RootDir)%(Directory)../%(Filename).Build/%(Filename).Build.csproj')" />
+      <_NobaraPluginProject Include="@(_NobaraPluginCandidate->'%(FullPath)')" Condition="Exists('%(FullPath)')" />
+      <ProjectReference Include="@(_NobaraPluginProject)" ReferenceOutputAssembly="false" OutputItemType="NobaraPlugin" PrivateAssets="all" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="NobaraResolvePlugins" Condition="'$(NobaraProjectKind)' == 'Module'" DependsOnTargets="ResolveProjectReferences" />
+
+  <Target Name="NobaraCompileResources"
+          Condition="'$(NobaraProjectKind)' == 'Module'"
+          DependsOnTargets="ResolveAssemblyReferences;NobaraCompileSchemaSet;NobaraResolvePlugins;_NobaraModuleReferences"
+          Inputs="@(NobaraResourceFile);@(NobaraResourceInput);$(NobaraModuleFile);@(_NobaraSchemaSetInput);@(_NobaraModuleReferencePath);@(NobaraPlugin);$(NobaraCompilerTaskAssembly);$(MSBuildThisFileFullPath)"
+          Outputs="$(NobaraIntermediateDirectory)resources.stamp">
+    <CompileResources ModuleFile="$(NobaraModuleFile)"
+                      ResourcesDirectory="$(NobaraResourcesDirectory)"
+                      ResourceFiles="@(NobaraResourceFile)"
+                      SchemaFile="@(_NobaraSchemaSetInput)"
+                      References="@(_NobaraModuleReferencePath)"
+                      Plugins="@(NobaraPlugin)"
+                      OutputDirectory="$(NobaraIntermediateDirectory)" />
+  </Target>
+
+  <!-- Framework assemblies are never modules: they are left out of the inputs. -->
+  <Target Name="_NobaraModuleReferences">
+    <ItemGroup>
+      <_NobaraModuleReferencePath Include="@(ReferencePath)" Condition="'%(ReferencePath.FrameworkReferenceName)' == ''" />
+      <_NobaraSchemaSetInput Include="$(NobaraSchemaSetFile)" Condition="'@(NobaraSchema)' != ''" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Runs even when the compilation is up to date, from the list it wrote. -->
+  <Target Name="NobaraEmbedResources" Condition="'$(NobaraProjectKind)' == 'Module'" DependsOnTargets="NobaraCompileResources">
+    <ReadLinesFromFile File="$(NobaraIntermediateDirectory)embedded.txt">
+      <Output TaskParameter="Lines" ItemName="_NobaraEmbeddedLine" />
+    </ReadLinesFromFile>
+    <ItemGroup>
+      <_NobaraEmbedded Include="$([System.String]::Copy('%(_NobaraEmbeddedLine.Identity)').Split('|')[1])"
+                       LogicalName="$([System.String]::Copy('%(_NobaraEmbeddedLine.Identity)').Split('|')[0])" />
+      <_CoreCompileResourceInputs Include="@(_NobaraEmbedded)" WithCulture="false" Type="Non-Resx" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup Condition="'$(NobaraProjectKind)' == 'Module'">
+    <UpToDateCheckInput Include="@(NobaraResourceFile);@(NobaraResourceInput)" />
+  </ItemGroup>
+
+</Project>

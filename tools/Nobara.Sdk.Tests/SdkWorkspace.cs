@@ -30,12 +30,15 @@ internal sealed class SdkWorkspace : IDisposable
         _packages = Path.Combine(Root, ".packages");
         Directory.CreateDirectory(Root);
 
-        // Only the local feed is a source: samples need no network.
+        // Only local folders are sources: samples need no network. The global
+        // packages folder of the machine provides the protobuf packages that
+        // modules with schemas use; restoring this solution put them there.
         File.WriteAllText(Path.Combine(Root, "NuGet.config"), $"""
             <configuration>
               <packageSources>
                 <clear />
                 <add key="local" value="{Feed.Value}" />
+                <add key="machine" value="{GlobalPackages}" />
               </packageSources>
             </configuration>
             """);
@@ -43,6 +46,12 @@ internal sealed class SdkWorkspace : IDisposable
 
     /// <summary>Gets the root of the workspace; the nearest parent directory of every sample.</summary>
     public string Root { get; }
+
+    /// <summary>Gets the global packages folder of the machine.</summary>
+    public static string GlobalPackages =>
+        Environment.GetEnvironmentVariable("NUGET_PACKAGES") is { Length: > 0 } configured
+            ? configured
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
 
     /// <summary>Gets the version of the SDK package under test.</summary>
     public static string SdkVersion => "1.0.0";
@@ -63,7 +72,10 @@ internal sealed class SdkWorkspace : IDisposable
     /// <returns>The full path of the project file.</returns>
     public string WriteModule(string name, string manifestBody, string? source = null, string projectBody = "")
     {
-        Write($"{name}/module.nobara", $"""<NobaraModule format="1">{manifestBody}</NobaraModule>""");
+        // Level and Side are required; the samples that do not care get defaults.
+        string defaults = (manifestBody.Contains("<Level>", StringComparison.Ordinal) ? "" : "<Level>platform</Level>")
+            + (manifestBody.Contains("<Side>", StringComparison.Ordinal) ? "" : "<Side>both</Side>");
+        Write($"{name}/module.nobara", $"""<NobaraModule format="1">{manifestBody}{defaults}</NobaraModule>""");
         if (source is not null)
         {
             Write($"{name}/Source.cs", source);

@@ -216,6 +216,21 @@ much on hot paths. Services therefore offer operations over batches, and
 large volumes of data move through the entity component system or through
 shared structures such as chunks and buffers.
 
+## Resources
+
+The content of a module (blocks, items, entities, textures) is described in
+`.nof` files and compiled when the module is built, into protobuf data
+embedded in its assembly. Errors in content therefore fail the build instead
+of appearing when the game runs, and no XML is read at run time.
+
+The compiler is generic: it knows no resource type. The module that owns a
+type provides its `.proto` schema, whose options declare common constraints
+(references, bounds, required fields), and, when the schema is not enough, a
+build plugin in a `.Build` project that is never shipped with a game.
+Modules that depend on it use its types and reference its resources, because
+its assembly carries its schemas and its compiled resources. See [the `.nof`
+reference](../reference/formats/nof.md).
+
 ## Loading
 
 Modules are loaded in dependency order. The build target selects the mode:

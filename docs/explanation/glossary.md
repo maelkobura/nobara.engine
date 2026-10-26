@@ -39,6 +39,12 @@ A piece of data attached to an entity in the entity component system.
 A named setting declared by a module in its manifest, with a type, a
 default, bounds, and a scope (`user` or `distribution`).
 
+### Content hash
+
+The SHA-256 hash that the resource compiler computes for each resource: its
+content, its free properties, its binary files, and the hashes of the
+resources it references. See [the `.nof` reference](../reference/formats/nof.md#content-hash).
+
 ### Content registry
 
 A platform module that holds the definitions of one kind of game content,
@@ -83,6 +89,18 @@ is not used on hot paths.
 A module that adds something to a parent module (a feature, a backend, a
 transport, or a client-only part). It has the same level as its parent and
 depends on it. See [Extensions](architecture.md#extensions).
+
+### Free property
+
+A value of a resource that its own type does not declare, written in its
+`<Properties>` block for other modules to read, such as `Weight`. See [the
+`.nof` reference](../reference/formats/nof.md#free-properties).
+
+### Generic representation
+
+The compiled form of XML content whose schema the compiler does not know: an
+element with its attributes, children, typed values, and positions. It holds
+components, free properties, and module configurations.
 
 ### Grid
 
@@ -153,16 +171,32 @@ and keeps pause, time scale, and tick rate.
 The MSBuild SDK that reads the manifest of a module and generates its version
 and its references. See [the SDK page](../../tools/Nobara.Sdk/README.md).
 
+### Object identifier
+
+The identifier of a defined object, derived from its type, namespace, and
+name: `block:example.blocks.dirt`. See [the `.nof` reference](../reference/formats/nof.md#identifiers).
+
 ### Optional dependency
 
 A dependency on a module that the dependent module can work without. When
 the target is active, it loads before the dependent module.
+
+### Override
+
+A resource marked `override="true"` that changes the resource with the same
+identifier, with simple fields and queries. See [the `.nof`
+reference](../reference/formats/nof.md#overrides).
 
 ### Platform module
 
 A module that provides a reusable foundation for other modules, such as
 rendering, voxel storage, or physics. A platform module never depends on a
 business module.
+
+### Qualified property
+
+A free property prefixed by the short name of a module, such as
+`Motion.Weight`, which replaces the plain property for that module only.
 
 ### Required dependency
 
@@ -174,6 +208,29 @@ dependency is always an error.
 The declaration by a module that it holds an exclusive resource, identified
 by an opaque name such as a main window. The core guarantees that each name
 has a single holder.
+
+### Resource
+
+An object or a file described in a `.nof` file, compiled into the assembly of
+its module. See [the `.nof` reference](../reference/formats/nof.md).
+
+### Resource identifier
+
+The identifier of a resource in the resource system: `type://Namespace/Name`,
+as in `texture://Example/Textures/Dirt`.
+
+### Resource plugin
+
+A class of a `.Build` project that adds to the resource compiler what the
+schema of a resource type cannot declare: validation, derived resources,
+binary processing, and schema converters. See [the resource compiler
+page](../../tools/Nobara.ResourceCompiler/README.md#plugins).
+
+### Resource type
+
+A kind of resource, such as `Block`, defined by a message of a `.proto`
+schema marked with `(nobara.resource_type)`. See [the schema options
+reference](../reference/formats/proto-options.md).
 
 ### Service registry
 
@@ -188,6 +245,11 @@ Where a module runs: client, server, or both.
 ### System
 
 Logic that runs on entities with certain components during a tick.
+
+### Tag
+
+A named group of objects of one registry, such as `#example.wood`, to which
+several modules may add members. See [the `.nof` reference](../reference/formats/nof.md#tags).
 
 ### Tick
 

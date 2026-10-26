@@ -1,0 +1,145 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Compiled resources of a module, embedded in its assembly as the manifest
+// resource "nobara/resources.pb".
+syntax = "proto3";
+
+package nobara.formats;
+
+import "nobara/formats/generic.proto";
+
+option csharp_namespace = "Nobara.Formats";
+
+// Every resource of one module.
+message ResourceBundle {
+  // Version of this format: 1.
+  uint32 format = 1;
+  // Identifier of the module that owns the resources.
+  string module = 2;
+  repeated Resource resources = 3;
+  // Members added to tags, by Tag resources and by the Tags block of
+  // resources. Several modules may contribute to the same tag.
+  repeated TagContribution tags = 4;
+  // Binary files embedded in the assembly, as relative paths. The manifest
+  // resource of a file is "nobara/files/" followed by its path.
+  repeated string files = 5;
+}
+
+// One resource, or one override of a resource.
+message Resource {
+  // Type prefix of the object identifier: "block".
+  string type = 1;
+  // Name of the XML element and of the message of the type: "Block".
+  string element = 2;
+  // Full name of the message of the type: "example.blocks.Block".
+  string message = 3;
+  // Namespace as written: "Example/Blocks".
+  string namespace = 4;
+  // Name as written: "Dirt".
+  string name = 5;
+  // Object identifier: "block:example.blocks.dirt".
+  string object_id = 6;
+  // Resource identifier: "block://Example/Blocks/Dirt".
+  string resource_id = 7;
+  // Version of the schema the content follows, after conversion.
+  uint32 schema_version = 8;
+  // The optional Version element, a hint for people.
+  string version = 9;
+  // The content, serialized as the message of the type. Empty for an override.
+  bytes content = 10;
+  // Free properties, in the order written.
+  repeated Property properties = 11;
+  // SHA-256 of the content, the properties, and the hashes of the referenced
+  // resources.
+  bytes content_hash = 12;
+  SourcePosition source = 13;
+  // Set when the resource is an override of the resource with the same identifier.
+  Override override = 14;
+  // Object identifier of the resource that produced this derived resource.
+  string derived_from = 15;
+  // Identifiers referenced by the content, sorted: object, resource, and tag identifiers.
+  repeated string references = 16;
+}
+
+// A free property.
+message Property {
+  // Name of the property: "Weight".
+  string name = 1;
+  // Short name of the module the property is meant for, or empty for a
+  // plain property: "Motion" in Motion.Weight.
+  string qualifier = 2;
+  GenericNode value = 3;
+}
+
+// An override, applied by the core when the resources are loaded.
+message Override {
+  // An override whose target or query is missing is ignored instead of failing.
+  bool optional = 1;
+  // Overrides of a resource apply in increasing priority.
+  int32 priority = 2;
+  // Simple fields written directly in the content, serialized as the message
+  // of the type. They replace the values of the target.
+  bytes merge = 3;
+  repeated Query queries = 4;
+}
+
+// Selects elements of the target and applies operations to them.
+message Query {
+  // Name of the attribute or child element compared with value; empty for none.
+  string field = 1;
+  string value = 2;
+  // Element name the selected elements must have; empty for any.
+  string type = 3;
+  // Which match to use: the first by default.
+  oneof index {
+    uint32 position = 4;
+    bool all = 5;
+  }
+  // Queries run in the subtree of each selected element.
+  repeated Query queries = 6;
+  repeated Operation operations = 7;
+  SourcePosition source = 8;
+}
+
+// An operation on the elements selected by a query.
+message Operation {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_REPLACE = 1;
+    KIND_ADD = 2;
+    KIND_INSERT_BEFORE = 3;
+    KIND_INSERT_AFTER = 4;
+    KIND_REMOVE = 5;
+    KIND_SET = 6;
+  }
+  Kind kind = 1;
+  // The elements to insert, for Replace, Add, InsertBefore, and InsertAfter.
+  repeated GenericNode content = 2;
+  // Position of the added elements among the children, for Add.
+  optional uint32 index = 3;
+  // Field and value, for Set.
+  string field = 4;
+  string value = 5;
+  SourcePosition source = 6;
+}
+
+// Members added to one tag by one source.
+message TagContribution {
+  // Type of the objects of the tag: "block".
+  string registry = 1;
+  // Identifier of the tag without its registry: "example.wood".
+  string tag = 2;
+  repeated TagMember members = 3;
+  SourcePosition source = 4;
+}
+
+// A member of a tag.
+message TagMember {
+  // Object identifier, or the identifier of a nested tag of the same
+  // registry in full form: "#block:example.planks".
+  string id = 1;
+  // A missing optional member is ignored when the tag is resolved.
+  bool optional = 2;
+}

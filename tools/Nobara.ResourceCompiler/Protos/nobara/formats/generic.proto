@@ -1,0 +1,61 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Generic representation of XML content whose schema is not known when it is
+// compiled: component values, free properties, and module configuration.
+syntax = "proto3";
+
+package nobara.formats;
+
+option csharp_namespace = "Nobara.Formats";
+
+// A position in a source file.
+message SourcePosition {
+  // Path of the file, relative to the folder of the module, with forward slashes.
+  string file = 1;
+  // 1-based line, 0 when unknown.
+  uint32 line = 2;
+  // 1-based column, 0 when unknown.
+  uint32 column = 3;
+}
+
+// A value written as text, with the type the compiler recognized in it.
+message Value {
+  // The text as written, trimmed.
+  string text = 1;
+  // The recognized type. The text stays authoritative: a reader that expects
+  // another type converts the text itself.
+  oneof typed {
+    bool boolean = 2;
+    int64 integer = 3;
+    double number = 4;
+    // An object identifier such as mesh:example.mesh.duck.
+    string object_id = 5;
+    // A resource identifier such as texture://Example/Textures/Dirt.
+    string resource_id = 6;
+    // A tag identifier such as #example.wood or #block:example.wood.
+    string tag_id = 7;
+  }
+}
+
+// An XML attribute.
+message GenericAttribute {
+  string name = 1;
+  Value value = 2;
+  SourcePosition source = 3;
+}
+
+// An XML element.
+message GenericNode {
+  // The element name.
+  string name = 1;
+  repeated GenericAttribute attributes = 2;
+  // The text of an element without child elements.
+  Value value = 3;
+  repeated GenericNode children = 4;
+  // Components of a vector, for an element whose children are only X, Y,
+  // and optionally Z and W, all numbers.
+  repeated double vector = 5;
+  SourcePosition source = 6;
+}

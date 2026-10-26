@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-using Nobara.Sdk.Tasks;
+using Nobara.ResourceCompiler.Manifests;
 
 namespace Nobara.Sdk.Tests;
 
-public class VersionRangeConverterTests
+/// <summary>Checks the version ranges as compiled into the SDK task assembly (netstandard2.0).</summary>
+public class VersionRangeTests
 {
     [Theory]
     [InlineData("^1.0", "[1.0,2.0.0)")]
@@ -28,10 +29,10 @@ public class VersionRangeConverterTests
     [InlineData("<2.0 >1.0", "(1.0,2.0)")]
     [InlineData(">= 1.0 <= 2.0", "[1.0,2.0]")]
     [InlineData("^1.0-beta.1", "[1.0-beta.1,2.0.0)")]
-    public void Converts_valid_ranges(string range, string expected)
+    public void Converts_valid_ranges(string text, string expected)
     {
-        Assert.True(VersionRangeConverter.TryConvert(range, out string nuget, out string error), error);
-        Assert.Equal(expected, nuget);
+        Assert.True(VersionRange.TryParse(text, out VersionRange? range, out string error), error);
+        Assert.Equal(expected, range!.NuGet);
     }
 
     [Theory]
@@ -45,9 +46,9 @@ public class VersionRangeConverterTests
     [InlineData("< 1.0 <= 2.0")]
     [InlineData("^1.0 <2.0")]
     [InlineData("^99999999999999999999")]
-    public void Rejects_invalid_ranges(string range)
+    public void Rejects_invalid_ranges(string text)
     {
-        Assert.False(VersionRangeConverter.TryConvert(range, out _, out string error));
+        Assert.False(VersionRange.TryParse(text, out _, out string error));
         Assert.NotEmpty(error);
     }
 }

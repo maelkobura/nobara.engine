@@ -43,7 +43,8 @@
     this order: analyzers, schemas, resources.
 
     NobaraAnalyzers: attaches the engine analyzers to the compilation.
-    NobaraSchemas:   generates C# classes from the NobaraSchema items.
+    NobaraSchemas:   builds the descriptor set of the NobaraSchema items
+                     (their C# classes come from Grpc.Tools).
     NobaraResources: runs the resource compiler and embeds its output.
   -->
   <PropertyGroup>
@@ -85,5 +86,8 @@
     <CompilerVisibleProperty Include="NobaraOptionalModules" />
     <CustomAdditionalCompileInputs Include="$(NobaraModuleFile)" Condition="Exists('$(NobaraModuleFile)')" />
   </ItemGroup>
+
+  <!-- Schemas and resources plug into NobaraSchemas and NobaraResources. -->
+  <Import Project="Nobara.Resources.targets" />
 
 </Project>
