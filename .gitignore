@@ -26,7 +26,11 @@ bld/
 # .NET Core
 project.lock.json
 project.fragment.lock.json
-artifacts/
+artifacts/*
+# The local package feed must exist for NuGet to restore (see NuGet.config).
+!artifacts/packages/
+artifacts/packages/*
+!artifacts/packages/.gitkeep
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
