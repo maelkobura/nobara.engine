@@ -1,0 +1,53 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project>
+
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <!--
+    Kind of project. A project whose name ends with a reserved suffix is an
+    auxiliary project: it is not a module and has no module.nobara. Every
+    other project is a module, extensions included.
+  -->
+  <PropertyGroup>
+    <NobaraProjectKind>Module</NobaraProjectKind>
+    <NobaraProjectKind Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(MSBuildProjectName)', '\.(Build|Generators|Analyzers|Scripting|TypeGen|Tests|Benchmarks)$', System.Text.RegularExpressions.RegexOptions.IgnoreCase))">Auxiliary</NobaraProjectKind>
+    <NobaraModuleFile Condition="'$(NobaraModuleFile)' == ''">$(MSBuildProjectDirectory)/module.nobara</NobaraModuleFile>
+
+    <!-- Tests and benchmarks are never shipped. -->
+    <IsPackable Condition="'$(IsPackable)' == '' and ($(MSBuildProjectName.EndsWith('.Tests', System.StringComparison.OrdinalIgnoreCase)) or $(MSBuildProjectName.EndsWith('.Benchmarks', System.StringComparison.OrdinalIgnoreCase)))">false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == '' and '$(TargetFrameworks)' == ''">
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <!--
+    Maps module identifiers to local projects. The command-line tool writes
+    this file; until then it is written by hand. The file obj/nobara/modules.props
+    of the nearest parent directory (up to 12 levels) is used unless
+    NobaraModulesFile is set. MSBuild cannot search for a path with several
+    segments, hence one line per level.
+  -->
+  <PropertyGroup>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+    <NobaraModulesFile Condition="'$(NobaraModulesFile)' == '' and Exists('$(MSBuildProjectDirectory)/../../../../../../../../../../../../obj/nobara/modules.props')">$([MSBuild]::NormalizePath('$(MSBuildProjectDirectory)/../../../../../../../../../../../../obj/nobara/modules.props'))</NobaraModulesFile>
+  </PropertyGroup>
+
+  <Import Project="$(NobaraModulesFile)" Condition="'$(NobaraModulesFile)' != '' and Exists('$(NobaraModulesFile)')" />
+
+</Project>

@@ -1,6 +1,11 @@
 <!--
-  Hand-written empty solution. Once the command-line tool can generate the
+  Hand-written solution. Once the command-line tool can generate the
   solution from a project definition, this file is generated and must not be
   edited by hand.
 -->
-<Solution />
+<Solution>
+  <Folder Name="/tools/">
+    <Project Path="tools/Nobara.Sdk/Nobara.Sdk.csproj" />
+    <Project Path="tools/Nobara.Sdk.Tests/Nobara.Sdk.Tests.csproj" />
+  </Folder>
+</Solution>

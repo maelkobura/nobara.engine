@@ -25,6 +25,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - run: dotnet pack tools/Nobara.Sdk -c Release -o artifacts/packages --nologo
       - run: dotnet build Nobara.slnx --nologo
       - run: dotnet test Nobara.slnx --nologo
 
@@ -60,7 +61,7 @@ jobs:
         with:
           python-version: "3.12"
       # Keep the markdownlint version in sync with .github/scripts/check_all.py.
-      - run: npx --yes markdownlint-cli2@0.18.1 "docs/**/*.md" README.md AGENTS.md "src/*/README.md"
+      - run: npx --yes markdownlint-cli2@0.18.1 "docs/**/*.md" README.md AGENTS.md "src/*/README.md" "tools/*/README.md"
       - run: python .github/scripts/check_links.py
 
   scripts:

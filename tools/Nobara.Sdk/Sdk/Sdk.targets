@@ -1,0 +1,73 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project InitialTargets="NobaraReadModule">
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <UsingTask TaskName="Nobara.Sdk.Tasks.ReadModuleManifest"
+             AssemblyFile="$(MSBuildThisFileDirectory)../tasks/netstandard2.0/Nobara.Sdk.dll" />
+
+  <!--
+    Reads module.nobara before any other target, restore included, so that the
+    version and the references are known to every later target. Auxiliary
+    projects have no module.nobara and are left unchanged.
+  -->
+  <Target Name="NobaraReadModule" Condition="'$(NobaraProjectKind)' == 'Module'">
+    <ReadModuleManifest ManifestFile="$(NobaraModuleFile)"
+                        ProjectName="$(MSBuildProjectName)"
+                        LocalModules="@(NobaraLocalModule)">
+      <Output TaskParameter="Version" PropertyName="NobaraModuleVersion" />
+      <Output TaskParameter="ProjectReferences" ItemName="_NobaraModuleProjectReference" />
+      <Output TaskParameter="PackageReferences" ItemName="_NobaraModulePackageReference" />
+      <Output TaskParameter="OptionalModules" PropertyName="NobaraOptionalModules" />
+    </ReadModuleManifest>
+
+    <PropertyGroup>
+      <Version>$(NobaraModuleVersion)</Version>
+      <PackageVersion>$(NobaraModuleVersion)</PackageVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="@(_NobaraModuleProjectReference)" />
+      <PackageReference Include="@(_NobaraModulePackageReference)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    Extension points. Each target is empty and runs before the C# compiler. A
+    tool that plugs into the build adds its targets to the matching
+    DependsOn property instead of redefining the target. The targets run in
+    this order: analyzers, schemas, resources.
+
+    NobaraAnalyzers: attaches the engine analyzers to the compilation.
+    NobaraSchemas:   generates C# classes from the NobaraSchema items.
+    NobaraResources: runs the resource compiler and embeds its output.
+  -->
+  <PropertyGroup>
+    <NobaraAnalyzersDependsOn />
+    <NobaraSchemasDependsOn />
+    <NobaraResourcesDependsOn />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <NobaraSchema Include="Schemas/**/*.proto" />
+  </ItemGroup>
+
+  <Target Name="NobaraAnalyzers" BeforeTargets="CoreCompile" DependsOnTargets="$(NobaraAnalyzersDependsOn)" />
+  <Target Name="NobaraSchemas" BeforeTargets="CoreCompile" AfterTargets="NobaraAnalyzers" DependsOnTargets="$(NobaraSchemasDependsOn)" />
+  <Target Name="NobaraResources" BeforeTargets="CoreCompile" AfterTargets="NobaraSchemas" DependsOnTargets="$(NobaraResourcesDependsOn)" />
+
+  <!--
+    The names of the optional dependencies reach the C# compiler as the
+    NobaraOptionalModules build property, so that analyzers can read it as
+    build_property.NobaraOptionalModules in the analyzer config options.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="NobaraOptionalModules" />
+    <CustomAdditionalCompileInputs Include="$(NobaraModuleFile)" Condition="Exists('$(NobaraModuleFile)')" />
+  </ItemGroup>
+
+</Project>
