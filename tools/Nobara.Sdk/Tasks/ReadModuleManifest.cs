@@ -5,16 +5,20 @@
 using System.Text;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
+using Nobara.ResourceCompiler;
+using Nobara.ResourceCompiler.Manifests;
 
 namespace Nobara.Sdk.Tasks;
 
 /// <summary>
-/// Reads <c>module.nobara</c> and turns its dependencies and libraries into
-/// project references and package references.
+/// Reads and validates <c>module.nobara</c>, and turns its dependencies and
+/// libraries into project references and package references.
 /// </summary>
 /// <remarks>
-/// A dependency becomes a project reference when <see cref="LocalModules"/>
-/// maps its identifier to a project, and a package reference otherwise.
+/// The manifest is read by the same code as the resource compiler, compiled
+/// into this assembly. A dependency becomes a project reference when
+/// <see cref="LocalModules"/> maps its identifier to a project, and a package
+/// reference otherwise.
 /// </remarks>
 public sealed class ReadModuleManifest : Microsoft.Build.Utilities.Task
 {
@@ -64,17 +68,18 @@ public sealed class ReadModuleManifest : Microsoft.Build.Utilities.Task
             return false;
         }
 
-        var diagnostics = new List<ManifestDiagnostic>();
-        ModuleManifest? manifest = ModuleManifestReader.Parse(File.ReadAllText(ManifestFile), diagnostics);
-        if (manifest is not null && !string.Equals(manifest.Id, ProjectName, StringComparison.OrdinalIgnoreCase))
+        var diagnostics = new DiagnosticBag();
+        ModuleManifest? manifest = ModuleManifestReader.Read(File.ReadAllText(ManifestFile), ManifestFile, diagnostics);
+        foreach (Diagnostic diagnostic in diagnostics.Items)
         {
-            diagnostics.Add(new ManifestDiagnostic("NSDK005", $"<Id> '{manifest.Id}' does not match the project name '{ProjectName}' (compared without case); the project name is the assembly name and the package identifier", 0, 0));
-            manifest = null;
-        }
-
-        foreach (ManifestDiagnostic diagnostic in diagnostics)
-        {
-            Log.LogError(null, diagnostic.Code, null, ManifestFile, diagnostic.Line, diagnostic.Column, 0, 0, diagnostic.Message);
+            if (diagnostic.Severity == DiagnosticSeverity.Error)
+            {
+                Log.LogError(null, diagnostic.Code, null, ManifestFile, diagnostic.Line, diagnostic.Column, 0, 0, diagnostic.Message);
+            }
+            else
+            {
+                Log.LogWarning(null, diagnostic.Code, null, ManifestFile, diagnostic.Line, diagnostic.Column, 0, 0, diagnostic.Message);
+            }
         }
 
         if (manifest is null)
@@ -82,8 +87,14 @@ public sealed class ReadModuleManifest : Microsoft.Build.Utilities.Task
             return false;
         }
 
+        if (!string.Equals(manifest.Id, ProjectName, StringComparison.OrdinalIgnoreCase))
+        {
+            Log.LogError(null, "NSDK005", null, ManifestFile, 0, 0, 0, 0, $"<Id> '{manifest.Id}' does not match the project name '{ProjectName}' (compared without case); the project name is the assembly name and the package identifier");
+            return false;
+        }
+
         Id = manifest.Id;
-        Version = manifest.Version;
+        Version = manifest.Version.Text;
         Resolve(manifest);
         return true;
     }
@@ -111,7 +122,7 @@ public sealed class ReadModuleManifest : Microsoft.Build.Utilities.Task
             }
             else
             {
-                packages.Add(new TaskItem(dependency.Id, new Dictionary<string, string> { ["Version"] = dependency.NuGetRange }));
+                packages.Add(new TaskItem(dependency.Id, new Dictionary<string, string> { ["Version"] = dependency.Range.NuGet }));
             }
 
             if (dependency.Optional)

@@ -1,0 +1,59 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Custom options that a resource type schema uses to declare its resource
+// types and the constraints of its fields. The resource compiler reads them;
+// the reference is docs/reference/formats/proto-options.md.
+syntax = "proto3";
+
+package nobara;
+
+import "google/protobuf/descriptor.proto";
+
+option csharp_namespace = "Nobara.Schema";
+
+extend google.protobuf.MessageOptions {
+  // Makes the message a resource type and gives the type prefix of its
+  // object identifiers, in lowercase: "block" for block:example.blocks.dirt.
+  // The XML element of a resource is the name of the message.
+  string resource_type = 50100;
+
+  // Declares that the registry of the type accepts tags.
+  bool accepts_tags = 50101;
+
+  // Current version of the schema of the type, 1 when absent.
+  uint32 schema_version = 50102;
+}
+
+extend google.protobuf.FieldOptions {
+  // The value is the object identifier of an object of the given type:
+  // [(nobara.ref) = "item"] accepts item:example.items.stick.
+  string ref = 50200;
+
+  // The value is the resource identifier of a resource of the given type:
+  // [(nobara.resource) = "texture"] accepts texture://Example/Textures/Dirt.
+  string resource = 50201;
+
+  // The value is a localization key, not text.
+  bool i18n = 50202;
+
+  // Smallest accepted value of a numeric field, inclusive.
+  double min = 50203;
+
+  // Largest accepted value of a numeric field, inclusive.
+  double max = 50204;
+
+  // The field must be written. A repeated field needs at least one element.
+  bool required = 50205;
+
+  // The value is the path of a binary file, relative to the resources
+  // folder of the module. The file is embedded in the assembly as it is.
+  bool file = 50206;
+
+  // The field is a bytes field that holds the XML element in the generic
+  // representation, a serialized nobara.formats.GenericNode: "tree" for any
+  // content, "component" for an entity or item component, "properties" for
+  // a block of free properties.
+  string generic = 50207;
+}

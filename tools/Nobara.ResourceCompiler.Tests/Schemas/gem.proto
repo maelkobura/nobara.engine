@@ -1,0 +1,20 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource type of the test plugin, which provides it as a descriptor.
+syntax = "proto3";
+
+package nobara.tests.gems;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.ResourceCompiler.Tests.Schemas";
+
+message Gem {
+  option (nobara.resource_type) = "gem";
+
+  string color = 1 [(nobara.required) = true];
+  int32 carats = 2 [(nobara.min) = 1];
+  bool create_item = 3;
+}

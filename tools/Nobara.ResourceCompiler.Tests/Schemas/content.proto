@@ -1,0 +1,73 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Resource types used by the tests. None of them has plugin code: their
+// constraints are declared with the options of the compiler.
+syntax = "proto3";
+
+package nobara.tests;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.ResourceCompiler.Tests.Schemas";
+
+message Block {
+  option (nobara.resource_type) = "block";
+  option (nobara.accepts_tags) = true;
+
+  string display_name = 1 [(nobara.i18n) = true, (nobara.required) = true];
+  int32 hardness = 2 [(nobara.min) = -1, (nobara.max) = 100];
+  Drops drops = 3;
+  bool create_item = 4;
+  string texture = 5 [(nobara.resource) = "texture"];
+  Shape shape = 6;
+  float friction = 7 [(nobara.min) = 0, (nobara.max) = 1];
+  repeated string label = 8;
+}
+
+enum Shape {
+  SHAPE_UNSPECIFIED = 0;
+  SHAPE_CUBE = 1;
+  SHAPE_HALF_SLAB = 2;
+}
+
+message Drops {
+  repeated Drop drop = 1;
+}
+
+message Drop {
+  string item = 1 [(nobara.ref) = "item", (nobara.required) = true];
+  int32 min = 2 [(nobara.min) = 0];
+  int32 max = 3 [(nobara.min) = 0];
+  float chance = 4 [(nobara.min) = 0, (nobara.max) = 1];
+}
+
+message Item {
+  option (nobara.resource_type) = "item";
+  option (nobara.accepts_tags) = true;
+
+  string display_name = 1 [(nobara.i18n) = true];
+  int32 max_stack = 2 [(nobara.min) = 1];
+  repeated bytes component = 3 [(nobara.generic) = "component"];
+}
+
+message Texture {
+  option (nobara.resource_type) = "texture";
+
+  string file = 1 [(nobara.file) = true, (nobara.required) = true];
+}
+
+message Entity {
+  option (nobara.resource_type) = "entity";
+
+  repeated bytes component = 1 [(nobara.generic) = "component"];
+  bytes extra = 2 [(nobara.generic) = "properties"];
+}
+
+message Widget {
+  option (nobara.resource_type) = "widget";
+  option (nobara.schema_version) = 2;
+
+  string title = 1;
+}

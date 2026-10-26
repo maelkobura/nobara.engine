@@ -1,0 +1,41 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The generic resource compiler: .nof files, manifests, distribution
+    checks, and the plugin API. The MSBuild task in
+    Nobara.ResourceCompiler.MSBuild is a facade over this library; the
+    engine reuses it for hot reload.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.33.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.80.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+
+  <!--
+    The options and the compiled formats are public: plugins use them. The
+    cache format is private to the compiler.
+  -->
+  <ItemGroup>
+    <Protobuf Include="Protos/nobara/options.proto;Protos/nobara/formats/*.proto" ProtoRoot="Protos" GrpcServices="None" />
+    <Protobuf Include="Protos/nobara/compiler/cache.proto" ProtoRoot="Protos" GrpcServices="None" Access="Internal" />
+    <None Include="Protos/**/*.proto" Pack="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nobara.ResourceCompiler.Tests" />
+  </ItemGroup>
+
+</Project>

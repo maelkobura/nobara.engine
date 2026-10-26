@@ -1,0 +1,183 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Compiled manifests. A module manifest is embedded in the assembly of its
+// module as the manifest resource "nobara/module.pb". A distribution manifest
+// is compiled from the project file and the engine file of a game.
+syntax = "proto3";
+
+package nobara.formats;
+
+import "nobara/formats/generic.proto";
+
+option csharp_namespace = "Nobara.Formats";
+
+// Where a module, a state, or a setting applies.
+enum Side {
+  SIDE_UNSPECIFIED = 0;
+  SIDE_CLIENT = 1;
+  SIDE_SERVER = 2;
+  SIDE_BOTH = 3;
+}
+
+enum Level {
+  LEVEL_UNSPECIFIED = 0;
+  LEVEL_PLATFORM = 1;
+  LEVEL_BUSINESS = 2;
+}
+
+// The compiled form of module.nobara.
+message ModuleManifest {
+  // Version of the source format: 1.
+  uint32 format = 1;
+  string id = 2;
+  string short_name = 3;
+  string version = 4;
+  Level level = 5;
+  Side side = 6;
+  repeated Dependency dependencies = 7;
+  repeated Library libraries = 8;
+  // Identifiers of the modules this module cannot run with.
+  repeated string conflicts = 9;
+  // Names of the exclusive resources this module holds.
+  repeated string reserves = 10;
+  repeated StateDeclaration states = 11;
+  repeated SettingDeclaration settings = 12;
+  // Sides where this base module needs at least one active backend;
+  // SIDE_UNSPECIFIED when it needs none.
+  Side backend_required = 13;
+  // Identifier of the base module this module is a backend of; empty when
+  // it is not a backend.
+  string backend_of = 14;
+}
+
+message Dependency {
+  string id = 1;
+  // The range as written: "^1.2".
+  string range = 2;
+  bool optional = 3;
+}
+
+message Library {
+  string id = 1;
+  string version = 2;
+}
+
+message StateDeclaration {
+  // Qualified identifier: "state:example.menu".
+  string id = 1;
+  // SIDE_UNSPECIFIED when the state is available on every side of its module.
+  Side side = 2;
+}
+
+message SettingDeclaration {
+  enum Scope {
+    SCOPE_UNSPECIFIED = 0;
+    SCOPE_USER = 1;
+    SCOPE_DISTRIBUTION = 2;
+  }
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_BOOL = 1;
+    TYPE_INT = 2;
+    TYPE_FLOAT = 3;
+    TYPE_STRING = 4;
+    TYPE_ENUM = 5;
+  }
+  string key = 1;
+  Scope scope = 2;
+  Type type = 3;
+  // The default value as written.
+  string default_value = 4;
+  optional double min = 5;
+  optional double max = 6;
+  // Accepted values of an enum setting.
+  repeated string values = 7;
+  // SIDE_UNSPECIFIED when the setting applies to both sides.
+  Side side = 8;
+}
+
+// The compiled form of project.nobara and engine.nobara.
+message DistributionManifest {
+  // Version of the source format: 1.
+  uint32 format = 1;
+  string id = 2;
+  string name = 3;
+  string version = 4;
+  // Path of the icon, relative to the project folder.
+  string icon = 5;
+  repeated DistributionModule modules = 6;
+  repeated string protected_namespaces = 7;
+  bool modding_enabled = 8;
+  Loop loop = 9;
+  InitialStates states = 10;
+  ErrorPolicy error_policy = 11;
+  repeated SettingValue settings = 12;
+  repeated ModuleConfig module_configs = 13;
+}
+
+message DistributionModule {
+  string id = 1;
+  string version = 2;
+  bool required = 3;
+  // SHA-256 of the assembly of the module, when the caller provides it.
+  bytes hash = 4;
+}
+
+message Loop {
+  // Ticks per second of the fixed phases.
+  uint32 tick_rate = 1;
+  repeated Phase phases = 2;
+}
+
+message Phase {
+  string name = 1;
+  bool fixed = 2;
+  // SIDE_UNSPECIFIED when the phase runs on both sides.
+  Side side = 3;
+}
+
+message InitialStates {
+  string client = 1;
+  string server = 2;
+}
+
+enum Policy {
+  POLICY_UNSPECIFIED = 0;
+  POLICY_STOP = 1;
+  POLICY_DISABLE = 2;
+  POLICY_LOG = 3;
+}
+
+message ErrorPolicy {
+  Policy default_policy = 1;
+  repeated ModulePolicy modules = 2;
+}
+
+message ModulePolicy {
+  string module = 1;
+  Policy policy = 2;
+}
+
+message SettingValue {
+  enum Operation {
+    OPERATION_UNSPECIFIED = 0;
+    // Changes the default of a user setting.
+    OPERATION_DEFAULT = 1;
+    // Fixes a user setting: the player cannot change it.
+    OPERATION_LOCK = 2;
+    // Gives its value to a distribution setting.
+    OPERATION_SET = 3;
+  }
+  string key = 1;
+  Operation operation = 2;
+  string value = 3;
+}
+
+message ModuleConfig {
+  // Identifier of the module the configuration is meant for.
+  string module = 1;
+  // The ModuleConfig element in the generic representation.
+  GenericNode config = 2;
+}

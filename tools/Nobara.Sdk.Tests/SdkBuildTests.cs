@@ -319,8 +319,8 @@ public sealed class SdkBuildTests : IDisposable
         string noId = _workspace.WriteModule("Nobara.NoId", "<Version>1.0.0</Version>");
         string noVersion = _workspace.WriteModule("Nobara.NoVersion", "<Id>nobara.noversion</Id>");
 
-        Assert.Contains("error NSDK003", _workspace.EvaluateFailure(noId));
-        Assert.Contains("error NSDK004", _workspace.EvaluateFailure(noVersion));
+        Assert.Contains("error NRC102", _workspace.EvaluateFailure(noId));
+        Assert.Contains("error NRC102", _workspace.EvaluateFailure(noVersion));
     }
 
     [Fact]
@@ -333,7 +333,7 @@ public sealed class SdkBuildTests : IDisposable
         string output = _workspace.EvaluateFailure(project);
 
         Assert.Contains("module.nobara(4,", output);
-        Assert.Contains("error NSDK007", output);
+        Assert.Contains("error NRC106", output);
         Assert.Contains("nobara.game", output);
     }
 
@@ -354,6 +354,6 @@ public sealed class SdkBuildTests : IDisposable
 
         string output = _workspace.EvaluateFailure(project);
 
-        Assert.Contains("error NSDK002", output);
+        Assert.Contains("error NRC100", output);
     }
 }

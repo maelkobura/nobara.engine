@@ -1,0 +1,64 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Cache of the incremental compilation. It is private to the compiler and
+// may change with any version.
+syntax = "proto3";
+
+package nobara.compiler;
+
+import "nobara/formats/generic.proto";
+import "nobara/formats/resources.proto";
+
+option csharp_namespace = "Nobara.ResourceCompiler.Caching";
+
+message CompilationCache {
+  uint32 format = 1;
+  // Hash of everything that changes the result of every file: compiler
+  // version, schemas, plugins, module identifier.
+  bytes fingerprint = 2;
+  repeated FileUnit files = 3;
+}
+
+// What the compilation of one source file produced before linking.
+message FileUnit {
+  // Path relative to the resources folder, with forward slashes.
+  string path = 1;
+  bytes text_hash = 2;
+  repeated nobara.formats.Resource resources = 3;
+  repeated nobara.formats.TagContribution tags = 4;
+  repeated PendingReference references = 5;
+  repeated FileInput files = 6;
+  repeated CachedDiagnostic warnings = 7;
+}
+
+message PendingReference {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_OBJECT = 1;
+    KIND_RESOURCE = 2;
+    KIND_TAG = 3;
+  }
+  // Object identifier of the resource that holds the reference; empty for a
+  // tag member, whose owner is the tag.
+  string owner = 1;
+  Kind kind = 2;
+  string value = 3;
+  // Expected type prefix of the referenced object or resource, or the
+  // registry of a tag; empty when any type is accepted.
+  string expected_type = 4;
+  bool optional = 5;
+  nobara.formats.SourcePosition source = 6;
+}
+
+message FileInput {
+  string path = 1;
+  bytes hash = 2;
+}
+
+message CachedDiagnostic {
+  string code = 1;
+  string message = 2;
+  nobara.formats.SourcePosition source = 3;
+}
