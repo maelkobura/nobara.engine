@@ -19,7 +19,7 @@ from common import REPO_ROOT, SCRIPTS_DIR
 
 # Keep in sync with .github/workflows/ci.yml.
 MARKDOWNLINT = "markdownlint-cli2@0.18.1"
-MARKDOWN_GLOBS = ["docs/**/*.md", "README.md", "AGENTS.md", "src/*/README.md"]
+MARKDOWN_GLOBS = ["docs/**/*.md", "README.md", "AGENTS.md", "src/*/README.md", "tools/*/README.md"]
 
 
 def run(name: str, command: list[str]) -> bool:
@@ -55,6 +55,10 @@ def main() -> int:
     if not args.skip_dotnet:
         dotnet = shutil.which("dotnet")
         if dotnet:
+            results["pack SDK"] = run(
+                "Pack Nobara.Sdk",
+                [dotnet, "pack", "tools/Nobara.Sdk", "-c", "Release", "-o", "artifacts/packages", "--nologo"],
+            )
             results["build"] = run("Build", [dotnet, "build", "Nobara.slnx", "--nologo"])
             results["tests"] = run("Tests", [dotnet, "test", "Nobara.slnx", "--nologo"])
         else:

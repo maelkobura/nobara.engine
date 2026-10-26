@@ -1,0 +1,56 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Builds the MSBuild SDK package. The package holds the SDK files (Sdk/) and
+    the build task assembly (tasks/). It is a development dependency: it has
+    no NuGet dependencies of its own, because MSBuild SDKs are not restored
+    transitively.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <Version>1.0.0</Version>
+    <PackageId>Nobara.Sdk</PackageId>
+    <PackageType>MSBuildSDK</PackageType>
+    <Description>MSBuild SDK that turns a project and its module.nobara file into a Nobara module.</Description>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <IncludeSymbols>false</IncludeSymbols>
+    <NoPackageAnalysis>true</NoPackageAnalysis>
+
+    <!-- The task assembly goes to tasks/netstandard2.0/. -->
+    <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>.dll</AllowedOutputExtensionsInPackageBuildOutputFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- MSBuild provides these assemblies at run time. -->
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" PrivateAssets="all" ExcludeAssets="runtime" />
+    <InternalsVisibleTo Include="Nobara.Sdk.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Sdk\**" Pack="true" PackagePath="Sdk" />
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <!--
+    The global packages folder keeps an extracted copy of every package
+    version, and MSBuild resolves the SDK from that copy. Remove the copy of
+    this version after packing so that the next restore extracts the new one.
+  -->
+  <Target Name="NobaraDropCachedSdk" AfterTargets="Pack">
+    <RemoveDir Directories="$(NuGetPackageRoot)$(PackageId.ToLowerInvariant())\$(PackageVersion)" Condition="'$(NuGetPackageRoot)' != ''" />
+  </Target>
+
+</Project>

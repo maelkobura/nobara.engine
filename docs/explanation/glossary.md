@@ -5,6 +5,13 @@ has one meaning; the documentation does not use a second word for it.
 
 ## Terms
 
+### Auxiliary project
+
+A project that belongs to a module without being a module: it has no manifest
+and its name ends with a reserved suffix (`.Build`, `.Generators`,
+`.Analyzers`, `.Scripting`, `.TypeGen`, `.Tests`, or `.Benchmarks`). See
+[the SDK page](../../tools/Nobara.Sdk/README.md#project-kinds).
+
 ### Backend
 
 An extension of a base module that implements the module's neutral API with
@@ -115,11 +122,23 @@ A unit of the engine with a name, a version, a level, and declared
 dependencies. A distribution is an assembly of modules. See
 [Modules](architecture.md#modules).
 
+### Module map
+
+The file `obj/nobara/modules.props`, which associates module identifiers with
+local projects. [Nobara.Sdk](#nobarasdk) turns a dependency into a project
+reference when the map names a project for it. See [the SDK
+page](../../tools/Nobara.Sdk/README.md#local-modules).
+
 ### nGame
 
 The platform module that owns the simulation tick and game time. It splits
 the simulation phase into ordered steps, schedules the systems of the tick,
 and keeps pause, time scale, and tick rate.
+
+### Nobara.Sdk
+
+The MSBuild SDK that reads the manifest of a module and generates its version
+and its references. See [the SDK page](../../tools/Nobara.Sdk/README.md).
 
 ### Optional dependency
 

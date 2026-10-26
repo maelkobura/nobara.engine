@@ -73,11 +73,11 @@ later is required; Node.js is required for markdownlint.
 | Check | Command |
 | --- | --- |
 | All checks | `python .github/scripts/check_all.py` |
-| Build and tests | `dotnet build Nobara.slnx` then `dotnet test Nobara.slnx` |
+| Build and tests | `dotnet pack tools/Nobara.Sdk -c Release -o artifacts/packages`, then `dotnet build Nobara.slnx` then `dotnet test Nobara.slnx` |
 | License headers | `python .github/scripts/check_headers.py` |
 | Forbidden terms | `python .github/scripts/check_terms.py` |
 | Internal Markdown links | `python .github/scripts/check_links.py` |
-| Markdown style | `npx markdownlint-cli2 "docs/**/*.md" README.md AGENTS.md "src/*/README.md"` |
+| Markdown style | `npx markdownlint-cli2 "docs/**/*.md" README.md AGENTS.md "src/*/README.md" "tools/*/README.md"` |
 | Pull request title and description | `python .github/scripts/check_pr.py --title "chore: example" --body-file body.md` |
 | Tests of the check scripts | `python -m unittest discover -s .github/scripts/tests` |
 
@@ -85,5 +85,16 @@ later is required; Node.js is required for markdownlint.
 
 - `Nobara.slnx` is hand-written while it is empty. Once the command-line
   tool can generate it, it is generated and must not be edited by hand.
+- Every module project uses `Nobara.Sdk` (`<Project Sdk="Nobara.Sdk/1.0.0">`).
+  The SDK is resolved from the local feed `artifacts/packages` (see
+  `NuGet.config`), so a fresh clone runs the pack command of the table above
+  once, and again after changing `tools/Nobara.Sdk` (then run
+  `dotnet build-server shutdown` so no build node keeps the old task assembly). The tests of the SDK pack
+  it themselves.
+- Until the command-line tool can generate it, write `obj/nobara/modules.props`
+  by hand: it maps the identifier of each local module to its project, and a
+  dependency that is not listed is restored as a NuGet package. `obj/` is not
+  tracked by Git. The format is described in
+  [the SDK page](tools/Nobara.Sdk/README.md#local-modules).
 - Sections of a module `README.md` between `nobara:generated` markers are
   generated. Do not edit them by hand.
