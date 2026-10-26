@@ -47,7 +47,7 @@
     NobaraResources: runs the resource compiler and embeds its output.
   -->
   <PropertyGroup>
-    <NobaraAnalyzersDependsOn />
+    <NobaraAnalyzersDependsOn>$(NobaraAnalyzersDependsOn);NobaraAttachEngineAnalyzers</NobaraAnalyzersDependsOn>
     <NobaraSchemasDependsOn />
     <NobaraResourcesDependsOn />
   </PropertyGroup>
@@ -57,6 +57,22 @@
   </ItemGroup>
 
   <Target Name="NobaraAnalyzers" BeforeTargets="CoreCompile" DependsOnTargets="$(NobaraAnalyzersDependsOn)" />
+
+  <!--
+    The engine analyzers check the code that runs in a context: modules,
+    extensions included, and script facades. Build-time tools (.Build,
+    .Generators, .Analyzers, .TypeGen), tests, and benchmarks are not checked.
+  -->
+  <PropertyGroup>
+    <NobaraEngineAnalyzers>false</NobaraEngineAnalyzers>
+    <NobaraEngineAnalyzers Condition="'$(NobaraProjectKind)' == 'Module' or $(MSBuildProjectName.EndsWith('.Scripting', System.StringComparison.OrdinalIgnoreCase))">true</NobaraEngineAnalyzers>
+  </PropertyGroup>
+
+  <Target Name="NobaraAttachEngineAnalyzers" Condition="'$(NobaraEngineAnalyzers)' == 'true'">
+    <ItemGroup>
+      <Analyzer Include="$(MSBuildThisFileDirectory)../analyzers/Nobara.Analyzers.dll" />
+    </ItemGroup>
+  </Target>
   <Target Name="NobaraSchemas" BeforeTargets="CoreCompile" AfterTargets="NobaraAnalyzers" DependsOnTargets="$(NobaraSchemasDependsOn)" />
   <Target Name="NobaraResources" BeforeTargets="CoreCompile" AfterTargets="NobaraSchemas" DependsOnTargets="$(NobaraResourcesDependsOn)" />
 

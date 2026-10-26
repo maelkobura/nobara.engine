@@ -206,6 +206,11 @@ which are marked with the `[HotPath]` attribute:
 - large data lives in unmanaged memory or in pools;
 - low-level code uses `Span<T>`, `stackalloc`, `struct`, and `ref struct`.
 
+The engine analyzers enforce these rules at compile time, together with the
+absence of mutable static state, which contexts would share, and the
+isolation of optional dependencies. See [the analyzer
+reference](../reference/analyzers.md).
+
 Calls across modules that handle one block or one entity at a time cost too
 much on hot paths. Services therefore offer operations over batches, and
 large volumes of data move through the entity component system or through

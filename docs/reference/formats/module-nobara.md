@@ -58,8 +58,9 @@ Optional. One `<Module>` element per module that this module depends on.
 A dependency is a project reference when the module map names a local project
 for the identifier, and a package reference with the range otherwise. An
 optional dependency is referenced in the same way. Its identifier is also
-exposed to the C# compiler in the `NobaraOptionalModules` build property, which
-an analyzer can read.
+exposed to the C# compiler in the `NobaraOptionalModules` build property, so
+that the engine analyzers keep the types of the dependency inside isolation
+classes (see [NOB401](../analyzers.md#nob401)).
 
 ### Version ranges
 
@@ -97,5 +98,4 @@ codes are listed in [the SDK page](../../../tools/Nobara.Sdk/README.md#errors).
 
 - The SDK does not validate `<ShortName>`, `<Level>`, `<Side>`, `<Conflicts>`,
   `<Reserves>`, `<States>`, or `<Settings>`.
-- No analyzer uses `NobaraOptionalModules` yet.
 - A version range is not checked against the version of a local project.

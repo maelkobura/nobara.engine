@@ -23,7 +23,8 @@ file, and sets what the project file leaves out:
   module map names a local project for it, a package reference with the
   declared range otherwise;
 - one package reference per `<Package>` in `<Libraries>`;
-- `net10.0` as the target framework, unless the project file sets one.
+- `net10.0` as the target framework, unless the project file sets one;
+- the [engine analyzers](#engine-analyzers).
 
 The project file may still set ordinary C# properties such as `<Nullable>`.
 
@@ -93,6 +94,7 @@ clone.
 | `NobaraProjectKind` | `Module` or `Auxiliary`, from the project name | Read only. |
 | `NobaraModuleVersion` | `<Version>` | Read only. |
 | `NobaraOptionalModules` | Identifiers of the optional dependencies, separated by semicolons | Read only. |
+| `NobaraEngineAnalyzers` | `true` for modules and `.Scripting` projects, `false` otherwise | Read only. |
 
 ## Optional dependencies
 
@@ -100,7 +102,26 @@ An optional dependency is an ordinary reference. The SDK also passes the
 identifiers of the optional dependencies to the C# compiler in the
 `NobaraOptionalModules` build property, which an analyzer reads as
 `build_property.NobaraOptionalModules` in the global analyzer config options.
-An analyzer compares an identifier with an assembly name without case.
+An analyzer compares an identifier with an assembly name without case. The
+engine analyzers use it to keep the types of an optional dependency inside
+isolation classes (see [NOB401](../../docs/reference/analyzers.md#nob401)).
+
+## Engine analyzers
+
+The SDK package contains the engine analyzers, built from
+[`tools/Nobara.Analyzers`](../Nobara.Analyzers/README.md), in its `analyzers/`
+folder. The `NobaraAttachEngineAnalyzers` target, which runs through the
+`NobaraAnalyzers` extension point, adds them to the compilation when
+`NobaraEngineAnalyzers` is `true`:
+
+| Project | Engine analyzers |
+| --- | --- |
+| Module, extensions included | Yes |
+| `.Scripting` | Yes: script facades run in a context. |
+| `.Build`, `.Generators`, `.Analyzers`, `.TypeGen` | No: these tools run at build time. |
+| `.Tests`, `.Benchmarks` | No |
+
+The diagnostics are listed in [the analyzer reference](../../docs/reference/analyzers.md).
 
 ## Extension points
 
@@ -110,11 +131,11 @@ order. Another tool plugs in by adding its own targets to the matching
 
 | Target | Property | Intended use |
 | --- | --- | --- |
-| `NobaraAnalyzers` | `NobaraAnalyzersDependsOn` | Attach the engine analyzers. |
+| `NobaraAnalyzers` | `NobaraAnalyzersDependsOn` | Attach analyzers. The SDK attaches the engine analyzers here. |
 | `NobaraSchemas` | `NobaraSchemasDependsOn` | Generate C# classes from the `NobaraSchema` items, which default to `Schemas/**/*.proto`. |
 | `NobaraResources` | `NobaraResourcesDependsOn` | Run the resource compiler and embed its output. |
 
-These targets do nothing.
+`NobaraSchemas` and `NobaraResources` do nothing yet.
 
 ## Errors
 
@@ -147,6 +168,7 @@ build sample projects against it. They need no network.
   Other elements are ignored, not validated.
 - The version range of a dependency is not checked against the version of a
   local project.
-- The extension points have no tool behind them.
+- The `NobaraSchemas` and `NobaraResources` extension points have no tool
+  behind them.
 - The module map is written by hand.
 - The SDK is not published as a package.
