@@ -104,7 +104,20 @@ public sealed class ResourceWatcher : IDisposable
 
         lock (_compileGate)
         {
-            return CompileLocked(module);
+            return !_disposed && CompileLocked(module);
+        }
+    }
+
+    // A compilation started by a change never ends the game: its failure is logged.
+    private void CompileQuietly(string moduleId)
+    {
+        try
+        {
+            Compile(moduleId);
+        }
+        catch (Exception exception)
+        {
+            _engine.Logger.Error($"Hot reload: the resources of '{moduleId}' cannot be compiled: {exception.Message}", exception);
         }
     }
 
@@ -143,7 +156,7 @@ public sealed class ResourceWatcher : IDisposable
 
             if (!_timers.TryGetValue(moduleId, out Timer? timer))
             {
-                timer = new Timer(_ => Compile(moduleId));
+                timer = new Timer(_ => CompileQuietly(moduleId));
                 _timers[moduleId] = timer;
             }
 

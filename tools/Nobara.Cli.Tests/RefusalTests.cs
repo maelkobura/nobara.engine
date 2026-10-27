@@ -70,6 +70,7 @@ public sealed class RefusalTests : IDisposable
         Assert.Equal(1, result.ExitCode);
         Assert.Contains("example.missing", result.Output, StringComparison.Ordinal);
         Assert.Contains("error NCLI004: the module packages cannot be restored", result.Errors, StringComparison.Ordinal);
+        Assert.Contains("error NCLI004: package 'example.missing' cannot be restored ('example.zombie' requires ^1.0)", result.Errors, StringComparison.Ordinal);
         Assert.False(_game.Exists("out/client"));
     }
 

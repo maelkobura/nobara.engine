@@ -245,6 +245,12 @@ internal sealed class ModuleResolver
         IReadOnlyDictionary<string, (string Version, string? Assembly)>? restored = PackageRestorer.Restore(_files, versions, _reporter, _diagnostics);
         if (restored is null)
         {
+            foreach (PackageRequest request in _packages.Values.Where(p => !p.Resolved))
+            {
+                string requiredBy = string.Join(", ", request.Ranges.Select(r => $"'{r.RequiredBy}' requires {r.Range}"));
+                _diagnostics.Error(CliCodes.Restore, $"package '{request.Id}' cannot be restored ({requiredBy}); see the NuGet errors above", null);
+            }
+
             return false;
         }
 
