@@ -40,11 +40,59 @@ public sealed class AssemblyModuleSource : IModuleSource
     {
         InstallDirectory = Path.GetFullPath(installDirectory);
         _moduleFolders = [Path.Combine(InstallDirectory, "system"), Path.Combine(InstallDirectory, "game")];
-        _loadContext = new ModuleLoadContext(Path.Combine(InstallDirectory, "lib"));
+        _loadContext = new ModuleLoadContext();
     }
 
     /// <summary>Gets the folder that contains <c>system/</c>, <c>game/</c>, and <c>lib/</c>.</summary>
     public string InstallDirectory { get; }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Every library is hashed. The modules then load from <c>lib/</c> only
+    /// the libraries of the list, so a file added to the folder is never
+    /// loaded.
+    /// </remarks>
+    public IReadOnlyList<CompositionProblem> CheckLibraries(IReadOnlyList<ExpectedLibrary> libraries)
+    {
+        ArgumentNullException.ThrowIfNull(libraries);
+        var problems = new List<CompositionProblem>();
+        var allowed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        string folder = Path.Combine(InstallDirectory, "lib") + Path.DirectorySeparatorChar;
+        foreach (ExpectedLibrary library in libraries)
+        {
+            string path = Path.GetFullPath(Path.Combine(InstallDirectory, library.Path.Replace('/', Path.DirectorySeparatorChar)));
+            if (!path.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+            {
+                problems.Add(new CompositionProblem(
+                    CompositionProblemKind.InvalidDistribution, string.Empty, $"The distribution records the library '{library.Path}', which is not in lib/."));
+                continue;
+            }
+
+            byte[] content;
+            try
+            {
+                content = File.ReadAllBytes(path);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                problems.Add(new CompositionProblem(
+                    CompositionProblemKind.MissingAssembly, string.Empty, $"Library '{library.Path}': '{path}' cannot be read: {exception.Message}"));
+                continue;
+            }
+
+            if (!SHA256.HashData(content).AsSpan().SequenceEqual(library.Hash.Span))
+            {
+                problems.Add(new CompositionProblem(
+                    CompositionProblemKind.IntegrityMismatch, string.Empty, $"Library '{library.Path}': '{path}' differs from the file the distribution was built with."));
+                continue;
+            }
+
+            allowed[Path.GetFileNameWithoutExtension(path)] = path;
+        }
+
+        _loadContext.AllowLibraries(allowed);
+        return problems;
+    }
 
     /// <inheritdoc/>
     public ModuleImage Discover(ExpectedModule module)

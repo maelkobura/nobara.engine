@@ -1,0 +1,18 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource type of the hot reload tests.
+syntax = "proto3";
+
+package nobara.hotreloadtests;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.HotReload.Tests.Schemas";
+
+message Gadget {
+  option (nobara.resource_type) = "gadget";
+
+  int32 power = 1;
+}

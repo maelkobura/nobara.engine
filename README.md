@@ -15,10 +15,15 @@ Requirements: the .NET SDK pinned in `global.json`, Python 3.12 or later, and
 Node.js (for the Markdown checks).
 
 ```sh
+dotnet pack tools/Nobara.Sdk -c Release -o artifacts/packages
+dotnet run --project tools/Nobara.Cli -- generate
 dotnet build Nobara.slnx
 dotnet test Nobara.slnx
 python .github/scripts/check_all.py
 ```
+
+Games are built with the command-line tool `nobara`, described in [the
+command-line reference](docs/reference/cli.md).
 
 ## Contributions
 

@@ -119,6 +119,37 @@ public sealed class AssemblyModuleTests : IClassFixture<SampleModules>, IDisposa
     }
 
     [Fact]
+    public void Refuses_a_library_that_differs_from_the_distribution_or_is_missing()
+    {
+        (string install, byte[] distribution) = _samples.Install(["Example.Base"], d =>
+        {
+            d.Libraries.Add(new F.LibraryFile { Path = "lib/Example.Library.dll", Hash = ByteString.CopyFrom(SHA256.HashData("original"u8)) });
+            d.Libraries.Add(new F.LibraryFile { Path = "lib/Example.Missing.dll", Hash = ByteString.CopyFrom(new byte[32]) });
+        });
+        Directory.CreateDirectory(Path.Combine(install, "lib"));
+        File.WriteAllText(Path.Combine(install, "lib", "Example.Library.dll"), "altered");
+
+        var exception = Assert.Throws<ModuleCompositionException>(() => Load(install, distribution));
+
+        Assert.Equal(2, exception.Problems.Count);
+        Assert.Contains(exception.Problems, p => p.Kind == CompositionProblemKind.IntegrityMismatch && p.Message.Contains("Example.Library.dll", StringComparison.Ordinal));
+        Assert.Contains(exception.Problems, p => p.Kind == CompositionProblemKind.MissingAssembly && p.Message.Contains("Example.Missing.dll", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Accepts_the_libraries_that_the_distribution_records()
+    {
+        (string install, byte[] distribution) = _samples.Install(["Example.Base"], d =>
+            d.Libraries.Add(new F.LibraryFile { Path = "lib/Example.Library.dll", Hash = ByteString.CopyFrom(SHA256.HashData("library"u8)) }));
+        Directory.CreateDirectory(Path.Combine(install, "lib"));
+        File.WriteAllText(Path.Combine(install, "lib", "Example.Library.dll"), "library");
+
+        using Engine engine = Load(install, distribution);
+
+        Assert.Equal(["example.base"], engine.Modules.Select(m => m.Id));
+    }
+
+    [Fact]
     public void Refuses_a_module_whose_assembly_is_missing()
     {
         (string install, byte[] distribution) = _samples.Install(["Example.Base"], d => d.Modules.Add(new F.DistributionModule

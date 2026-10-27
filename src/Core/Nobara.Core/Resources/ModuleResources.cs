@@ -81,7 +81,42 @@ public sealed class ModuleResources
             throw new InvalidOperationException($"Module '{_module.Info.Id}' registers a decoder for '{type}', which module '{definition.OwnerId}' defines; only the module that defines a type decodes it.");
         }
 
-        _resources.Register(_module, type, typeof(T), new ContextResources.Decoder<T>(_resources.Catalog, type, decoder));
+        _resources.Register(_module, type, typeof(T), new ContextResources.Decoder<T>(_resources, type, decoder));
+    }
+
+    /// <summary>
+    /// Registers what the module does when resources of a type that it defines
+    /// change while the game runs, in development mode.
+    /// </summary>
+    /// <param name="type">The type prefix: <c>block</c>.</param>
+    /// <param name="handler">
+    /// Applies the changes, or refuses those it cannot apply with
+    /// <see cref="ResourceReload.Refuse"/>. It runs on the loop thread of the
+    /// context, at the synchronization point of a frame; an exception it throws
+    /// follows the error policy of the module.
+    /// </param>
+    /// <remarks>
+    /// A change of a type without a handler is not applied by its module: the
+    /// core logs it as a warning. Reloads happen only when a development tool
+    /// calls <see cref="Engine.ReloadResources"/>; a release build never does.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The step is not <see cref="LifecycleStep.Registration"/>, no schema
+    /// defines the type, another module defines it, or it already has a handler.
+    /// </exception>
+    public void RegisterReloadHandler(string type, Action<ResourceReload> handler)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(handler);
+        RequireStep(registration: true, "Reload handlers are registered during registration");
+        ResourceType definition = _resources.Catalog.Type(type)
+            ?? throw new InvalidOperationException($"Module '{_module.Info.Id}' registers a reload handler for '{type}', a type that no schema of the loaded modules defines.");
+        if (!string.Equals(definition.OwnerId, _module.Info.Id, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Module '{_module.Info.Id}' registers a reload handler for '{type}', which module '{definition.OwnerId}' defines; only the module that defines a type reloads it.");
+        }
+
+        _resources.RegisterReloadHandler(_module, type, handler);
     }
 
     /// <summary>Gets the decoded objects of a type, in load order of the modules that define them.</summary>
@@ -436,6 +471,7 @@ internal sealed class ContextResources
 {
     private readonly Dictionary<string, (ModuleRuntime Owner, Type Result, IDecoder Decoder)> _decoders = new(StringComparer.Ordinal);
     private readonly List<(ModuleRuntime Module, FreeProperty Property)> _properties = [];
+    private readonly Dictionary<string, (ModuleRuntime Owner, Action<ResourceReload> Handler)> _reloadHandlers = new(StringComparer.Ordinal);
 
     public ContextResources(ResourceCatalog catalog, ProtectedNamespaces protection)
     {
@@ -443,7 +479,11 @@ internal sealed class ContextResources
         Protection = protection;
     }
 
-    public ResourceCatalog Catalog { get; }
+    /// <summary>Gets the catalog that the context reads; a reload replaces it at the synchronization point.</summary>
+    public ResourceCatalog Catalog { get; set; }
+
+    /// <summary>Gets the version of the resources of the engine that the context reads: 0 until the first reload.</summary>
+    public int Version { get; set; }
 
     public ProtectedNamespaces Protection { get; }
 
@@ -456,6 +496,18 @@ internal sealed class ContextResources
 
         _decoders[type] = (owner, result, decoder);
     }
+
+    public void RegisterReloadHandler(ModuleRuntime owner, string type, Action<ResourceReload> handler)
+    {
+        if (!_reloadHandlers.TryAdd(type, (owner, handler)))
+        {
+            throw new InvalidOperationException($"Module '{owner.Info.Id}' registers a second reload handler for '{type}'.");
+        }
+    }
+
+    /// <summary>Gets the handler of a type, or <see langword="null"/>.</summary>
+    public (ModuleRuntime Owner, Action<ResourceReload> Handler)? ReloadHandler(string type) =>
+        _reloadHandlers.TryGetValue(type, out var entry) && !entry.Owner.Disabled ? entry : null;
 
     public void Declare(ModuleRuntime module, FreeProperty property)
     {
@@ -502,11 +554,17 @@ internal sealed class ContextResources
             _decoders.Remove(type);
         }
 
+        foreach (string type in _reloadHandlers.Where(d => d.Value.Owner == module).Select(d => d.Key).ToList())
+        {
+            _reloadHandlers.Remove(type);
+        }
+
         _properties.RemoveAll(p => p.Module == module);
     }
 
     /// <summary>Checks that the readers of each free property agree on its type, and that every value has it.</summary>
-    public List<ResourceProblem> CheckProperties()
+    /// <param name="catalog">The catalog to check, <see cref="Catalog"/> when <see langword="null"/>.</param>
+    public List<ResourceProblem> CheckProperties(ResourceCatalog? catalog = null)
     {
         var problems = new List<ResourceProblem>();
         var active = _properties.Where(p => !p.Module.Disabled).ToList();
@@ -529,7 +587,7 @@ internal sealed class ContextResources
             return problems;
         }
 
-        foreach (ResourceData resource in Catalog.All)
+        foreach (ResourceData resource in (catalog ?? Catalog).All)
         {
             foreach (ResourceProperty property in resource.Properties)
             {
@@ -558,10 +616,11 @@ internal sealed class ContextResources
         void DecodeAll();
     }
 
-    internal sealed class Decoder<T>(ResourceCatalog catalog, string type, Func<ResourceData, T> decode) : IDecoder
+    // Reads the catalog of the context each time, so a reload decodes the new resources.
+    internal sealed class Decoder<T>(ContextResources resources, string type, Func<ResourceData, T> decode) : IDecoder
     {
         public void DecodeAll() => All();
 
-        public T[] All() => catalog.Decoded(type, decode);
+        public T[] All() => resources.Catalog.Decoded(type, decode);
     }
 }

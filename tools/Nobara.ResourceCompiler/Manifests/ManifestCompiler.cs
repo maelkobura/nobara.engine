@@ -76,6 +76,11 @@ public static class ManifestCompiler
     /// <param name="requiredModules">The identifiers of the required modules.</param>
     /// <param name="hashes">The SHA-256 of the assembly of each module, by identifier, or <see langword="null"/>.</param>
     /// <param name="relativeTo">The folder the source positions of module configurations are relative to.</param>
+    /// <param name="libraries">
+    /// The SHA-256 of each file of <c>lib/</c>, by path relative to the folder
+    /// of the installed game with forward slashes (<c>lib/Example.Library.dll</c>),
+    /// or <see langword="null"/>.
+    /// </param>
     /// <returns>The compiled distribution manifest.</returns>
     public static F.DistributionManifest Compile(
         ProjectManifest project,
@@ -83,7 +88,8 @@ public static class ManifestCompiler
         IReadOnlyList<ModuleManifest> modules,
         IReadOnlySet<string> requiredModules,
         IReadOnlyDictionary<string, byte[]>? hashes,
-        string relativeTo)
+        string relativeTo,
+        IReadOnlyDictionary<string, byte[]>? libraries = null)
     {
         var result = new F.DistributionManifest
         {
@@ -106,6 +112,11 @@ public static class ManifestCompiler
             }
 
             result.Modules.Add(entry);
+        }
+
+        foreach ((string path, byte[] hash) in (libraries ?? new Dictionary<string, byte[]>()).OrderBy(l => l.Key, StringComparer.Ordinal))
+        {
+            result.Libraries.Add(new F.LibraryFile { Path = path, Hash = ByteString.CopyFrom(hash) });
         }
 
         result.ProtectedNamespaces.AddRange(project.ProtectedNamespaces.Select(n => n.Name));

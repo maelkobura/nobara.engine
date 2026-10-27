@@ -59,6 +59,14 @@ def main() -> int:
                 "Pack Nobara.Sdk",
                 [dotnet, "pack", "tools/Nobara.Sdk", "-c", "Release", "-o", "artifacts/packages", "--nologo"],
             )
+            results["solution"] = run(
+                "Generated solution",
+                [dotnet, "run", "--project", "tools/Nobara.Cli", "--", "generate", "--check"],
+            )
+            results["module sheets"] = run(
+                "Module sheets",
+                [dotnet, "run", "--project", "tools/Nobara.Cli", "--", "docs", "--check"],
+            )
             results["build"] = run("Build", [dotnet, "build", "Nobara.slnx", "--nologo"])
             results["tests"] = run("Tests", [dotnet, "test", "Nobara.slnx", "--nologo"])
         else:

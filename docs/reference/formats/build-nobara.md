@@ -1,8 +1,9 @@
 # The `build.nobara` file
 
 This page is the reference for `build.nobara`, the file at the root of a game
-that declares its build targets. It is read when the game is built and is not
-compiled into the distribution.
+that declares its build targets. It is read when the game is built, by
+[`nobara build`](../cli.md#nobara-build-target), and is not compiled into the
+distribution.
 
 ## Example
 
@@ -36,12 +37,18 @@ elements.
 | `<Disable module="…"/>` | No | A module of the distribution left out of this target. A target also disables the backends it does not need this way. |
 | `<Variants>` | No | Reserved: `<BattlEye/>` and `<Play/>` are accepted with a warning and not built. |
 
-The modules of a target are those whose side includes the side of the target,
-minus the disabled ones. A required module cannot be disabled, and a module
-that another active module requires cannot be disabled either.
+A client target holds the modules of both sides, because a client hosts an
+integrated server, and is checked on both sides; a server target holds the
+modules whose side includes the server. The disabled modules are left out of
+either. A required module cannot be disabled, and a module that another
+active module requires on a side of the target cannot be disabled either.
+
+`win-x64` is the only platform that the command-line tool builds in this
+version.
 
 ## Known limitations
 
 - The compilation mode and the output format of a target are not part of the
-  format.
+  format: the command-line tool chooses them, release or
+  [development](../cli.md#development-builds), and a zip archive.
 - Variants are not built.

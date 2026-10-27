@@ -147,6 +147,34 @@ public sealed class DistributionCheckerTests
     }
 
     [Fact]
+    public void Ships_both_sides_in_a_client_target_and_the_server_side_in_a_server_target()
+    {
+        Module("nobara.game")
+            .Module("nobara.renderer", Depends("nobara.game"), side: "client")
+            .Module("nobara.saves", Depends("nobara.game"), side: "server");
+        _build = """
+            <Target name="client"><Platform>win-x64</Platform><Side>client</Side></Target>
+            <Target name="server"><Platform>win-x64</Platform><Side>server</Side></Target>
+            """;
+
+        DistributionCheckResult client = Check("client");
+        DistributionCheckResult server = Check("server");
+
+        Assert.True(client.Success && server.Success, string.Join(Environment.NewLine, client.Diagnostics.Concat(server.Diagnostics)));
+        Assert.Equal(["nobara.game", "nobara.renderer", "nobara.saves"], client.ActiveModules.Select(m => m.Id));
+        Assert.Equal(["nobara.game", "nobara.saves"], server.ActiveModules.Select(m => m.Id));
+    }
+
+    [Fact]
+    public void Checks_the_server_side_of_a_client_target()
+    {
+        Module("nobara.saves", Depends("nobara.storage"), side: "server").Module("nobara.storage", side: "client");
+        _build = "<Target name=\"client\"><Platform>win-x64</Platform><Side>client</Side></Target>";
+
+        Refuses(Check("client"), "NRC201", "nobara.saves", "nobara.storage", "server side of target 'client'");
+    }
+
+    [Fact]
     public void Refuses_a_disputed_reservation()
     {
         Module("nobara.a", "<Reserves><Resource name=\"window.main\" /></Reserves>").Module("nobara.b", "<Reserves><Resource name=\"window.main\" /></Reserves>");

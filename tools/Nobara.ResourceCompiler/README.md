@@ -145,8 +145,16 @@ one target or for each side:
 - error policies and module configurations name modules of the distribution,
   and a target does not disable a required module.
 
-It returns the diagnostics, the active modules in load order, and the
-required modules.
+A client target ships the modules of both sides, because a client hosts an
+integrated server, and is checked on both sides; a server target ships and
+checks the server side. Without a target, each side is checked and every
+module is active.
+
+It returns the diagnostics, the modules that the target ships in load order,
+and the required modules. `ManifestCompiler` then compiles the distribution
+manifest from them, with the SHA-256 of each module assembly and of each file
+of `lib/` that the caller computed; [the command-line
+tool](../Nobara.Cli/README.md) does it when it builds a target.
 
 ## Diagnostics
 
@@ -232,6 +240,6 @@ tested in `tools/Nobara.Sdk.Tests`.
 - A schema cannot import the schema of another module.
 - Overrides and tags are compiled and checked, not applied: applying them is
   the job of the code that loads the resources.
-- The hashes of module assemblies are not computed; `ManifestCompiler`
-  records the hashes it is given.
+- The hashes of module assemblies and libraries are not computed here;
+  `ManifestCompiler` records the hashes it is given.
 - Localization keys are checked for their form only.

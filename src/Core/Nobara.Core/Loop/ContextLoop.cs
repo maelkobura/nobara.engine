@@ -305,6 +305,8 @@ internal sealed class ContextLoop
             Rebuild();
         }
 
+        _context.EnterPhase("Synchronization");
+        _context.SynchronizeResources();
         DrainPosted();
 
         // A lever used during the frame takes effect at the next one.
