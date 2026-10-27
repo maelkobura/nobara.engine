@@ -124,8 +124,7 @@ A module subscribes an `IPhaseHandler` to a phase during registration, with
 `context.Loop.Subscribe("Input", handler)`. The handlers of a phase run in
 the order they subscribed, which is the load order. Disposing the
 subscription removes the handler at once, even from the frame that runs. The
-handler
-receives a `PhaseTime`: the frame and tick numbers, the duration of a tick in
+handler receives a `PhaseTime`: the frame and tick numbers, the duration of a tick in
 a fixed phase or the real frame time elsewhere, and outside fixed phases the
 fraction of a tick accumulated since the last one, to interpolate what is
 drawn.
@@ -276,12 +275,11 @@ It provides no resource type.
   the service registry are not thread-safe, except `Post`,
   `SynchronizationContext`, and `RequestStop`; loggers and sinks are.
 - A frame allocates no managed memory once the subscriptions are stable: the
-  tests measure it. With `FramePacing.Tick`, the wait between frames reuses one
-  timer.
+  tests measure it. The dispatch to handlers is not marked `[HotPath]`, so that
+  a handler of a phase that is not fixed does not have to follow the hot path
+  rules. With `FramePacing.Tick`, the wait between frames reuses one timer.
 - A frame does not run inside another frame, and a context does not stop
-  during a frame: a module calls `RequestStop` instead. The dispatch to handlers is not marked `[HotPath]`, so
-  that a handler of a phase that is not fixed does not have to follow the hot
-  path rules.
+  during a frame: a module calls `RequestStop` instead.
 - Assemblies are loaded once per process, in a load context named `Nobara
   modules` that shares the core and every assembly of the default context.
 - No mutable static state: two contexts of one process each have their own

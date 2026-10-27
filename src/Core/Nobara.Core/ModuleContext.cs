@@ -68,9 +68,11 @@ public sealed class ModuleContext
     /// </remarks>
     /// <example>
     /// <code>
-    /// public async void Initialize(ModuleContext context) // awaits from step 3
+    /// public void Initialize(ModuleContext context) => _loading = LoadAsync();
+    ///
+    /// private async Task LoadAsync()
     /// {
-    ///     byte[] data = await File.ReadAllBytesAsync(path); // resumes on the loop thread
+    ///     byte[] data = await File.ReadAllBytesAsync(_path); // resumes on the loop thread
     /// }
     /// </code>
     /// </example>
