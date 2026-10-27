@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using Nobara.Core.Logging;
+using Nobara.Core.Loop;
 
 namespace Nobara.Core;
 
@@ -53,6 +54,8 @@ public sealed class EngineContext
     private readonly Dictionary<string, ModuleRuntime> _byId;
     private readonly Dictionary<Assembly, ModuleRuntime> _byAssembly;
     private readonly PhaseTracker _phase = new();
+    private readonly ContextLoop _loop;
+    private volatile bool _stopRequested;
 
     internal EngineContext(Engine engine, Side side)
     {
@@ -61,6 +64,7 @@ public sealed class EngineContext
         Name = side == Side.Server ? "server" : "client";
         Logger = engine.CreateLogger(Name, "core", _phase);
         Services = new ServiceRegistry(engine.ModuleOfType);
+        _loop = new ContextLoop(this, engine.LoopDeclaration, engine.Time, engine.MaxFrameTime);
 
         _modules = [];
         foreach (Engine.LoadedEntry entry in engine.Loaded.Where(e => e.Info.RunsOn(side)))
@@ -108,7 +112,21 @@ public sealed class EngineContext
     /// <summary>Gets the logger of the core in this context.</summary>
     public Logger Logger { get; }
 
+    /// <summary>Gets the phases of the loop of this context, in the order they run.</summary>
+    public IReadOnlyList<LoopPhase> Phases => _loop.Phases;
+
+    /// <summary>Gets the number of the last frame that ran, or 0.</summary>
+    public ulong Frame => _loop.Frame;
+
+    /// <summary>Gets the number of the last tick that ran, or 0.</summary>
+    public ulong Tick => _loop.Tick;
+
+    /// <summary>Gets whether <see cref="RequestStop"/> was called.</summary>
+    public bool IsStopRequested => _stopRequested;
+
     internal ServiceRegistry Services { get; }
+
+    internal ContextLoop Loop => _loop;
 
     /// <summary>Tells whether a module is active in this context: present, running on this side, and not disabled.</summary>
     /// <param name="moduleId">The identifier of a module.</param>
@@ -136,6 +154,7 @@ public sealed class EngineContext
 
         State = ContextState.Starting;
         Logger.Info($"Starting the {Name} context with {_modules.Count} modules.");
+        _loop.FindReservations(_modules);
         try
         {
             RunStep(LifecycleStep.Registration, module =>
@@ -164,8 +183,76 @@ public sealed class EngineContext
         Step = LifecycleStep.Execution;
         _phase.Current = string.Empty;
         State = ContextState.Running;
-        Logger.Info($"The {Name} context is running.");
+        _loop.Begin();
+        Logger.Info($"The {Name} context is running: {string.Join(", ", _loop.Phases.Select(p => p.IsFixed ? p.Name + $" ({_loop.TickRate:0.##} Hz)" : p.Name))}.");
     }
+
+    /// <summary>
+    /// Runs one frame: the synchronization point, the handlers of the start of
+    /// the frame, then each phase in order. A fixed phase runs once per tick
+    /// due, zero or more times.
+    /// </summary>
+    /// <remarks>
+    /// Call it from the loop thread of the context. A module whose policy is
+    /// <see cref="ErrorPolicy.Disable"/> and that throws is disabled, with the
+    /// modules that require it, and the frame goes on.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The context is not running.</exception>
+    /// <exception cref="EngineStopException">
+    /// A module whose policy is <see cref="ErrorPolicy.Stop"/> threw. The
+    /// context is stopped before the exception is thrown.
+    /// </exception>
+    public void RunFrame()
+    {
+        if (State != ContextState.Running)
+        {
+            throw new InvalidOperationException($"The {Name} context is {State}; frames run while it is Running.");
+        }
+
+        try
+        {
+            _loop.RunFrame();
+        }
+        catch (EngineStopException)
+        {
+            Shutdown();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Starts the context if needed, runs frames on the calling thread until a
+    /// stop is requested, then stops the context.
+    /// </summary>
+    /// <param name="cancellation">Requests a stop when it is canceled.</param>
+    /// <exception cref="EngineStopException">A module whose policy is <see cref="ErrorPolicy.Stop"/> threw. The context is stopped.</exception>
+    public void Run(CancellationToken cancellation = default)
+    {
+        if (State == ContextState.Created)
+        {
+            Start();
+        }
+
+        using CancellationTokenRegistration registration = cancellation.Register(RequestStop);
+        try
+        {
+            while (!_stopRequested && State == ContextState.Running)
+            {
+                RunFrame();
+                if (Engine.Pacing == FramePacing.Tick && !_stopRequested)
+                {
+                    WaitForNextTick(cancellation);
+                }
+            }
+        }
+        finally
+        {
+            Stop();
+        }
+    }
+
+    /// <summary>Asks <see cref="Run"/> to stop the context after the frame that runs. It can be called from any thread.</summary>
+    public void RequestStop() => _stopRequested = true;
 
     /// <summary>Runs steps 6 and 7 for every active module of the context, in reverse load order.</summary>
     /// <remarks>
@@ -181,6 +268,22 @@ public sealed class EngineContext
 
         Logger.Info($"Stopping the {Name} context.");
         Shutdown();
+    }
+
+    internal void EnterPhase(string phase) => _phase.Current = phase;
+
+    // Applies the policy of the module that threw in the loop. The module is
+    // null for a callback posted without one.
+    internal void HandleLoopFault(ModuleRuntime? called, Exception exception)
+    {
+        ModuleRuntime? module = called ?? Attribute(exception);
+        if (module is null)
+        {
+            Logger.Error("A callback of the synchronization point threw; no module is charged with it.", exception);
+            return;
+        }
+
+        HandleFault(module, LifecycleStep.Execution, exception);
     }
 
     internal void AddEmergencyHook(ModuleRuntime module, Action<EmergencyStop> hook) => module.EmergencyHooks.Add(hook);
@@ -314,6 +417,7 @@ public sealed class EngineContext
             }
 
             Services.Withdraw(module);
+            _loop.Changed();
             string reason = module == culprit ? "after an error" : $"because it requires '{culprit.Info.Id}'";
             module.Context.Logger.Warning($"Module '{module.Info.Id}' is disabled {reason}.");
         }
@@ -370,6 +474,23 @@ public sealed class EngineContext
         _phase.Current = string.Empty;
         State = ContextState.Stopped;
         Logger.Info($"The {Name} context is stopped.");
+    }
+
+    private void WaitForNextTick(CancellationToken cancellation)
+    {
+        TimeSpan wait = _loop.UntilNextTick();
+        if (wait > TimeSpan.Zero)
+        {
+            try
+            {
+                // Timers count whole milliseconds: a shorter wait would not wait at all.
+                Task.Delay(TimeSpan.FromMilliseconds(Math.Ceiling(wait.TotalMilliseconds)), Engine.Time, cancellation).Wait(cancellation);
+            }
+            catch (OperationCanceledException)
+            {
+                // The stop is requested; the loop ends after this frame.
+            }
+        }
     }
 
     // Calls a module during a shutdown or an emergency: exceptions are logged

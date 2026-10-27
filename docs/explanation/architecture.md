@@ -189,6 +189,16 @@ the simulation tick. It splits the simulation phase into ordered, extensible
 steps, schedules every system of the tick, and keeps game time: pause, time
 scale, tick rate, and raw clocks per dimension.
 
+The two meet through a reservation and levers. `nGame` reserves the
+simulation phase, so the other modules register their systems with it rather
+than with the phase, and it receives the levers of the core on the tick:
+pause, time scale, and tick rate. Without `nGame`, the simulation phase is an
+ordinary phase that runs in real time at the declared rate, so the core also
+runs tools and auxiliary servers on its own. The module that drives the
+states of the application receives, the same way, the lever that creates and
+destroys contexts, and applies its transitions at the start of a frame. See
+[the core page](../../src/Core/README.md#loop).
+
 ## Configuration
 
 The core owns two kinds of settings: those of the player and those of the

@@ -4,6 +4,7 @@
 
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
+using Nobara.Core.Loop;
 
 namespace Nobara.Core;
 
@@ -12,8 +13,10 @@ namespace Nobara.Core;
 /// its lifecycle. There is one per module and per context.
 /// </summary>
 /// <remarks>
-/// Call it on the loop thread of the context. The lifecycle steps limit what
-/// is allowed: services are published during registration and resolved from
+/// Call it on the loop thread of the context, except <see cref="Post(SendOrPostCallback, object?)"/>,
+/// <see cref="SynchronizationContext"/>, and <see cref="RequestStop"/>. The
+/// lifecycle steps limit what is allowed: services are published and phases
+/// subscribed to during registration, and services are resolved from
 /// initialization on.
 /// </remarks>
 public sealed class ModuleContext
@@ -26,6 +29,8 @@ public sealed class ModuleContext
         _context = context;
         _runtime = runtime;
         Logger = logger;
+        Loop = new ModuleLoop(context, context.Loop, runtime);
+        SynchronizationContext = new ModuleSynchronizationContext(context.Loop, runtime);
     }
 
     /// <summary>Gets the module.</summary>
@@ -45,6 +50,60 @@ public sealed class ModuleContext
 
     /// <summary>Gets the identity of the game.</summary>
     public DistributionInfo Distribution => _context.Engine.Distribution;
+
+    /// <summary>Gets the loop of the context: its phases, and the subscriptions and levers of the module.</summary>
+    public ModuleLoop Loop { get; }
+
+    /// <summary>
+    /// Gets the synchronization point of the context for this module. Code
+    /// that continues an I/O operation on another thread sends its result here
+    /// to apply it on the loop thread, at the start of the next frame. An
+    /// exception it throws is charged to this module.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// SynchronizationContext.SetSynchronizationContext(context.SynchronizationContext);
+    /// byte[] data = await File.ReadAllBytesAsync(path); // resumes on the loop thread
+    /// </code>
+    /// </example>
+    public SynchronizationContext SynchronizationContext { get; }
+
+    /// <summary>
+    /// Queues a callback on the synchronization point of the context: it runs
+    /// on the loop thread at the start of the next frame, before the first
+    /// phase. It can be called from any thread.
+    /// </summary>
+    /// <param name="callback">The code to run; an exception it throws is charged to this module.</param>
+    /// <param name="state">The argument of <paramref name="callback"/>.</param>
+    public void Post(SendOrPostCallback callback, object? state = null)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        _context.Loop.Post(_runtime, callback, state);
+    }
+
+    /// <summary>
+    /// Asks the context to stop after the frame that runs. For the main
+    /// context, the game ends. It can be called from any thread.
+    /// </summary>
+    public void RequestStop()
+    {
+        Logger.Info($"Module '{Module.Id}' requests the {_context.Name} context to stop.");
+        _context.RequestStop();
+    }
+
+    /// <summary>Gets the lever that creates and destroys contexts.</summary>
+    /// <returns>The lever.</returns>
+    /// <exception cref="InvalidOperationException">The module does not reserve <see cref="LoopReservations.Contexts"/>.</exception>
+    public ContextControl GetContextControl()
+    {
+        if (!Module.Reservations.Contains(LoopReservations.Contexts, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Module '{Module.Id}' cannot create or destroy contexts: only the module that reserves '{LoopReservations.Contexts}' can.");
+        }
+
+        return _context.Engine.ContextControl;
+    }
 
     /// <summary>Publishes a service of the module in this context.</summary>
     /// <typeparam name="TService">The type under which other modules resolve the service, usually an interface.</typeparam>

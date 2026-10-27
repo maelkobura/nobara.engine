@@ -5,8 +5,20 @@
 using System.Reflection;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
+using Nobara.Core.Loop;
+using F = Nobara.Formats;
 
 namespace Nobara.Core;
+
+/// <summary>How <see cref="EngineContext.Run"/> paces the frames.</summary>
+public enum FramePacing
+{
+    /// <summary>Frames follow each other without waiting, for a client whose rendering paces the loop.</summary>
+    Free,
+
+    /// <summary>After each frame, the loop thread waits until the next tick is due, for a context that does not render.</summary>
+    Tick,
+}
 
 /// <summary>How to start the engine.</summary>
 public sealed class EngineOptions
@@ -55,6 +67,23 @@ public sealed class EngineOptions
 
     /// <summary>Gets other destinations of the messages.</summary>
     public IReadOnlyList<ILogSink> LogSinks { get; init; } = [];
+
+    /// <summary>Gets the clock of the loop. Defaults to the system clock; tests give a clock they move themselves.</summary>
+    public TimeProvider? TimeProvider { get; init; }
+
+    /// <summary>
+    /// Gets how <see cref="EngineContext.Run"/> paces the frames. Defaults to
+    /// <see cref="FramePacing.Free"/> for a client and to
+    /// <see cref="FramePacing.Tick"/> for a dedicated server.
+    /// </summary>
+    public FramePacing? FramePacing { get; init; }
+
+    /// <summary>
+    /// Gets the most time that one frame accounts for. After a longer pause
+    /// (a breakpoint, a slow load), the loop catches up only this much, so it
+    /// does not run hundreds of ticks in a row. Defaults to 250 ms.
+    /// </summary>
+    public TimeSpan MaxFrameTime { get; init; } = TimeSpan.FromMilliseconds(250);
 }
 
 /// <summary>
@@ -66,10 +95,15 @@ public sealed class EngineOptions
 /// runs steps 2 to 7 for its own instances of the modules.
 /// </remarks>
 /// <example>
+/// The <c>main()</c> of a game calls the start-up point:
+/// <code>
+/// public static int Main() => Engine.Run(new EngineOptions { Side = Side.Client });
+/// </code>
+/// A host that drives the frames itself loads the engine instead:
 /// <code>
 /// using Engine engine = Engine.Load(new EngineOptions { Side = Side.Client });
 /// engine.MainContext.Start();
-/// // ...
+/// engine.MainContext.RunFrame();
 /// engine.MainContext.Stop();
 /// </code>
 /// </example>
@@ -79,11 +113,16 @@ public sealed class Engine : IDisposable
     private readonly FileLogSink? _fileLog;
     private readonly Dictionary<Assembly, string?> _moduleOfAssembly = [];
     private readonly List<EngineContext> _contexts = [];
+    private ContextControl? _contextControl;
     private bool _disposed;
 
-    private Engine(Distribution distribution, EnginePaths paths, LogDispatcher logs, FileLogSink? fileLog)
+    private Engine(Distribution distribution, EngineOptions options, EnginePaths paths, LogDispatcher logs, FileLogSink? fileLog)
     {
         Distribution = distribution.Info;
+        LoopDeclaration = distribution.Manifest.Loop;
+        Time = options.TimeProvider ?? TimeProvider.System;
+        Pacing = options.FramePacing ?? (options.Side == Side.Server ? FramePacing.Tick : FramePacing.Free);
+        MaxFrameTime = options.MaxFrameTime > TimeSpan.Zero ? options.MaxFrameTime : TimeSpan.FromMilliseconds(250);
         Paths = paths;
         _logs = logs;
         _fileLog = fileLog;
@@ -106,6 +145,66 @@ public sealed class Engine : IDisposable
     public EngineContext MainContext { get; private set; } = null!;
 
     internal IReadOnlyList<LoadedEntry> Loaded { get; private set; } = [];
+
+    internal F.Loop? LoopDeclaration { get; }
+
+    internal TimeProvider Time { get; }
+
+    internal FramePacing Pacing { get; }
+
+    internal TimeSpan MaxFrameTime { get; }
+
+    internal ContextControl ContextControl => _contextControl ??= new ContextControl(this);
+
+    /// <summary>
+    /// The start-up point of a game: loads the distribution, starts the main
+    /// context, runs its loop on the calling thread until a stop is requested,
+    /// then stops it. Every <c>main()</c> of the game calls it, after its own
+    /// preparations.
+    /// </summary>
+    /// <param name="options">How to start.</param>
+    /// <param name="cancellation">Requests a stop when it is canceled. Ctrl+C in the console requests a stop too.</param>
+    /// <returns>The exit code of the process: 0 after a requested stop, 1 when the game could not start or stopped on an error.</returns>
+    /// <exception cref="ArgumentException"><see cref="EngineOptions.Side"/> is not a single side.</exception>
+    public static int Run(EngineOptions options, CancellationToken cancellation = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        Engine engine;
+        try
+        {
+            engine = Load(options);
+        }
+        catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException)
+        {
+            // Load logged the problems.
+            return 1;
+        }
+
+        using (engine)
+        {
+            void OnCancel(object? sender, ConsoleCancelEventArgs e)
+            {
+                e.Cancel = true;
+                engine.MainContext.RequestStop();
+            }
+
+            Console.CancelKeyPress += OnCancel;
+            try
+            {
+                engine.MainContext.Run(cancellation);
+                return 0;
+            }
+            catch (EngineStopException)
+            {
+                // The context logged the error and wrote the crash report.
+                return 1;
+            }
+            finally
+            {
+                Console.CancelKeyPress -= OnCancel;
+            }
+        }
+    }
 
     /// <summary>
     /// Reads the distribution, checks its modules (step 0), and loads them
@@ -147,7 +246,7 @@ public sealed class Engine : IDisposable
             sinks.Add(fileLog);
         }
 
-        var engine = new Engine(distribution, paths, new LogDispatcher(sinks, options.MinimumLogLevel), fileLog);
+        var engine = new Engine(distribution, options, paths, new LogDispatcher(sinks, options.MinimumLogLevel), fileLog);
         try
         {
             engine.LoadModules(distribution, options.ModuleSource ?? new AssemblyModuleSource(install), options.Side);
