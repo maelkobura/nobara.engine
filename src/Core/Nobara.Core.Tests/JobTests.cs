@@ -363,6 +363,34 @@ public sealed class JobTests : IDisposable
     }
 
     [Fact]
+    public void Jobs_in_progress_are_done_before_a_disabled_module_is_released()
+    {
+        _distribution.Policy("example.jobs", F.Policy.Disable);
+        var record = new Record();
+        bool doneAtRelease = false;
+        (Engine engine, ModuleContext context) = Start(behavior: module =>
+        {
+            module.OnRegister = c => c.Loop.Subscribe("Input", new PhaseHandler(t =>
+            {
+                if (t.Frame == 1)
+                {
+                    c.Jobs.Schedule(new RecordJob { Record = record, Name = "slow", Delay = 100 }, priority: JobPriority.Background);
+                    throw new InvalidOperationException("the field flooded");
+                }
+            }));
+            module.OnRelease = _ => doneAtRelease = record.Names.Contains("slow");
+        });
+        using (engine)
+        {
+            engine.MainContext.RunFrame();
+
+            Assert.False(engine.MainContext.IsModuleActive("example.jobs"));
+            Assert.True(doneAtRelease);
+            Assert.Throws<InvalidOperationException>(() => context.Jobs.Schedule(new RecordJob { Record = record }));
+        }
+    }
+
+    [Fact]
     public void A_failure_noticed_while_the_context_stops_is_logged()
     {
         (Engine engine, ModuleContext _) = Start(behavior: module => module.OnStart = c => c.Jobs.Schedule(new ThrowJob()));

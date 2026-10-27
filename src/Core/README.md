@@ -483,10 +483,9 @@ Each context has its own registry; contexts share no service.
 
 The core intercepts every exception that a module throws when the core calls
 it: in a lifecycle step, in a phase handler, in a posted callback, or in a
-job. The
-exception is charged to the module whose code is closest to the throw
-point in the stack trace: the called module, or a module whose service it
-called. The policy of that module applies:
+job. The exception is charged to the module whose code is closest to the
+throw point in the stack trace: the called module, or a module whose service
+it called. The policy of that module applies:
 
 | Policy | Effect |
 | --- | --- |
@@ -576,6 +575,13 @@ It provides no resource type.
   a job that already failed when it is scheduled runs.
 - Jobs cannot be canceled: the core waits for them before it releases their
   module.
+- A job canceled because a job it depends on failed is done without running,
+  and nothing tells the module that scheduled it, even when the failed job
+  belongs to another module.
+- The job system does not check that a module schedules and waits from the
+  loop thread of its context; it only refuses calls from inside a job. In
+  development mode, any thread that does not run a job is checked as a loop
+  thread.
 - Accesses are checked only where the code that owns the data calls
   `CheckRead` or `CheckWrite`. `NativeArray<T>` does not check them by itself.
 - One lock protects the bookkeeping of the job system, and every completion

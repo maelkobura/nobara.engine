@@ -102,6 +102,7 @@ internal sealed class JobScheduler : IDisposable
         lock (_gate)
         {
             owner.RequireOpen();
+            CheckHandle(dependsOn);
             CheckData(access);
             int index = NewRecord();
             ref Record record = ref _records[index];
@@ -133,6 +134,11 @@ internal sealed class JobScheduler : IDisposable
         lock (_gate)
         {
             owner.RequireOpen();
+            foreach (JobHandle dependency in handles)
+            {
+                CheckHandle(dependency);
+            }
+
             int index = NewRecord();
             _records[index].Owner = owner;
             var handle = new JobHandle(this, index, _records[index].Generation);
@@ -467,6 +473,15 @@ internal sealed class JobScheduler : IDisposable
         _edgeNext[edge] = _records[dependency.Index].FirstEdge;
         _records[dependency.Index].FirstEdge = edge;
         _records[index].Pending++;
+    }
+
+    // Checked before a record is taken, so that a refused job leaves nothing behind.
+    private void CheckHandle(JobHandle handle)
+    {
+        if (handle.Scheduler is not null && handle.Scheduler != this)
+        {
+            throw new ArgumentException("The job depends on a job of another engine.", nameof(handle));
+        }
     }
 
     private void CheckData(in JobAccess access)

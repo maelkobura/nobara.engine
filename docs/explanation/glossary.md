@@ -70,18 +70,18 @@ A file that the core writes to the logs folder before a context stops on an
 error. It names the module, the lifecycle step, and the exception. See [the
 core](../../src/Core/README.md#error-policies).
 
-### Development mode
-
-A way to run the engine with checks that cost time, chosen when the engine
-starts (`EngineOptions.DevelopmentMode`). In this version it checks the data
-that jobs declare. See [the core page](../../src/Core/README.md#declared-accesses).
-
 ### Decoder
 
 The code that the module owning a resource type registers with the core to
 turn each loaded resource of the type into an object of the module. The core
 decodes each resource once per process. See [the core
 page](../../src/Core/README.md#loading-resources).
+
+### Development mode
+
+A way to run the engine with checks that cost time, chosen when the engine
+starts (`EngineOptions.DevelopmentMode`). In this version it checks the data
+that jobs declare. See [the core page](../../src/Core/README.md#declared-accesses).
 
 ### Distribution
 
