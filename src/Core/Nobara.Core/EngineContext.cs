@@ -314,6 +314,61 @@ public sealed class EngineContext
 
     internal void EnterPhase(string phase) => _phase.Current = phase;
 
+    /// <summary>
+    /// Takes the resources reloaded since the last frame, at the
+    /// synchronization point, and hands each changed type to the module that
+    /// defines it.
+    /// </summary>
+    internal void SynchronizeResources()
+    {
+        IReadOnlyList<ResourceGeneration> generations = Engine.ResourceGenerationsAfter(Resources.Version);
+        foreach (ResourceGeneration generation in generations)
+        {
+            Resources.Version = generation.Version;
+            List<ResourceProblem> problems = Resources.CheckProperties(generation.Catalog);
+            if (problems.Count > 0)
+            {
+                Logger.Error($"The resources of {string.Join(", ", generation.Modules)} were not reloaded in the {Name} context: {new ResourceLoadException(problems).Message}");
+                continue;
+            }
+
+            Resources.Catalog = generation.Catalog;
+            if (generation.Changes.Count == 0)
+            {
+                Logger.Info($"Reloaded the resources of {string.Join(", ", generation.Modules)}: nothing changed.");
+            }
+
+            foreach (TypeChange change in generation.Changes)
+            {
+                ApplyReload(change);
+            }
+        }
+    }
+
+    private void ApplyReload(TypeChange change)
+    {
+        string summary = $"{change.Added.Count} added, {change.Changed.Count} changed, {change.Removed.Count} removed, {change.ChangedTags.Count} tags changed";
+        if (Resources.ReloadHandler(change.Type) is not { } entry)
+        {
+            string owner = _byId.ContainsKey(change.OwnerId) ? $"module '{change.OwnerId}' does not reload them" : $"module '{change.OwnerId}' does not run in this context";
+            Logger.Warning($"Resources of type '{change.Type}' changed ({summary}), but {owner}: restart the context to apply the change.");
+            return;
+        }
+
+        var reload = new ResourceReload(change.Type, change.Added, change.Changed, change.Removed, change.ChangedTags);
+        if (!Invoke(entry.Owner, LifecycleStep.Execution, module => entry.Handler(reload)))
+        {
+            return;
+        }
+
+        Logger.Info($"Reloaded resources of type '{change.Type}': {summary}.");
+        foreach ((string objectId, string reason) in reload.Refusals)
+        {
+            string what = objectId.Length > 0 ? $"The change of '{objectId}'" : $"The change of the resources of type '{change.Type}'";
+            entry.Owner.Context.Logger.Warning($"{what} is not applied while the game runs: {reason}");
+        }
+    }
+
     // Applies the policy of the module that threw in the loop. The module is
     // null for a callback posted without one.
     internal void HandleLoopFault(ModuleRuntime? called, Exception exception)

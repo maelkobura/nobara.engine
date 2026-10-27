@@ -27,6 +27,20 @@ namespace Nobara.Core.Loading;
 /// </remarks>
 public interface IModuleSource
 {
+    /// <summary>
+    /// Checks the third-party libraries that the distribution records, before
+    /// any module is discovered, and limits the libraries the modules can load
+    /// to them.
+    /// </summary>
+    /// <param name="libraries">The libraries as the distribution records them; empty when it records none.</param>
+    /// <returns>
+    /// One problem per library that is missing, outside the library folder, or
+    /// different from the file the distribution was built with; empty when
+    /// every library is accepted.
+    /// </returns>
+    /// <remarks>A source that has no library files, such as a static source, accepts every list.</remarks>
+    IReadOnlyList<CompositionProblem> CheckLibraries(IReadOnlyList<ExpectedLibrary> libraries) => [];
+
     /// <summary>Locates a module, checks its integrity, and reads its manifest without running its code.</summary>
     /// <param name="module">The module as the distribution records it.</param>
     /// <returns>The module and its compiled manifest.</returns>
@@ -45,6 +59,11 @@ public interface IModuleSource
 /// <param name="Version">The version the distribution was built with.</param>
 /// <param name="Hash">The SHA-256 of the assembly of the module, empty when the distribution records none.</param>
 public sealed record ExpectedModule(string Id, string Version, ReadOnlyMemory<byte> Hash);
+
+/// <summary>A third-party library as the distribution manifest records it.</summary>
+/// <param name="Path">The path of the file relative to the folder of the installed game, with forward slashes: <c>lib/Example.Library.dll</c>.</param>
+/// <param name="Hash">The SHA-256 of the file.</param>
+public sealed record ExpectedLibrary(string Path, ReadOnlyMemory<byte> Hash);
 
 /// <summary>A module found by a <see cref="IModuleSource"/>, before any of its code runs.</summary>
 /// <param name="Id">The identifier of the module.</param>

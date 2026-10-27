@@ -139,25 +139,20 @@ public static class DistributionChecker
         CheckPolicies(input.Engine, modules, required, bag);
         CheckModuleConfigs(input.Engine, modules, bag);
 
-        IReadOnlyList<ModuleManifest> order = [];
-        ModuleSide[] sides = target is null ? [ModuleSide.Client, ModuleSide.Server] : [target.Side];
-        foreach (ModuleSide side in sides)
+        // A client hosts an integrated server, so a client target ships the
+        // modules of both sides and is checked on both; a server target ships
+        // the modules of the server side only.
+        ModuleSide hosted = target is null || target.Side == ModuleSide.Client ? ModuleSide.Both : ModuleSide.Server;
+        foreach (ModuleSide side in new[] { ModuleSide.Client, ModuleSide.Server }.Where(s => (hosted & s) != 0))
         {
             List<ModuleManifest> active = modules.Values.Where(m => (m.Side & side) != 0 && !disabled.Contains(m.Id)).ToList();
-            string where = target is null ? $"on the {Name(side)} side" : $"in target '{target.Name}'";
+            string where = target is null ? $"on the {Name(side)} side" : $"on the {Name(side)} side of target '{target.Name}'";
             CheckActive(active, modules, input.Engine, side, where, bag);
-            IReadOnlyList<ModuleManifest>? sorted = Sort(active, where, bag);
-            if (target is not null)
-            {
-                order = sorted ?? [];
-            }
+            Sort(active, where, bag);
         }
 
-        if (target is null)
-        {
-            order = Sort(modules.Values.ToList(), "in the distribution", new DiagnosticBag()) ?? [];
-        }
-
+        List<ModuleManifest> shipped = modules.Values.Where(m => (m.Side & hosted) != 0 && !disabled.Contains(m.Id)).ToList();
+        IReadOnlyList<ModuleManifest> order = Sort(shipped, target is null ? "in the distribution" : $"in target '{target!.Name}'", new DiagnosticBag()) ?? [];
         return new DistributionCheckResult(Distinct(bag), order, required);
     }
 

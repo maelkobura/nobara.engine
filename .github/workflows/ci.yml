@@ -26,8 +26,21 @@ jobs:
         with:
           global-json-file: global.json
       - run: dotnet pack tools/Nobara.Sdk -c Release -o artifacts/packages --nologo
+      # Writes obj/nobara/modules.props and fails when Nobara.slnx is out of date.
+      - run: dotnet run --project tools/Nobara.Cli -- generate --check
       - run: dotnet build Nobara.slnx --nologo
       - run: dotnet test Nobara.slnx --nologo
+
+  module-sheets:
+    name: Module sheets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      # Fails when a section generated from module.nobara is out of date.
+      - run: dotnet run --project tools/Nobara.Cli -- docs --check
 
   headers:
     name: License headers

@@ -46,7 +46,7 @@ attribute must be one of those listed on this page.
 | `<Id>` | Yes | Identifier of the game: lowercase dot-separated names. |
 | `<Name>` | Yes | Display name of the game. |
 | `<Version>` | Yes | Semantic version of the game. |
-| `<Icon>` | No | Path of the icon (PNG), relative to the file. |
+| `<Icon>` | No | Path of the icon (PNG, at most 256x256 pixels), relative to the file; the icon of the executables. |
 | [`<Modules>`](#modules) | Yes | Modules chosen by the game. |
 | [`<Overrides>`](#overrides) | No | Packages replaced by projects. |
 | `<ProtectedNamespaces>` | No | `<Namespace>` elements: namespaces of resources that mods cannot override or extend, such as `Example/Blocks` or `Example/*`. |
@@ -61,14 +61,18 @@ attribute must be one of those listed on this page.
 
 `required="true"` marks a required module: its error policy is always `stop`,
 and a build target cannot disable it. Each folder and each identifier appears
-once. Modules that the listed modules depend on, and that are not listed,
-are part of the distribution too.
+once. Modules that the listed modules require, and that are not listed, are
+part of the distribution too: an override provides them when `<Overrides>`
+names them, a package otherwise. [`nobara generate`](../cli.md#nobara-generate)
+records every module with its version in
+[`project.nobara.lock`](project-nobara-lock.md).
 
 ## `<Overrides>`
 
 `<Project id="…" path="…"/>` replaces the package of a module by a project,
 whose path is relative to the file. It serves to develop the engine and a
-game together.
+game together. When an override points into a clone of the engine, the game
+also builds against the core of that clone.
 
 ## Known limitations
 

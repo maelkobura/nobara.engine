@@ -63,7 +63,8 @@ when empty (write "None"):
 10. Known limitations: what is missing or deliberately absent.
 
 Sections generated from the module manifest sit between markers and are not
-edited by hand:
+edited by hand: [`nobara docs`](../reference/cli.md#nobara-docs) writes them,
+and the CI checks that they are up to date.
 
 ```markdown
 <!-- nobara:generated:begin dependencies -->

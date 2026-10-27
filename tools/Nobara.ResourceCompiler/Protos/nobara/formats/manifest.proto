@@ -115,6 +115,9 @@ message DistributionManifest {
   ErrorPolicy error_policy = 11;
   repeated SettingValue settings = 12;
   repeated ModuleConfig module_configs = 13;
+  // The third-party libraries of lib/, which the core checks before it loads
+  // any of them.
+  repeated LibraryFile libraries = 14;
 }
 
 message DistributionModule {
@@ -123,6 +126,15 @@ message DistributionModule {
   bool required = 3;
   // SHA-256 of the assembly of the module, when the caller provides it.
   bytes hash = 4;
+}
+
+// A file of lib/ in the installed game.
+message LibraryFile {
+  // Path relative to the folder of the installed game, with forward slashes:
+  // "lib/Example.Library.dll".
+  string path = 1;
+  // SHA-256 of the file.
+  bytes hash = 2;
 }
 
 message Loop {

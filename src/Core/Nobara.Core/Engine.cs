@@ -96,14 +96,22 @@ public sealed class EngineOptions
     public int? WorkerCount { get; init; }
 
     /// <summary>
-    /// Gets whether the engine runs the checks of development mode, which cost
-    /// time: in this version, the accesses that jobs declare
-    /// (<see cref="JobData.CheckRead"/>, <see cref="JobData.CheckWrite"/>).
+    /// Gets whether the engine runs in development mode: it runs checks that
+    /// cost time, in this version the accesses that jobs declare
+    /// (<see cref="JobData.CheckRead"/>, <see cref="JobData.CheckWrite"/>), and
+    /// accepts reloaded resources (<see cref="Engine.ReloadResources"/>).
     /// </summary>
     public bool DevelopmentMode { get; init; }
 
     /// <summary>Gets whether the profiler measures from start-up. <see cref="Engine.Profiler"/> can change it later.</summary>
     public bool Profiling { get; init; }
+
+    /// <summary>
+    /// Gets code that <see cref="Engine.Run"/> calls once the engine is loaded,
+    /// before the main context starts, such as a development tool that watches
+    /// the sources of the resources. An exception it throws ends the start-up.
+    /// </summary>
+    public Action<Engine>? OnLoaded { get; init; }
 }
 
 /// <summary>
@@ -139,6 +147,18 @@ public sealed class Engine : IDisposable
 
     private ContextControl? _contextControl;
     private bool _disposed;
+
+    // Hot reload: the inputs of the catalog, the bundles that replaced those
+    // of the assemblies, the bundles waiting for the next synchronization
+    // point, and the catalogs built since start-up.
+    private readonly Lock _reloadGate = new();
+    private readonly Dictionary<string, byte[]> _reloadedBundles = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, byte[]> _pendingBundles = new(StringComparer.Ordinal);
+    private readonly List<ResourceGeneration> _generations = [];
+    private IReadOnlyList<CatalogModule> _catalogModules = [];
+    private IReadOnlyList<string> _shortNames = [];
+    private volatile bool _reloadPending;
+    private int _generationCount;
 
     private Engine(Distribution distribution, EngineOptions options, EnginePaths paths, LogDispatcher logs, FileLogSink? fileLog)
     {
@@ -233,6 +253,7 @@ public sealed class Engine : IDisposable
 
         using (engine)
         {
+            options.OnLoaded?.Invoke(engine);
             bool cancelled = false;
             void OnCancel(object? sender, ConsoleCancelEventArgs e)
             {
@@ -311,11 +332,9 @@ public sealed class Engine : IDisposable
         {
             IReadOnlyList<ModuleInfo> discovered = engine.LoadModules(distribution, options.ModuleSource ?? new AssemblyModuleSource(install), options.Side);
             engine.Settings = SettingStore.Create(engine.Modules, distribution.Manifest, paths, engine.Logger);
-            engine.Resources = ResourceCatalog.Build(
-                engine.Loaded.Select(e => new CatalogModule(e.Info, e.Module.OpenResource)).ToArray(),
-                discovered.Select(m => m.ShortName),
-                distribution.ProtectedNamespaces,
-                engine.Logger);
+            engine._catalogModules = engine.Loaded.Select(e => new CatalogModule(e.Info, e.Module.OpenResource)).ToArray();
+            engine._shortNames = discovered.Select(m => m.ShortName).ToArray();
+            engine.Resources = ResourceCatalog.Build(engine._catalogModules, engine._shortNames, distribution.ProtectedNamespaces, engine.Logger);
             engine.MainContext = engine.CreateContext(options.Side);
             return engine;
         }
@@ -325,6 +344,47 @@ public sealed class Engine : IDisposable
             exception.Data[LoggedKey] = true;
             engine.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Replaces the compiled resources of a loaded module while the game runs,
+    /// in development mode: a development tool calls it after it compiled the
+    /// sources of the module again.
+    /// </summary>
+    /// <param name="moduleId">The identifier of a loaded module.</param>
+    /// <param name="resources">The new <c>nobara/resources.pb</c> of the module: a compiled resource bundle.</param>
+    /// <remarks>
+    /// <para>
+    /// It can be called from any thread. Each context takes the new resources
+    /// at the synchronization point of its next frame: the core reads them
+    /// with those of the other modules, applies the overrides and the tags
+    /// again, then hands each changed type to the module that defines it (see
+    /// <see cref="ModuleResources.RegisterReloadHandler"/>). Resources that
+    /// cannot be used together are refused with an error in the logs, and the
+    /// previous ones stay.
+    /// </para>
+    /// <para>Schemas, binary files, and code are not reloaded.</para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The engine does not run in development mode.</exception>
+    /// <exception cref="ArgumentException">No loaded module has this identifier.</exception>
+    public void ReloadResources(string moduleId, ReadOnlyMemory<byte> resources)
+    {
+        ArgumentNullException.ThrowIfNull(moduleId);
+        if (!DevelopmentMode)
+        {
+            throw new InvalidOperationException("Resources are reloaded in development mode only: set EngineOptions.DevelopmentMode.");
+        }
+
+        if (!Loaded.Any(e => string.Equals(e.Info.Id, moduleId, StringComparison.Ordinal)))
+        {
+            throw new ArgumentException($"No loaded module is '{moduleId}'.", nameof(moduleId));
+        }
+
+        lock (_reloadGate)
+        {
+            _pendingBundles[moduleId] = resources.ToArray();
+            _reloadPending = true;
         }
     }
 
@@ -344,11 +404,79 @@ public sealed class Engine : IDisposable
 
         Jobs.Dispose();
         Resources?.Release();
+        foreach (ResourceGeneration generation in _generations)
+        {
+            generation.Catalog.Release();
+        }
         _logs.Flush();
         _fileLog?.Dispose();
     }
 
     internal Logger CreateLogger(string context, string source, PhaseTracker? phase) => new(_logs, context, source, phase);
+
+    /// <summary>
+    /// Builds a catalog from the bundles that wait, if any, and returns the
+    /// catalogs built after <paramref name="version"/>. Called by each context
+    /// at its synchronization point; allocates nothing when nothing changed.
+    /// </summary>
+    internal IReadOnlyList<ResourceGeneration> ResourceGenerationsAfter(int version)
+    {
+        if (!_reloadPending && Volatile.Read(ref _generationCount) <= version)
+        {
+            return [];
+        }
+
+        lock (_reloadGate)
+        {
+            if (_reloadPending)
+            {
+                _reloadPending = false;
+                BuildGeneration();
+            }
+
+            return _generations.Count > version ? _generations.GetRange(version, _generations.Count - version) : [];
+        }
+    }
+
+    // Under the reload lock.
+    private void BuildGeneration()
+    {
+        var bundles = new Dictionary<string, byte[]>(_reloadedBundles, StringComparer.Ordinal);
+        foreach ((string id, byte[] bundle) in _pendingBundles)
+        {
+            bundles[id] = bundle;
+        }
+
+        string[] reloaded = _pendingBundles.Keys.Order(StringComparer.Ordinal).ToArray();
+        _pendingBundles.Clear();
+
+        CatalogModule[] modules = _catalogModules
+            .Select(m => bundles.TryGetValue(m.Info.Id, out byte[]? bundle)
+                ? m with { Open = name => name == ResourceCatalog.ResourcesResource ? new MemoryStream(bundle, writable: false) : m.Open(name) }
+                : m)
+            .ToArray();
+
+        ResourceCatalog catalog;
+        try
+        {
+            catalog = ResourceCatalog.Build(modules, _shortNames, DistributionData.ProtectedNamespaces, Logger);
+        }
+        catch (ResourceLoadException exception)
+        {
+            Logger.Error($"The resources of {string.Join(", ", reloaded)} were not reloaded: {exception.Message}");
+            return;
+        }
+
+        List<TypeChange> changes = ResourceDiff.Compare(Resources, catalog);
+        foreach (string id in reloaded)
+        {
+            _reloadedBundles[id] = bundles[id];
+        }
+
+        _generations.Add(new ResourceGeneration(_generations.Count + 1, catalog, changes, reloaded));
+        Volatile.Write(ref _generationCount, _generations.Count);
+        Resources = catalog;
+    }
 
     internal string? ModuleOfType(Type type) => _moduleOfAssembly.GetValueOrDefault(type.Assembly);
 

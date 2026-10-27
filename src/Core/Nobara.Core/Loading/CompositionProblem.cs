@@ -12,10 +12,10 @@ public enum CompositionProblemKind
     /// <summary>The distribution manifest is missing, unreadable, or of an unsupported format.</summary>
     InvalidDistribution,
 
-    /// <summary>The assembly of a module is not where the distribution expects it.</summary>
+    /// <summary>The assembly of a module, or a library, is not where the distribution expects it.</summary>
     MissingAssembly,
 
-    /// <summary>The assembly of a module differs from the one the distribution was built with.</summary>
+    /// <summary>The assembly of a module, or a library, differs from the file the distribution was built with.</summary>
     IntegrityMismatch,
 
     /// <summary>The manifest of a module is missing, unreadable, or does not match the distribution.</summary>

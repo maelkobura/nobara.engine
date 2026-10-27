@@ -1,0 +1,38 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The command-line tool `nobara`: generates the solution of a game or of
+    the engine repository, builds and packages the targets of a game, and
+    keeps the generated sections of the module sheets up to date. It runs
+    `dotnet` for every build step.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.0.0</Version>
+    <AssemblyName>nobara</AssemblyName>
+    <RootNamespace>Nobara.Cli</RootNamespace>
+    <PackageId>Nobara.Cli</PackageId>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>nobara</ToolCommandName>
+    <Description>The command-line tool of the Nobara engine.</Description>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nobara.Cli.Tests" />
+  </ItemGroup>
+
+</Project>

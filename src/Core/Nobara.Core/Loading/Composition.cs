@@ -30,7 +30,9 @@ internal static class Composition
     /// <exception cref="ModuleCompositionException">At least one problem was found.</exception>
     public static IReadOnlyList<DiscoveredModule> Compose(Distribution distribution, IModuleSource source, Side hostedSides)
     {
-        var problems = new List<CompositionProblem>();
+        var problems = new List<CompositionProblem>(
+            source.CheckLibraries(distribution.Manifest.Libraries.Select(l => new ExpectedLibrary(l.Path, l.Hash.Memory)).ToArray()));
+
         var modules = new List<DiscoveredModule>();
         for (int index = 0; index < distribution.Manifest.Modules.Count; index++)
         {

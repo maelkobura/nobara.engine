@@ -1,0 +1,43 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Cli\Nobara.Cli.csproj" />
+    <!-- Built before the tests, which pack them for the sample game. -->
+    <ProjectReference Include="..\Nobara.HotReload\Nobara.HotReload.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!--
+    The sample game, built by the tests themselves in a scratch folder: it is
+    copied next to the test assembly, not compiled into it.
+  -->
+  <ItemGroup>
+    <Compile Remove="SampleGame/**" />
+    <None Remove="SampleGame/**" />
+    <None Include="SampleGame/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

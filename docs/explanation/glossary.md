@@ -19,6 +19,12 @@ a specific third-party library or platform API, such as a graphics API. The
 base module selects a backend at run time. See [Technical
 variants](architecture.md#technical-variants).
 
+### Build target
+
+A way to build a game, declared in `build.nobara`: a platform, a side, and
+the modules it leaves out. [`nobara build`](../reference/cli.md#nobara-build-target)
+turns each target into an installed game and an archive.
+
 ### Business module
 
 A module that implements a feature of a game, such as a world generator or a
@@ -77,11 +83,18 @@ turn each loaded resource of the type into an object of the module. The core
 decodes each resource once per process. See [the core
 page](../../src/Core/README.md#loading-resources).
 
+### Development build
+
+A build of a target for development, made with `nobara build --development`:
+debug configuration, no ReadyToRun, no archive. Its executable accepts
+`--hot-reload`. See [the command-line reference](../reference/cli.md#development-builds).
+
 ### Development mode
 
 A way to run the engine with checks that cost time, chosen when the engine
 starts (`EngineOptions.DevelopmentMode`). In this version it checks the data
-that jobs declare. See [the core page](../../src/Core/README.md#declared-accesses).
+that jobs declare, and it accepts reloaded resources. See [the core
+page](../../src/Core/README.md#declared-accesses).
 
 ### Distribution
 
@@ -102,6 +115,12 @@ the components attached to it. A grid of voxels is an entity.
 
 The architecture that represents the game world as entities, components, and
 systems. It is provided by a platform module.
+
+### Entry assembly
+
+The assembly of a game that holds its `main()` for each side and embeds its
+distribution manifest. `nobara generate` writes its project; it is never
+written by hand. See [the command-line tool page](../../tools/Nobara.Cli/README.md#the-entry-assembly).
 
 ### Error policy
 
@@ -156,6 +175,19 @@ marked with the `[HotPath]` attribute. Managed allocations, LINQ, capturing
 closures, and boxing are forbidden there, and the engine analyzers enforce it.
 See [the analyzer reference](../reference/analyzers.md#hot-path-rules).
 
+### Hot reload
+
+Reloading the `.nof` resources of modules while a development build runs:
+the changed module is compiled again and each context takes the result at
+its next frame. See [the hot reload page](../../tools/Nobara.HotReload/README.md).
+
+### Installed game
+
+The folders that a build of a target produces: `bin/` for the runtime, the
+core, and the entry assembly; `system/` and `game/` for the modules; `lib/`
+for their libraries; the executable at the root. See [the command-line
+reference](../reference/cli.md#the-installed-game).
+
 ### Isolation class
 
 A class marked `[UsesOptionalDependency]` that holds all the code of a module
@@ -193,6 +225,11 @@ The ordered steps that a module goes through: discovery, loading,
 registration, initialization, start, execution, stop, and release. See
 [Lifecycle](architecture.md#lifecycle).
 
+### Lock file
+
+`project.nobara.lock`, which records every module of a game with the version
+it resolved to. See [its reference](../reference/formats/project-nobara-lock.md).
+
 ### Loop callback
 
 Code that a loop phase runs, marked with the `[LoopCallback]` attribute. It is
@@ -229,8 +266,8 @@ ModuleEntry]` attribute and instantiated once per context.
 ### Module map
 
 The file `obj/nobara/modules.props`, which associates module identifiers with
-local projects. [Nobara.Sdk](#nobarasdk) turns a dependency into a project
-reference when the map names a project for it. See [the SDK
+local projects; `nobara generate` writes it. [Nobara.Sdk](#nobarasdk) turns a
+dependency into a project reference when the map names a project for it. See [the SDK
 page](../../tools/Nobara.Sdk/README.md#local-modules).
 
 ### Module source
@@ -293,6 +330,12 @@ such as a mod, can neither define nor override a resource in it.
 
 A free property prefixed by the short name of a module, such as
 `Motion.Weight`, which replaces the plain property for that module only.
+
+### Reload handler
+
+The code that the module that defines a resource type registers to apply
+reloaded resources of that type, or to refuse what needs a restart. See [the
+core page](../../src/Core/README.md#reloading-resources).
 
 ### Required dependency
 

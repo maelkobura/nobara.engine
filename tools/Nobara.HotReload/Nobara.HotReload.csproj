@@ -1,0 +1,34 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Hot reload of resources in development builds: watches the .nof files of
+    local modules, compiles them again with the resource compiler, and hands
+    the result to the core. Only the entry assembly of a development build
+    references it; a release build never ships it.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.0.0</Version>
+    <PackageId>Nobara.HotReload</PackageId>
+    <Description>Hot reload of the resources of Nobara modules in development builds.</Description>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nobara.HotReload.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -68,8 +68,9 @@ version range is not checked against the project. Identifiers are compared
 without case. `Project` is an absolute path, so write it from
 `$(MSBuildThisFileDirectory)`.
 
-The command-line tool is meant to generate this file. Until then it is written
-by hand, and `obj/` is not tracked by Git, so each clone writes its own.
+[`nobara generate`](../../docs/reference/cli.md#nobara-generate) writes this
+file, for a game and for this repository. `obj/` is not tracked by Git, so
+each clone generates its own.
 
 ## The core
 
@@ -232,5 +233,4 @@ restoring the solution puts them.
 - Plugins of dependencies restored as packages are not found.
 - The resource compiler runs in a .NET task host: an MSBuild that cannot start
   one cannot build modules.
-- The module map is written by hand.
 - The SDK is not published as a package.

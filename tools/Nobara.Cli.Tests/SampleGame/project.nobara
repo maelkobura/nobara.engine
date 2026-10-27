@@ -1,0 +1,14 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraProject format="1">
+  <Id>example.sample</Id>
+  <Name>Sample Game</Name>
+  <Version>0.1.0</Version>
+  <Modules>
+    <Local path="src/Example.Ticker" required="true" />
+    <Local path="src/Example.Clock" />
+  </Modules>
+</NobaraProject>

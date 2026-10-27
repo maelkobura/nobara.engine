@@ -23,8 +23,7 @@ integer math.
 ## Level
 
 <!-- nobara:generated:begin level -->
-Core, on the client and on the server. The core is not a module: it has no
-`module.nobara`.
+Core, on the client and on the server. The core is not a module: it has no `module.nobara`.
 <!-- nobara:generated:end -->
 
 ## Dependencies
@@ -52,7 +51,9 @@ manifests, resources, and schemas.
 | `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
 | `ModuleLoop`, `IPhaseHandler`, `LoopSubscription` | The loop as a module sees it: its phases, subscriptions to a phase or to the start of the frame, and `GetTickControl`. |
 | `TickControl`, `ContextControl` | The levers of the core: on the fixed tick (pause, time scale, tick rate), and on contexts. |
-| `IModuleSource`, `AssemblyModuleSource` | Where the modules are found: the single loading interface, and its implementation over the `system/`, `game/`, and `lib/` folders. |
+| `IModuleSource`, `AssemblyModuleSource`, `ExpectedLibrary` | Where the modules are found: the single loading interface, and its implementation over the `system/`, `game/`, and `lib/` folders. |
+| `Engine.ReloadResources`, `ModuleResources.RegisterReloadHandler`, `ResourceReload` | [Reloading resources](#reloading-resources) while the game runs, in development mode. |
+| `EngineOptions.OnLoaded` | Code that `Engine.Run` calls once the engine is loaded, before the main context starts, such as a development tool. |
 | `ModuleJobs`, `IJob`, `IJobFor`, `JobHandle`, `JobPriority` | `context.Jobs`: jobs that run once or once per index, their dependencies, priorities, and waits. |
 | `JobAccess`, `JobData` | The data that a job reads and writes, and the checks of development mode. |
 | `Profiler`, `ModuleProfiler`, `ProfilerMarker`, `ProfileEntry` | `Engine.Profiler` and `context.Profiler`: what each context, module, phase, job, and scope costs. |
@@ -316,10 +317,12 @@ methods that hot path code calls are marked `[HotPath]` and allocate nothing.
 
 ### Discovery checks
 
-For each module of the distribution, `AssemblyModuleSource` finds its
-assembly in `system/` or `game/` (the file name is compared without case),
-checks its SHA-256 against the hash that the distribution records, and reads
-`nobara/module.pb` from its metadata without loading it. The core then checks,
+First, `AssemblyModuleSource` checks the SHA-256 of each file of `lib/` that
+the distribution records, and lets modules load only those libraries. Then,
+for each module of the distribution, it finds its assembly in `system/` or
+`game/` (the file name is compared without case), checks its SHA-256 against
+the hash that the distribution records, and reads `nobara/module.pb` from its
+metadata without loading it. The core then checks,
 on each side the process may host (both for a client, which may host an
 integrated server; the server for a dedicated server):
 
@@ -464,6 +467,44 @@ The distribution can protect namespaces (`<ProtectedNamespaces>` of
 applies to modules loaded dynamically, such as mods; the modules of the
 distribution are not concerned.
 
+### Reloading resources
+
+In development mode (`EngineOptions.DevelopmentMode`), a development tool
+replaces the compiled resources of a loaded module with
+`Engine.ReloadResources`, from any thread. The development builds of the
+command-line tool do it when a `.nof` file changes (see [the hot reload
+page](../../tools/Nobara.HotReload/README.md)).
+
+At the synchronization point of its next frame, each context takes the new
+resources: the core reads them with those of the other modules, applies the
+overrides and resolves the tags again, checks the free properties, then hands
+each changed type to the module that defines it, on the loop thread, through
+the handler that the module registered:
+
+```csharp
+public void Register(ModuleContext context)
+{
+    context.Resources.RegisterDecoder("block", data => new BlockType(data));
+    context.Resources.RegisterReloadHandler("block", reload =>
+    {
+        foreach (ResourceData added in reload.Added)
+        {
+            reload.Refuse(added.ObjectId, "a new block needs a restart of the context");
+        }
+
+        RebuildTables(context.Resources.GetAll<BlockType>("block"));
+    });
+}
+```
+
+`ResourceReload` lists the resources added, changed (content, content hash,
+or free properties), and removed, and the tags of the registry that changed.
+When the handler runs, `GetAll`, `Get`, and the other reads already return
+the new resources. The core logs each change that the handler refuses, and
+each changed type without a handler, as warnings. Resources that cannot be
+used together, such as an override whose target disappeared, are refused
+with an error, and the context keeps the previous ones.
+
 ### Services
 
 A module publishes a service under a type, usually an interface, during
@@ -519,8 +560,9 @@ None.
 `EngineOptions.MinimumLogLevel`, `LogToConsole`, and `LogToFile` set the
 logging of the process; `TimeProvider`, `FramePacing`, and `MaxFrameTime` set
 the loop; `WorkerCount` sets the number of worker threads; `DevelopmentMode`
-turns on the checks of development mode; `Profiling` turns on the profiler at
-start-up.
+turns on development mode, its checks and the reloading of resources;
+`Profiling` turns on the profiler at start-up; `OnLoaded` runs code once the
+engine is loaded.
 
 ## Resources
 
@@ -592,7 +634,6 @@ It provides no resource type.
   history per frame.
 - The low-level foundations hold only what several modules need now: no
   vector math, no growable unmanaged list.
-- Resources are not reloaded while the game runs.
 - No module is loaded dynamically yet, so the protected namespaces never
   refuse anything.
 - A query selects the elements under the content of its target, never the
@@ -609,8 +650,13 @@ It provides no resource type.
   in a server folder, is lost.
 - The static loading mode is an interface only: no implementation of
   `IModuleSource` loads modules compiled into the executable.
-- The distribution manifest records the hashes of module assemblies only, so
-  the libraries of `lib/` are not checked.
+- The core checks the files of `lib/` that the distribution records; a
+  native library that a managed library of `lib/` loads itself is checked
+  only when the build recorded it.
+- A reload replaces the resources of whole modules: schemas, binary files,
+  and code are not reloaded. A context that a reload finds in the middle of a
+  frame takes it at its next frame; contexts created later start from the
+  reloaded resources.
 - An exception is charged to a module from the stack trace. A method that the
   JIT inlined into its caller is charged to the caller, and an assembly that
   holds several modules is charged to the called module.
