@@ -39,7 +39,8 @@ internal sealed class ResourceCatalog
     public const string SchemasResource = "nobara/schemas.pb";
     public const string FilesPrefix = "nobara/files/";
 
-    private static readonly ExtensionRegistry Extensions =
+    // Built per catalog: a registry is a mutable collection.
+    private readonly ExtensionRegistry _extensions =
     [
         OptionsExtensions.ResourceType,
         OptionsExtensions.AcceptsTags,
@@ -276,7 +277,7 @@ internal sealed class ResourceCatalog
         IReadOnlyList<FileDescriptor> built;
         try
         {
-            built = FileDescriptor.BuildFromByteStrings(order.Select(n => files[n].Data), Extensions);
+            built = FileDescriptor.BuildFromByteStrings(order.Select(n => files[n].Data), _extensions);
         }
         catch (Exception exception) when (exception is DescriptorValidationException or InvalidProtocolBufferException or ArgumentException)
         {
@@ -477,6 +478,12 @@ internal sealed class ResourceCatalog
                     if (!_types.ContainsKey(contribution.Registry))
                     {
                         Problem(ResourceProblemKind.UnknownType, module.Info.Id, key, $"Module '{module.Info.Id}' contributes to '{key}', a tag of the registry '{contribution.Registry}', which no loaded module defines.", contribution.Source);
+                        continue;
+                    }
+
+                    if (!_types[contribution.Registry].AcceptsTags)
+                    {
+                        Problem(ResourceProblemKind.UnknownType, module.Info.Id, key, $"Module '{module.Info.Id}' contributes to '{key}', but the registry '{contribution.Registry}' does not accept tags.", contribution.Source);
                         continue;
                     }
 

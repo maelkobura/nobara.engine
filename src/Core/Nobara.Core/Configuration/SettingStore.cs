@@ -151,8 +151,8 @@ internal sealed class SettingStore
     }
 
     /// <summary>
-    /// Writes the values chosen by the player to the settings file. Keys that
-    /// keep their default are not written, so a new default of the
+    /// Writes the values chosen by the player to the settings file, and only
+    /// those: a key that the player did not set is not written, so a new default of the
     /// distribution applies to them.
     /// </summary>
     /// <exception cref="IOException">The file cannot be written.</exception>

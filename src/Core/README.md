@@ -443,6 +443,9 @@ It provides no resource type.
 - Free properties that no module reads are not reported.
 - Modules are not told when the value of a key changes, and the settings
   file is written only by `Save`.
+- `Save` writes the keys of the modules that the process loads: a value that
+  the file holds for a module absent from the process, such as a client key
+  in a server folder, is lost.
 - The static loading mode is an interface only: no implementation of
   `IModuleSource` loads modules compiled into the executable.
 - The distribution manifest records the hashes of module assemblies only, so

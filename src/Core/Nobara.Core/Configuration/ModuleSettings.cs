@@ -123,8 +123,9 @@ public sealed class ModuleSettings
     }
 
     /// <summary>
-    /// Writes the values chosen by the player to the settings file. Keys that
-    /// have their default value are not written.
+    /// Writes the values chosen by the player to the settings file, and only
+    /// those: a key that the player did not set, or that was reset, is not
+    /// written.
     /// </summary>
     /// <exception cref="IOException">The file cannot be written.</exception>
     /// <exception cref="UnauthorizedAccessException">The file cannot be written.</exception>

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Text;
+using Google.Protobuf;
 using Nobara.Core.Resources;
 using Nobara.Core.Tests.Schemas;
 using Nobara.Core.Tests.Support;
@@ -417,6 +418,54 @@ public sealed class ResourceTests : IDisposable
     public void Tells_whether_a_namespace_is_protected(string pattern, string ns, bool expected)
     {
         Assert.Equal(expected, new ProtectedNamespaces([pattern]).IsProtected(ns));
+    }
+
+    [Fact]
+    public void Refuses_a_module_loaded_dynamically_in_a_protected_namespace_only()
+    {
+        WithBlocks(Dirt + """
+            <Tag registry="block"><Name>Wood</Name><Content><Member>block:example.blocks.dirt</Member></Content></Tag>
+            """);
+        CompiledModule mod = Mod("example.mod", """
+            <Block><Name>Clay</Name><Content><DisplayName>Clay</DisplayName></Content></Block>
+            <Block override="true"><Name>Dirt</Name><Content><Hardness>1</Hardness></Content></Block>
+            <Tag registry="block" override="true">
+              <Name>Wood</Name>
+              <Content><Query field="id" value="block:example.blocks.dirt"><Remove /></Query></Content>
+            </Tag>
+            """);
+        _distribution.Configure = d => d.ProtectedNamespaces.Add("Example/*");
+
+        // The modules of the distribution are not concerned by the protection.
+        using Engine engine = _distribution.Load();
+
+        // No module is loaded dynamically yet: the catalog is built by hand,
+        // with the second module marked as such. Its types are internal.
+        var data = new Dictionary<string, Dictionary<string, byte[]>>
+        {
+            [Blocks] = new() { ["nobara/resources.pb"] = _blocks.Resources.ToByteArray(), ["nobara/schemas.pb"] = TestResources.Schemas },
+            ["example.mod"] = new() { ["nobara/resources.pb"] = mod.Resources.ToByteArray() },
+        };
+        System.Reflection.Assembly core = typeof(Engine).Assembly;
+        Type moduleType = core.GetType("Nobara.Core.Resources.CatalogModule", throwOnError: true)!;
+        Array modules = Array.CreateInstance(moduleType, 2);
+        for (int i = 0; i < 2; i++)
+        {
+            ModuleInfo info = engine.Modules[i];
+            Func<string, Stream?> open = name => data[info.Id].TryGetValue(name, out byte[]? bytes) ? new MemoryStream(bytes) : null;
+            modules.SetValue(Activator.CreateInstance(moduleType, info, open, info.Id == "example.mod"), i);
+        }
+
+        var build = core.GetType("Nobara.Core.Resources.ResourceCatalog", throwOnError: true)!.GetMethod("Build")!;
+        var exception = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
+            build.Invoke(null, [modules, Array.Empty<string>(), new ProtectedNamespaces(["Example/*"]), engine.Logger]));
+
+        ResourceLoadException refused = Assert.IsType<ResourceLoadException>(exception.InnerException);
+        Assert.All(refused.Problems, p => Assert.Equal((ResourceProblemKind.ProtectedNamespace, "example.mod"), (p.Kind, p.ModuleId)));
+        Assert.Equal(
+            ["block:example.blocks.clay", "block:example.blocks.dirt", "#block:example.blocks.wood"],
+            refused.Problems.Select(p => p.ResourceId));
+        Assert.Equal("Module 'example.mod' defines 'block:example.blocks.clay' in the protected namespace 'Example/Blocks'.", refused.Problems[0].Message);
     }
 
     [Fact]
