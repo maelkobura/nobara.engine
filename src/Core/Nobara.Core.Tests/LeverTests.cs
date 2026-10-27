@@ -127,7 +127,9 @@ public sealed class LeverTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(1.0 / 60), control.TickDuration);
         Assert.Equal(6UL, control.Tick);
         Assert.Throws<ArgumentOutOfRangeException>(() => control.TickRate = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => control.TickRate = 1e8);
         Assert.Throws<ArgumentOutOfRangeException>(() => control.TimeScale = double.NaN);
+        Assert.Throws<ArgumentOutOfRangeException>(() => control.TimeScale = 1e9);
     }
 
     [Fact]
@@ -142,8 +144,8 @@ public sealed class LeverTests : IDisposable
         engine.MainContext.Start();
 
         Assert.NotNull(control);
-        Assert.Same(engine.MainContext, control.MainContext);
-        Assert.Null(control.IntegratedServer);
+        Assert.Equal(Side.Client, control.MainSide);
+        Assert.False(control.HasIntegratedServer);
         Assert.False(control.CanCreateIntegratedServer);
         Assert.Throws<NotSupportedException>(control.CreateIntegratedServer);
         Assert.Contains(_distribution.Log.Entries, e => e.Source == "example.other" && e.Exception?.Message ==
@@ -188,32 +190,114 @@ public sealed class LoopErrorTests : IDisposable
     }
 
     [Fact]
-    public void An_await_on_the_synchronization_context_resumes_on_the_loop_thread()
+    public void Every_await_of_a_lifecycle_method_resumes_on_the_loop_thread()
     {
-        ModuleContext module = null!;
-        using Engine engine = _distribution.Module("example.io", behavior: m => m.OnRegister = c => module = c).Load();
+        var first = new TaskCompletionSource();
+        var second = new TaskCompletionSource();
+        var resumedOn = new List<int>();
+        Task? work = null;
+        using Engine engine = _distribution.Module("example.io", behavior: m => m.OnInitialize = _ => work = Load()).Load();
         engine.MainContext.Start();
-        var gate = new TaskCompletionSource();
-        int resumedOn = 0;
+        int loopThread = Environment.CurrentManagedThreadId;
 
-        SynchronizationContext? previous = SynchronizationContext.Current;
-        SynchronizationContext.SetSynchronizationContext(module.SynchronizationContext);
-        Task work = Continue();
-        SynchronizationContext.SetSynchronizationContext(previous);
+        CompleteOnAnotherThread(first);
+        Assert.Empty(resumedOn);
+        engine.MainContext.RunFrame();
+        Assert.Equal([loopThread], resumedOn);
 
-        gate.SetResult();
-        Thread.Sleep(50);
-        Assert.Equal(0, resumedOn);
+        CompleteOnAnotherThread(second);
         engine.MainContext.RunFrame();
 
-        Assert.True(work.IsCompleted);
-        Assert.Equal(Environment.CurrentManagedThreadId, resumedOn);
+        Assert.Equal([loopThread, loopThread], resumedOn);
+        Assert.True(work!.IsCompletedSuccessfully);
 
-        async Task Continue()
+        async Task Load()
         {
-            await gate.Task.ConfigureAwait(true);
-            resumedOn = Environment.CurrentManagedThreadId;
+            await first.Task;
+            resumedOn.Add(Environment.CurrentManagedThreadId);
+            await second.Task;
+            resumedOn.Add(Environment.CurrentManagedThreadId);
         }
+    }
+
+    [Fact]
+    public void A_failed_continuation_is_charged_to_the_module_that_awaited()
+    {
+        var gate = new TaskCompletionSource();
+        SynchronizationContext? testContext = SynchronizationContext.Current;
+        using Engine engine = _distribution
+            .Module("example.net", behavior: m => m.OnInitialize = _ => Connect())
+            .Module("example.disk")
+            .Policy("example.net", Nobara.Formats.Policy.Disable)
+            .Policy("example.disk", Nobara.Formats.Policy.Disable)
+            .Load();
+        engine.MainContext.Start();
+
+        CompleteOnAnotherThread(gate);
+
+        // The continuation throws, and the method posts its exception to the
+        // same synchronization point, which rethrows it at the next frame.
+        engine.MainContext.RunFrame();
+        engine.MainContext.RunFrame();
+
+        Assert.False(engine.MainContext.IsModuleActive("example.net"));
+        Assert.True(engine.MainContext.IsModuleActive("example.disk"));
+        Assert.Same(testContext, SynchronizationContext.Current);
+
+        async void Connect()
+        {
+            await gate.Task;
+            throw new IOException("connection lost");
+        }
+    }
+
+    [Fact]
+    public void A_callback_posted_while_the_point_runs_waits_for_the_next_frame()
+    {
+        Journal journal = _distribution.Journal;
+        ModuleContext module = null!;
+        using Engine engine = _distribution.Module("example.net", behavior: m => m.OnRegister = c => module = c).Load();
+        engine.MainContext.Start();
+
+        module.Post(_ =>
+        {
+            journal.Add($"example.net:first {engine.MainContext.Frame}");
+            module.Post(_ => journal.Add($"example.net:second {engine.MainContext.Frame}"));
+        });
+        engine.MainContext.RunFrame();
+        engine.MainContext.RunFrame();
+
+        Assert.Equal(["example.net:first 1", "example.net:second 2"], journal.Lines.Skip(3));
+    }
+
+    [Fact]
+    public void The_callbacks_of_a_disabled_module_are_dropped()
+    {
+        int runs = 0;
+        ModuleContext net = null!;
+        using Engine engine = _distribution
+            .Module("example.net", behavior: m => m.OnRegister = c =>
+            {
+                net = c;
+                c.Loop.Subscribe("Input", new PhaseHandler(_ => throw new InvalidOperationException("broken")));
+            })
+            .Policy("example.net", Nobara.Formats.Policy.Disable)
+            .Load();
+        engine.MainContext.Start();
+
+        engine.MainContext.RunFrame();
+        net.Post(_ => runs++);
+        engine.MainContext.RunFrame();
+
+        Assert.False(engine.MainContext.IsModuleActive("example.net"));
+        Assert.Equal(0, runs);
+    }
+
+    private static void CompleteOnAnotherThread(TaskCompletionSource source)
+    {
+        var thread = new Thread(() => source.SetResult());
+        thread.Start();
+        thread.Join();
     }
 
     [Fact]

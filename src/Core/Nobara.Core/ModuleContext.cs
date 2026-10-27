@@ -55,15 +55,23 @@ public sealed class ModuleContext
     public ModuleLoop Loop { get; }
 
     /// <summary>
-    /// Gets the synchronization point of the context for this module. Code
-    /// that continues an I/O operation on another thread sends its result here
-    /// to apply it on the loop thread, at the start of the next frame. An
-    /// exception it throws is charged to this module.
+    /// Gets the synchronization point of the context for this module, as a
+    /// synchronization context: what it receives runs on the loop thread, at
+    /// the start of the next frame, and an exception it throws is charged to
+    /// this module.
     /// </summary>
+    /// <remarks>
+    /// The core makes it the current synchronization context while it calls
+    /// the lifecycle methods of the module and the callbacks the module posts.
+    /// An <see langword="await"/> there resumes on the loop thread, however
+    /// many times the method awaits.
+    /// </remarks>
     /// <example>
     /// <code>
-    /// SynchronizationContext.SetSynchronizationContext(context.SynchronizationContext);
-    /// byte[] data = await File.ReadAllBytesAsync(path); // resumes on the loop thread
+    /// public async void Initialize(ModuleContext context) // awaits from step 3
+    /// {
+    ///     byte[] data = await File.ReadAllBytesAsync(path); // resumes on the loop thread
+    /// }
     /// </code>
     /// </example>
     public SynchronizationContext SynchronizationContext { get; }
@@ -93,9 +101,14 @@ public sealed class ModuleContext
 
     /// <summary>Gets the lever that creates and destroys contexts.</summary>
     /// <returns>The lever.</returns>
-    /// <exception cref="InvalidOperationException">The module does not reserve <see cref="LoopReservations.Contexts"/>.</exception>
+    /// <exception cref="InvalidOperationException">The module does not reserve <see cref="LoopReservations.Contexts"/>, or is disabled.</exception>
     public ContextControl GetContextControl()
     {
+        if (_runtime.Disabled)
+        {
+            throw new InvalidOperationException($"Module '{Module.Id}' is disabled; it cannot create or destroy contexts.");
+        }
+
         if (!Module.Reservations.Contains(LoopReservations.Contexts, StringComparer.Ordinal))
         {
             throw new InvalidOperationException(

@@ -56,6 +56,7 @@ public sealed class EngineContext
     private readonly PhaseTracker _phase = new();
     private readonly ContextLoop _loop;
     private volatile bool _stopRequested;
+    private bool _inFrame;
 
     internal EngineContext(Engine engine, Side side)
     {
@@ -197,7 +198,7 @@ public sealed class EngineContext
     /// <see cref="ErrorPolicy.Disable"/> and that throws is disabled, with the
     /// modules that require it, and the frame goes on.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">The context is not running.</exception>
+    /// <exception cref="InvalidOperationException">The context is not running, or a frame is already running.</exception>
     /// <exception cref="EngineStopException">
     /// A module whose policy is <see cref="ErrorPolicy.Stop"/> threw. The
     /// context is stopped before the exception is thrown.
@@ -209,14 +210,25 @@ public sealed class EngineContext
             throw new InvalidOperationException($"The {Name} context is {State}; frames run while it is Running.");
         }
 
+        if (_inFrame)
+        {
+            throw new InvalidOperationException($"A frame of the {Name} context is already running; frames do not nest.");
+        }
+
+        _inFrame = true;
         try
         {
             _loop.RunFrame();
         }
         catch (EngineStopException)
         {
+            _inFrame = false;
             Shutdown();
             throw;
+        }
+        finally
+        {
+            _inFrame = false;
         }
     }
 
@@ -225,9 +237,15 @@ public sealed class EngineContext
     /// stop is requested, then stops the context.
     /// </summary>
     /// <param name="cancellation">Requests a stop when it is canceled.</param>
+    /// <exception cref="InvalidOperationException">The context is stopping or stopped.</exception>
     /// <exception cref="EngineStopException">A module whose policy is <see cref="ErrorPolicy.Stop"/> threw. The context is stopped.</exception>
     public void Run(CancellationToken cancellation = default)
     {
+        if (State is ContextState.Stopping or ContextState.Stopped)
+        {
+            throw new InvalidOperationException($"The {Name} context is {State}; a stopped context does not run again.");
+        }
+
         if (State == ContextState.Created)
         {
             Start();
@@ -241,7 +259,7 @@ public sealed class EngineContext
                 RunFrame();
                 if (Engine.Pacing == FramePacing.Tick && !_stopRequested)
                 {
-                    WaitForNextTick(cancellation);
+                    _loop.WaitForNextTick(cancellation);
                 }
             }
         }
@@ -259,11 +277,17 @@ public sealed class EngineContext
     /// Exceptions thrown by modules during these steps are logged and the
     /// shutdown continues. Calling it on a stopped context does nothing.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">A frame is running: call <see cref="RequestStop"/> instead.</exception>
     public void Stop()
     {
         if (State is ContextState.Stopped or ContextState.Stopping)
         {
             return;
+        }
+
+        if (_inFrame)
+        {
+            throw new InvalidOperationException($"A frame of the {Name} context is running; call RequestStop to stop the context after it.");
         }
 
         Logger.Info($"Stopping the {Name} context.");
@@ -344,15 +368,22 @@ public sealed class EngineContext
     // whether the call completed.
     private bool Invoke(ModuleRuntime module, LifecycleStep step, Action<ModuleRuntime> call)
     {
+        SynchronizationContext? previous = SynchronizationContext.Current;
         try
         {
+            SynchronizationContext.SetSynchronizationContext(module.Context.SynchronizationContext);
             call(module);
             return true;
         }
         catch (Exception exception) when (exception is not EngineStopException)
         {
+            SynchronizationContext.SetSynchronizationContext(previous);
             HandleFault(module, step, exception);
             return false;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
         }
     }
 
@@ -450,6 +481,7 @@ public sealed class EngineContext
 
     private void Shutdown()
     {
+        _loop.End();
         State = ContextState.Stopping;
         Step = LifecycleStep.Stop;
         _phase.Current = Step.ToString();
@@ -476,34 +508,23 @@ public sealed class EngineContext
         Logger.Info($"The {Name} context is stopped.");
     }
 
-    private void WaitForNextTick(CancellationToken cancellation)
-    {
-        TimeSpan wait = _loop.UntilNextTick();
-        if (wait > TimeSpan.Zero)
-        {
-            try
-            {
-                // Timers count whole milliseconds: a shorter wait would not wait at all.
-                Task.Delay(TimeSpan.FromMilliseconds(Math.Ceiling(wait.TotalMilliseconds)), Engine.Time, cancellation).Wait(cancellation);
-            }
-            catch (OperationCanceledException)
-            {
-                // The stop is requested; the loop ends after this frame.
-            }
-        }
-    }
-
     // Calls a module during a shutdown or an emergency: exceptions are logged
     // and nothing else happens.
     private static void Quietly(ModuleRuntime module, LifecycleStep step, Action<ModuleRuntime> call)
     {
+        SynchronizationContext? previous = SynchronizationContext.Current;
         try
         {
+            SynchronizationContext.SetSynchronizationContext(module.Context.SynchronizationContext);
             call(module);
         }
         catch (Exception exception)
         {
             module.Context.Logger.Error($"Module '{module.Info.Id}' threw during {EngineStopException.Describe(step)}; the exception is ignored.", exception);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
         }
     }
 

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using Nobara.Core.Loading;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
 using Nobara.Core.Tests.Support;
@@ -288,27 +289,90 @@ public sealed class LoopTests : IDisposable
         Assert.Equal(["example.all:Stop", "example.all:Release"], journal.Lines.TakeLast(2));
     }
 
-    [Fact]
-    public void Run_with_tick_pacing_waits_for_each_tick()
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(2.0)]
+    [InlineData(0.5)]
+    public void Run_with_tick_pacing_waits_for_each_tick(double timeScale)
     {
-        // The system clock: each frame waits for the next tick, at 200 Hz.
-        _distribution.Loop = StandardLoop(200);
-        using Engine engine = Engine.Load(_distribution.Module("example.all", behavior: m => m.OnRegister = c =>
-            c.Loop.Subscribe("Simulation", new PhaseHandler(t =>
+        using Engine engine = Engine.Load(_distribution
+            .Module("example.game", m => m.Reserves.Add("loop.simulation"), m =>
             {
-                if (t.Tick >= 10)
+                m.OnRegister = c => c.Loop.Subscribe("Simulation", new PhaseHandler(t =>
                 {
-                    c.RequestStop();
-                }
-            }))).Options(clock: TimeProvider.System, pacing: FramePacing.Tick));
+                    if (t.Tick == 10)
+                    {
+                        c.RequestStop();
+                    }
+                }));
+                m.OnInitialize = c => c.Loop.GetTickControl().TimeScale = timeScale;
+            })
+            .Options(pacing: FramePacing.Tick));
 
         engine.MainContext.Run();
 
-        // The frame of tick 10 may run a few more ticks when the system wakes the thread late.
-        Assert.InRange(engine.MainContext.Tick, 10UL, 40UL);
+        // The first frame comes at once; each later one waits for its tick.
+        Assert.Equal(10UL, engine.MainContext.Tick);
+        Assert.Equal(11UL, engine.MainContext.Frame);
+    }
 
-        // Without waiting, thousands of frames would run without a tick.
-        Assert.InRange(engine.MainContext.Frame, 1UL, engine.MainContext.Tick + 2);
+    [Fact]
+    public void Each_fixed_phase_runs_its_ticks_at_its_place_in_the_loop()
+    {
+        var loop = new F.Loop { TickRate = 30 };
+        loop.Phases.Add(new F.Phase { Name = "Physics", Fixed = true });
+        loop.Phases.Add(new F.Phase { Name = "Between" });
+        loop.Phases.Add(new F.Phase { Name = "Logic", Fixed = true });
+        _distribution.Loop = loop;
+        Journal journal = _distribution.Journal;
+        using Engine engine = _distribution.Module("example.all", behavior: Logs(journal, "Physics", "Between", "Logic")).Load();
+        engine.MainContext.Start();
+
+        _distribution.Clock.Advance(TimeSpan.FromMilliseconds(70));
+        engine.MainContext.RunFrame();
+
+        Assert.Equal(
+            ["example.all:Physics 1", "example.all:Physics 2", "example.all:Between 2", "example.all:Logic 1", "example.all:Logic 2"],
+            journal.Lines.Where(l => l.Contains(' ', StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void Refuses_a_frame_inside_a_frame_and_a_stop_during_a_frame()
+    {
+        using Engine engine = _distribution
+            .Module("example.all", behavior: m => m.OnRegister = c => c.Loop.Subscribe("Input", new PhaseHandler(_ =>
+            {
+                Assert.Throws<InvalidOperationException>(_distribution.Engine!.MainContext.RunFrame);
+                Assert.Throws<InvalidOperationException>(_distribution.Engine!.MainContext.Stop);
+                _distribution.Journal.Add("example.all:checked");
+            })))
+            .Load();
+        _distribution.Engine = engine;
+        engine.MainContext.Start();
+
+        engine.MainContext.RunFrame();
+
+        Assert.Contains("example.all:checked", _distribution.Journal.Lines);
+        Assert.Equal(ContextState.Running, engine.MainContext.State);
+    }
+
+    [Fact]
+    public void Refuses_a_declared_tick_rate_above_the_limit()
+    {
+        _distribution.Loop = StandardLoop(5000);
+        ModuleCompositionException error = Assert.Throws<ModuleCompositionException>(() => _distribution.Module("example.all").Load());
+
+        Assert.Contains("The loop declares 5000 ticks per second; the core runs at most 1000.", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_stopped_context_does_not_run_again()
+    {
+        using Engine engine = _distribution.Module("example.all").Load();
+        engine.MainContext.Start();
+        engine.MainContext.Stop();
+
+        Assert.Throws<InvalidOperationException>(() => engine.MainContext.Run());
     }
 
     [Fact]

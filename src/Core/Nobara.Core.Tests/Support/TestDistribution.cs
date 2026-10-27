@@ -48,6 +48,9 @@ internal sealed class TestDistribution : IDisposable
     /// <summary>Gets the clock of the loop, which only the test moves.</summary>
     public ManualClock Clock { get; } = new();
 
+    /// <summary>Gets or sets the engine under test, for handlers that need it.</summary>
+    public Engine? Engine { get; set; }
+
     /// <summary>Adds a module.</summary>
     /// <param name="id">The identifier.</param>
     /// <param name="configure">Changes to its manifest: dependencies, conflicts, side…</param>
@@ -171,6 +174,34 @@ internal sealed class ManualClock : TimeProvider
     public override long GetTimestamp() => Interlocked.Read(ref _ticks);
 
     public void Advance(TimeSpan time) => Interlocked.Add(ref _ticks, time.Ticks);
+
+    // A timer moves the clock to its due time and fires at once: waiting takes no real time.
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        var timer = new Timer(this, callback, state);
+        timer.Change(dueTime, period);
+        return timer;
+    }
+
+    private sealed class Timer(ManualClock clock, TimerCallback callback, object? state) : ITimer
+    {
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            if (dueTime != global::System.Threading.Timeout.InfiniteTimeSpan)
+            {
+                clock.Advance(dueTime);
+                callback(state);
+            }
+
+            return true;
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 }
 
 /// <summary>A phase handler that runs the code a test gives it.</summary>

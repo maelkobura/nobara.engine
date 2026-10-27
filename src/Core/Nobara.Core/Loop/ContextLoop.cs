@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Collections.Concurrent;
+using Nobara.Core.Loading;
 using F = Nobara.Formats;
 
 namespace Nobara.Core.Loop;
@@ -15,6 +16,12 @@ internal sealed class ContextLoop
 {
     /// <summary>The tick rate when the distribution declares none.</summary>
     public const int DefaultTickRate = 30;
+
+    /// <summary>The highest tick rate, in ticks per second.</summary>
+    public const double MaxTickRate = 1000;
+
+    /// <summary>The highest time scale.</summary>
+    public const double MaxTimeScale = 100;
 
     private readonly EngineContext _context;
     private readonly TimeProvider _time;
@@ -32,6 +39,8 @@ internal sealed class ContextLoop
     private LoopSubscription[][] _handlers;
     private LoopSubscription[] _frameStart = [];
     private bool _changed;
+    private ITimer? _timer;
+    private ManualResetEventSlim? _wake;
 
     private long _lastTimestamp;
     private TimeSpan _accumulated;
@@ -63,6 +72,12 @@ internal sealed class ContextLoop
         _handlers = new LoopSubscription[_phases.Length][];
         Array.Fill(_handlers, []);
         TickRate = declared is { TickRate: > 0 } ? declared.TickRate : DefaultTickRate;
+        if (TickRate > MaxTickRate)
+        {
+            throw new ModuleCompositionException(
+                [new CompositionProblem(CompositionProblemKind.InvalidDistribution, string.Empty, $"The loop declares {TickRate} ticks per second; the core runs at most {MaxTickRate}.")]);
+        }
+
         _tickDuration = TimeSpan.FromSeconds(1 / TickRate);
     }
 
@@ -155,6 +170,11 @@ internal sealed class ContextLoop
 
     public TickControl GetControl(ModuleRuntime module)
     {
+        if (module.Disabled)
+        {
+            throw new InvalidOperationException($"Module '{module.Info.Id}' is disabled; it cannot control the tick.");
+        }
+
         foreach (KeyValuePair<LoopPhase, ModuleRuntime> reservation in _reservedBy)
         {
             if (reservation.Key.IsFixed && reservation.Value == module)
@@ -191,8 +211,50 @@ internal sealed class ContextLoop
             return _tickDuration;
         }
 
-        TimeSpan left = _tickDuration - _accumulated - _time.GetElapsedTime(_lastTimestamp);
-        return left <= TimeSpan.Zero ? TimeSpan.Zero : left / TimeScale;
+        // The accumulator fills at TimeScale times real time.
+        TimeSpan left = ((_tickDuration - _accumulated) / TimeScale) - _time.GetElapsedTime(_lastTimestamp);
+        return left <= TimeSpan.Zero ? TimeSpan.Zero : left;
+    }
+
+    /// <summary>
+    /// Blocks the loop thread until the next tick is due, rounded up to the
+    /// millisecond, with one timer reused from frame to frame.
+    /// </summary>
+    public void WaitForNextTick(CancellationToken cancellation)
+    {
+        TimeSpan wait = UntilNextTick();
+        if (wait <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        if (_wake is null)
+        {
+            _wake = new ManualResetEventSlim();
+            _timer = _time.CreateTimer(static wake => ((ManualResetEventSlim)wake!).Set(), _wake, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        }
+
+        _wake.Reset();
+
+        // Timers count whole milliseconds: a shorter wait would not wait at all.
+        _timer!.Change(TimeSpan.FromMilliseconds(Math.Ceiling(wait.TotalMilliseconds)), Timeout.InfiniteTimeSpan);
+        try
+        {
+            _wake.Wait(cancellation);
+        }
+        catch (OperationCanceledException)
+        {
+            // The stop is requested; the loop ends after this frame.
+        }
+    }
+
+    /// <summary>Frees the timer of <see cref="WaitForNextTick"/>.</summary>
+    public void End()
+    {
+        _timer?.Dispose();
+        _wake?.Dispose();
+        _timer = null;
+        _wake = null;
     }
 
     /// <summary>Starts measuring time: the first frame has no elapsed time.</summary>
@@ -222,8 +284,10 @@ internal sealed class ContextLoop
 
         DrainPosted();
 
+        // A lever used during the frame takes effect at the next one.
+        TimeSpan tickDuration = _tickDuration;
         int ticks = Accumulate(elapsed);
-        double alpha = _hasFixedPhase ? _accumulated / _tickDuration : 0;
+        double alpha = _hasFixedPhase ? _accumulated / tickDuration : 0;
         ulong firstTick = Tick + 1;
         var frameTime = new PhaseTime(Frame, Tick, elapsed, alpha);
 
@@ -239,7 +303,7 @@ internal sealed class ContextLoop
             for (int i = 0; i < ticks; i++)
             {
                 ulong tick = firstTick + (ulong)i;
-                RunHandlers(_handlers[phase.Index], phase, new PhaseTime(Frame, tick, _tickDuration, 0));
+                RunHandlers(_handlers[phase.Index], phase, new PhaseTime(Frame, tick, tickDuration, 0));
                 if (tick > Tick)
                 {
                     Tick = tick;
@@ -292,7 +356,12 @@ internal sealed class ContextLoop
                 continue;
             }
 
+            // The continuations of an await that the callback runs come back to
+            // the synchronization point of the same module.
+            SynchronizationContext? previous = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(posted.Module?.Context.SynchronizationContext);
             Exception? exception = LoopDispatch.Run(posted.Callback, posted.State);
+            SynchronizationContext.SetSynchronizationContext(previous);
             if (exception is not null)
             {
                 _context.HandleLoopFault(posted.Module, exception);

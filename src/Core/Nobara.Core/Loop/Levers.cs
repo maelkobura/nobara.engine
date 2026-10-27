@@ -38,15 +38,15 @@ public sealed class TickControl
     /// runs twice as many ticks per second. The duration of a tick does not
     /// change.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is not a positive finite number.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not greater than 0 and at most 100.</exception>
     public double TimeScale
     {
         get => _loop.TimeScale;
         set
         {
-            if (!double.IsFinite(value) || value <= 0)
+            if (!(value > 0 && value <= ContextLoop.MaxTimeScale))
             {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The time scale is a positive finite number; pause the tick to stop it.");
+                throw new ArgumentOutOfRangeException(nameof(value), value, $"The time scale is greater than 0 and at most {ContextLoop.MaxTimeScale}; pause the tick to stop it.");
             }
 
             _loop.TimeScale = value;
@@ -54,15 +54,15 @@ public sealed class TickControl
     }
 
     /// <summary>Gets or sets the number of ticks per real second at a time scale of 1. Changing it changes the duration of a tick.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The value is not a positive finite number.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not greater than 0 and at most 1000.</exception>
     public double TickRate
     {
         get => _loop.TickRate;
         set
         {
-            if (!double.IsFinite(value) || value <= 0)
+            if (!(value > 0 && value <= ContextLoop.MaxTickRate))
             {
-                throw new ArgumentOutOfRangeException(nameof(value), value, "The tick rate is a positive finite number of ticks per second.");
+                throw new ArgumentOutOfRangeException(nameof(value), value, $"The tick rate is greater than 0 and at most {ContextLoop.MaxTickRate} ticks per second.");
             }
 
             _loop.SetTickRate(value);
@@ -95,11 +95,11 @@ public sealed class ContextControl
         _engine = engine;
     }
 
-    /// <summary>Gets the context created at start-up, which lives as long as the process.</summary>
-    public EngineContext MainContext => _engine.MainContext;
+    /// <summary>Gets the side of the context created at start-up, which lives as long as the process.</summary>
+    public Side MainSide => _engine.MainContext.Side;
 
-    /// <summary>Gets the server context of the integrated server, or <see langword="null"/> when there is none.</summary>
-    public EngineContext? IntegratedServer => null;
+    /// <summary>Gets whether the server context of an integrated server exists.</summary>
+    public bool HasIntegratedServer => false;
 
     /// <summary>Gets whether this core can create the server context of an integrated server.</summary>
     public bool CanCreateIntegratedServer => false;
@@ -109,9 +109,8 @@ public sealed class ContextControl
     /// client context, and starts it on its own loop thread: its modules go
     /// through steps 2 to 4.
     /// </summary>
-    /// <returns>The server context.</returns>
     /// <exception cref="NotSupportedException">This version of the core runs only the main context.</exception>
-    public EngineContext CreateIntegratedServer() =>
+    public void CreateIntegratedServer() =>
         throw new NotSupportedException("This version of the core runs only the main context; it cannot create an integrated server.");
 
     /// <summary>Stops and destroys the server context of the integrated server: its modules go through steps 6 and 7.</summary>

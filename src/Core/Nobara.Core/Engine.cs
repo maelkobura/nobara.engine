@@ -113,6 +113,8 @@ public sealed class Engine : IDisposable
     private readonly FileLogSink? _fileLog;
     private readonly Dictionary<Assembly, string?> _moduleOfAssembly = [];
     private readonly List<EngineContext> _contexts = [];
+    private const string LoggedKey = "Nobara.Logged";
+
     private ContextControl? _contextControl;
     private bool _disposed;
 
@@ -176,15 +178,24 @@ public sealed class Engine : IDisposable
         }
         catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException)
         {
-            // Load logged the problems.
+            // Load logs the problems once its logs are open; a distribution
+            // that cannot be read fails before.
+            if (exception.Data[LoggedKey] is not true)
+            {
+                Console.Error.WriteLine(exception.Message);
+            }
+
             return 1;
         }
 
         using (engine)
         {
+            bool cancelled = false;
             void OnCancel(object? sender, ConsoleCancelEventArgs e)
             {
-                e.Cancel = true;
+                // The first Ctrl+C stops the game cleanly; the next one ends the process.
+                e.Cancel = !cancelled;
+                cancelled = true;
                 engine.MainContext.RequestStop();
             }
 
@@ -256,6 +267,7 @@ public sealed class Engine : IDisposable
         catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException)
         {
             engine.Logger.Critical(exception.Message);
+            exception.Data[LoggedKey] = true;
             engine.Dispose();
             throw;
         }

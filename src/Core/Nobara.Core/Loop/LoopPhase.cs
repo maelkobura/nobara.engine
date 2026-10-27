@@ -68,7 +68,7 @@ public interface IPhaseHandler
     void Run(in PhaseTime time);
 }
 
-/// <summary>A handler subscribed to a phase. Disposing it removes the handler from the next frame on.</summary>
+/// <summary>A handler subscribed to a phase. Disposing it removes the handler at once.</summary>
 public sealed class LoopSubscription : IDisposable
 {
     private readonly ContextLoop _loop;
@@ -93,7 +93,7 @@ public sealed class LoopSubscription : IDisposable
 
     internal bool Revoked { get; private set; }
 
-    /// <summary>Removes the handler. The phase that is running, if any, still finishes with it.</summary>
+    /// <summary>Removes the handler: it does not run again, even later in the frame that is running.</summary>
     public void Dispose()
     {
         if (!Revoked)

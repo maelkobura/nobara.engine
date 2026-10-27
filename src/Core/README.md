@@ -117,12 +117,14 @@ Each frame runs, in this order:
 3. each phase in order. A phase that is not fixed runs once. A fixed phase
    runs once per tick due: the elapsed time feeds an accumulator, and each
    tick consumes the duration of one tick, so a frame runs zero, one, or
-   several ticks.
+   several ticks. When the loop has several fixed phases, they share the
+   tick, and each runs all the ticks of the frame at its own place.
 
 A module subscribes an `IPhaseHandler` to a phase during registration, with
 `context.Loop.Subscribe("Input", handler)`. The handlers of a phase run in
 the order they subscribed, which is the load order. Disposing the
-subscription removes the handler from the next frame on. The handler
+subscription removes the handler at once, even from the frame that runs. The
+handler
 receives a `PhaseTime`: the frame and tick numbers, the duration of a tick in
 a fixed phase or the real frame time elsewhere, and outside fixed phases the
 fraction of a tick accumulated since the last one, to interpolate what is
@@ -148,25 +150,35 @@ The levers of the core go to the modules that hold the matching reservation:
 
 | Lever | Reservation | What it does |
 | --- | --- | --- |
-| `context.Loop.GetTickControl()` | a fixed phase, such as `loop.simulation` | `Paused` suspends the fixed phases; `TimeScale` changes how fast time accumulates, so the number of ticks per second, and not the duration of a tick; `TickRate` changes the duration of a tick. Changes take effect at the next frame. |
-| `context.GetContextControl()` | `core.contexts` | Creates and destroys the server context of an integrated server. This version only exposes the main context. |
+| `context.Loop.GetTickControl()` | a fixed phase, such as `loop.simulation` | `Paused` suspends the fixed phases; `TimeScale` changes how fast time accumulates, so the number of ticks per second, and not the duration of a tick; `TickRate` changes the duration of a tick. The time scale goes up to 100 and the tick rate up to 1000 ticks per second. Changes take effect at the next frame. |
+| `context.GetContextControl()` | `core.contexts` | Creates and destroys the server context of an integrated server. This version runs only the main context. |
 
 ### Synchronization point
 
-Code that runs on another thread, such as the continuation of an I/O
-operation or a library that has its own threads, hands its result to the
-loop thread with `context.Post(callback, state)`. The callback runs at the
-start of the next frame. `context.SynchronizationContext` does the same for
-`await`:
+Code that runs on another thread, such as a library that has its own
+threads, hands its result to the loop thread with
+`context.Post(callback, state)`. The callback runs at the start of the next
+frame; a callback posted while the synchronization point runs waits for the
+frame after.
+
+`context.SynchronizationContext` is the same queue for `await`. The core
+makes it the current synchronization context while it calls the lifecycle
+methods of the module and the callbacks it posted, so every `await` there
+resumes on the loop thread:
 
 ```csharp
-SynchronizationContext.SetSynchronizationContext(context.SynchronizationContext);
-byte[] data = await File.ReadAllBytesAsync(path);
-// Here the code runs on the loop thread again.
+public void Initialize(ModuleContext context) => _loading = LoadAsync();
+
+private async Task LoadAsync()
+{
+    byte[] data = await File.ReadAllBytesAsync(_path);
+    // Here the code runs on the loop thread again, at the start of a frame.
+}
 ```
 
-An exception thrown by a posted callback is charged to the module that posted
-it.
+An exception thrown by a posted callback or a continuation is charged to the
+module that posted it. The callbacks of a disabled module are dropped.
+Phase handlers do not use `async`.
 
 ### Discovery checks
 
@@ -264,7 +276,10 @@ It provides no resource type.
   the service registry are not thread-safe, except `Post`,
   `SynchronizationContext`, and `RequestStop`; loggers and sinks are.
 - A frame allocates no managed memory once the subscriptions are stable: the
-  tests measure it. The dispatch to handlers is not marked `[HotPath]`, so
+  tests measure it. With `FramePacing.Tick`, the wait between frames reuses one
+  timer.
+- A frame does not run inside another frame, and a context does not stop
+  during a frame: a module calls `RequestStop` instead. The dispatch to handlers is not marked `[HotPath]`, so
   that a handler of a phase that is not fixed does not have to follow the hot
   path rules.
 - Assemblies are loaded once per process, in a load context named `Nobara
@@ -288,8 +303,6 @@ It provides no resource type.
   properties) are not loaded.
 - The configuration service, the player configuration file, and module
   configurations from the engine file are not implemented.
-- Only the main context exists; an integrated server context cannot be
-  created yet.
 - The static loading mode is an interface only: no implementation of
   `IModuleSource` loads modules compiled into the executable.
 - The distribution manifest records the hashes of module assemblies only, so
