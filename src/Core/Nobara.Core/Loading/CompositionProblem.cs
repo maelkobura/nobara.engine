@@ -41,6 +41,9 @@ public enum CompositionProblemKind
 
     /// <summary>A base module has no active backend on a side where it requires one.</summary>
     MissingBackend,
+
+    /// <summary>A configuration key is declared twice or has an invalid default, or the distribution gives it an invalid value.</summary>
+    InvalidConfiguration,
 }
 
 /// <summary>One reason why the core refuses a composition, naming the module at fault.</summary>

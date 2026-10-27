@@ -4,6 +4,7 @@
 
 using System.Reflection;
 using Google.Protobuf;
+using Nobara.Core.Resources;
 using F = Nobara.Formats;
 
 namespace Nobara.Core.Loading;
@@ -46,9 +47,24 @@ internal sealed class Distribution
         {
             _policies[policy.Module] = policy.Policy;
         }
+
+        foreach (F.ModuleConfig config in manifest.ModuleConfigs)
+        {
+            if (config.Config is not null)
+            {
+                ModuleConfigs[config.Module] = GenericElement.From(config.Config);
+            }
+        }
+
+        ProtectedNamespaces = new ProtectedNamespaces(manifest.ProtectedNamespaces);
     }
 
     public F.DistributionManifest Manifest { get; }
+
+    /// <summary>Gets the <c>&lt;ModuleConfig&gt;</c> blocks of the engine file, by module.</summary>
+    public Dictionary<string, GenericElement> ModuleConfigs { get; } = new(StringComparer.Ordinal);
+
+    public ProtectedNamespaces ProtectedNamespaces { get; }
 
     public DistributionInfo Info { get; }
 
@@ -109,7 +125,10 @@ internal sealed class Distribution
             Sides(manifest.BackendRequired),
             manifest.BackendOf,
             required,
-            policy);
+            policy)
+        {
+            SettingDeclarations = manifest.Settings.ToArray(),
+        };
     }
 
     private static ErrorPolicy Policy(F.Policy policy) => policy switch

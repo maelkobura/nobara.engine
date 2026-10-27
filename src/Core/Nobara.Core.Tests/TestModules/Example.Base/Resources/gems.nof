@@ -1,0 +1,21 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Example/Gems">
+  <Gem>
+    <Name>Ruby</Name>
+    <Content>
+      <DisplayName>gem.ruby</DisplayName>
+      <Hardness>9</Hardness>
+      <Picture>Pictures/ruby.txt</Picture>
+    </Content>
+    <Properties>
+      <Weight>2.5</Weight>
+    </Properties>
+    <Tags>
+      <Tag>#example.precious</Tag>
+    </Tags>
+  </Gem>
+</Nobara>

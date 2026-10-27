@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Core.Resources;
 
 namespace Nobara.Core;
 
@@ -65,6 +66,7 @@ public sealed class EngineContext
         Name = side == Side.Server ? "server" : "client";
         Logger = engine.CreateLogger(Name, "core", _phase);
         Services = new ServiceRegistry(engine.ModuleOfType);
+        Resources = new ContextResources(engine.Resources, engine.DistributionData.ProtectedNamespaces);
         _loop = new ContextLoop(this, engine.LoopDeclaration, engine.Time, engine.MaxFrameTime);
 
         _modules = [];
@@ -127,6 +129,8 @@ public sealed class EngineContext
 
     internal ServiceRegistry Services { get; }
 
+    internal ContextResources Resources { get; }
+
     internal ContextLoop Loop => _loop;
 
     /// <summary>Tells whether a module is active in this context: present, running on this side, and not disabled.</summary>
@@ -146,6 +150,11 @@ public sealed class EngineContext
     /// modules that had started are stopped and released before the exception
     /// is thrown.
     /// </exception>
+    /// <exception cref="ResourceLoadException">
+    /// After registration, the modules that read a free property disagree on
+    /// its type, or a resource has a value of another type. The context is
+    /// stopped before the exception is thrown.
+    /// </exception>
     public void Start()
     {
         if (State != ContextState.Created)
@@ -164,9 +173,14 @@ public sealed class EngineContext
                 module.Instance?.Register(module.Context);
                 module.Registered = true;
             });
+            CheckProperties();
             RunStep(LifecycleStep.Initialization, module =>
             {
                 module.InitializeCalled = true;
+
+                // The resources of the module are decoded before it initializes,
+                // so its dependents find them decoded.
+                Resources.DecodeOwned(module);
                 module.Instance?.Initialize(module.Context);
             });
             RunStep(LifecycleStep.Start, module =>
@@ -349,6 +363,21 @@ public sealed class EngineContext
         }
     }
 
+    // Free properties are checked once every module has declared those it reads.
+    private void CheckProperties()
+    {
+        List<ResourceProblem> problems = Resources.CheckProperties();
+        if (problems.Count == 0)
+        {
+            return;
+        }
+
+        var exception = new ResourceLoadException(problems);
+        Logger.Critical(exception.Message);
+        Shutdown();
+        throw exception;
+    }
+
     private void RunStep(LifecycleStep step, Action<ModuleRuntime> call)
     {
         Step = step;
@@ -448,6 +477,7 @@ public sealed class EngineContext
             }
 
             Services.Withdraw(module);
+            Resources.Withdraw(module);
             _loop.Changed();
             string reason = module == culprit ? "after an error" : $"because it requires '{culprit.Info.Id}'";
             module.Context.Logger.Warning($"Module '{module.Info.Id}' is disabled {reason}.");

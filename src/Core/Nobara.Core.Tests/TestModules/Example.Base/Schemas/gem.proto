@@ -1,0 +1,21 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource type of the sample modules.
+syntax = "proto3";
+
+package example.base;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Example.Base.Schemas";
+
+message Gem {
+  option (nobara.resource_type) = "gem";
+  option (nobara.accepts_tags) = true;
+
+  string display_name = 1 [(nobara.i18n) = true];
+  int32 hardness = 2 [(nobara.min) = 0];
+  string picture = 3 [(nobara.file) = true];
+}

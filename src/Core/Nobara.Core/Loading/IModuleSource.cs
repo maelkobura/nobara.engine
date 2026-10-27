@@ -56,17 +56,36 @@ public sealed record ModuleImage(string Id, string Location, ReadOnlyMemory<byte
 public sealed class LoadedModule
 {
     private readonly Func<IModule>? _factory;
+    private readonly Func<string, Stream?>? _openResource;
 
-    /// <summary>Initializes a loaded module.</summary>
+    /// <summary>Initializes a loaded module whose data is in the manifest resources of its assembly.</summary>
     /// <param name="assembly">
     /// The assembly that holds the code of the module, or <see langword="null"/>.
     /// The core uses it to tell which module an exception comes from.
     /// </param>
     /// <param name="factory">Creates the instance of the module for a context, or <see langword="null"/> for a module without code.</param>
     public LoadedModule(Assembly? assembly, Func<IModule>? factory)
+        : this(assembly, factory, null)
+    {
+    }
+
+    /// <summary>Initializes a loaded module whose data comes from elsewhere than its assembly.</summary>
+    /// <param name="assembly">
+    /// The assembly that holds the code of the module, or <see langword="null"/>.
+    /// The core uses it to tell which module an exception comes from.
+    /// </param>
+    /// <param name="factory">Creates the instance of the module for a context, or <see langword="null"/> for a module without code.</param>
+    /// <param name="openResource">
+    /// Opens a data resource of the module by name, such as
+    /// <c>nobara/resources.pb</c>, or returns <see langword="null"/> when the
+    /// module has none. When it is <see langword="null"/>, the manifest
+    /// resources of <paramref name="assembly"/> are used.
+    /// </param>
+    public LoadedModule(Assembly? assembly, Func<IModule>? factory, Func<string, Stream?>? openResource)
     {
         Assembly = assembly;
         _factory = factory;
+        _openResource = openResource;
     }
 
     /// <summary>Gets the assembly that holds the code of the module, or <see langword="null"/>.</summary>
@@ -78,6 +97,19 @@ public sealed class LoadedModule
     /// <summary>Creates a new instance of the module, for one context.</summary>
     /// <returns>The instance, or <see langword="null"/> for a module without code.</returns>
     public IModule? CreateInstance() => _factory?.Invoke();
+
+    /// <summary>
+    /// Opens a data resource of the module: its compiled resources
+    /// (<c>nobara/resources.pb</c>), its schemas (<c>nobara/schemas.pb</c>), or
+    /// one of its binary files (<c>nobara/files/</c> and the path).
+    /// </summary>
+    /// <param name="name">The name of the resource.</param>
+    /// <returns>A stream over the resource, or <see langword="null"/> when the module has none of that name.</returns>
+    public Stream? OpenResource(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        return _openResource is not null ? _openResource(name) : Assembly?.GetManifestResourceStream(name);
+    }
 }
 
 /// <summary>Thrown by <see cref="IModuleSource.Discover"/> when a module cannot be accepted.</summary>

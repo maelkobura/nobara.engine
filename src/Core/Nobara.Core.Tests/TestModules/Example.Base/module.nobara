@@ -5,7 +5,11 @@
 -->
 <NobaraModule format="1">
   <Id>example.base</Id>
+  <ShortName>Base</ShortName>
   <Version>1.0.0</Version>
   <Level>business</Level>
   <Side>both</Side>
+  <Settings>
+    <Setting key="base.greeting" scope="user" type="string" default="Hello" />
+  </Settings>
 </NobaraModule>

@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+// The core compiles this file too, as an internal type (NOBARA_CORE), to
+// apply overrides with the same naming convention.
+
 using System.Text;
 using Google.Protobuf.Reflection;
 
@@ -12,7 +15,12 @@ namespace Nobara.ResourceCompiler.Nof;
 /// <c>display_name</c> is written as the element <c>&lt;DisplayName&gt;</c> or
 /// as the attribute <c>displayName</c>.
 /// </summary>
-public static class Names
+#if NOBARA_CORE
+internal
+#else
+public
+#endif
+static class Names
 {
     /// <summary>Gets the element name of a field: each underscore-separated word capitalized.</summary>
     /// <param name="field">The field.</param>

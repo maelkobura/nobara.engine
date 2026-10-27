@@ -288,7 +288,10 @@ a tag, the elements are `<Member>` elements, whose fields are `id` and
 
 When the target is defined by the module or by a dependency, a query that
 selects nothing in the target is a warning: another override may add the
-element first. The compiler checks overrides; it does not apply them.
+element first. The compiler checks overrides; the core applies them when it
+loads the resources, and a query that selects nothing then is an error unless
+the override is optional. See [the core page](../../../src/Core/README.md#loading-resources)
+for the order of the overrides and the exact effect of each operation.
 
 ## Content hash
 
@@ -308,6 +311,5 @@ The codes are listed in [the resource compiler page](../../../tools/Nobara.Resou
   know the localization catalogs.
 - A `.proto` schema cannot import the schema of another module.
 - Free properties are not checked when they are compiled.
-- A query is tried on the target as defined, before any other override.
-- Overrides and tags are compiled, not applied: no part of the engine loads
-  resources yet.
+- When it compiles, a query is tried on the target as defined, before any
+  other override.

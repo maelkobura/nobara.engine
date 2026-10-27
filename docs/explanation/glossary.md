@@ -70,6 +70,13 @@ A file that the core writes to the logs folder before a context stops on an
 error. It names the module, the lifecycle step, and the exception. See [the
 core](../../src/Core/README.md#error-policies).
 
+### Decoder
+
+The code that the module owning a resource type registers with the core to
+turn each loaded resource of the type into an object of the module. The core
+decodes each resource once per process. See [the core
+page](../../src/Core/README.md#loading-resources).
+
 ### Distribution
 
 A game, as a set of modules declared in a project file and an engine file
@@ -194,6 +201,12 @@ A unit of the engine with a name, a version, a level, and declared
 dependencies. A distribution is an assembly of modules. See
 [Modules](architecture.md#modules).
 
+### Module configuration
+
+The `<ModuleConfig>` block of the engine file that targets one module, given
+to that module in the generic representation for configuration that does not
+fit in configuration keys.
+
 ### Module entry
 
 The class of a module that implements `IModule`, named by the `[assembly:
@@ -251,6 +264,11 @@ A module that provides a reusable foundation for other modules, such as
 rendering, voxel storage, or physics. A platform module never depends on a
 business module.
 
+### Protected namespace
+
+A namespace that the distribution protects: a module loaded dynamically,
+such as a mod, can neither define nor override a resource in it.
+
 ### Qualified property
 
 A free property prefixed by the short name of a module, such as
@@ -300,6 +318,12 @@ a type, for the modules that depend on it.
 The part of the core that maps a service type to the instance published by a
 module and enforces that callers only obtain services of their declared
 dependencies. There is one per context.
+
+### Settings file
+
+The file `config/settings.xml` in the data folders, where the core keeps the
+values of `user` configuration keys that the player chose. See [the core
+page](../../src/Core/README.md#configuration-keys).
 
 ### Side
 

@@ -67,6 +67,26 @@ public sealed class AssemblyModuleTests : IClassFixture<SampleModules>, IDisposa
     }
 
     [Fact]
+    public void Reads_the_resources_and_settings_embedded_by_the_sdk()
+    {
+        (string install, byte[] distribution) = _samples.Install(["Example.Base", "Example.Feature"], d => d.Settings.Add(new F.SettingValue
+        {
+            Key = "base.greeting",
+            Operation = F.SettingValue.Types.Operation.Default,
+            Value = "Hi",
+        }));
+
+        using Engine engine = Load(install, distribution);
+        engine.MainContext.Start();
+        engine.MainContext.Stop();
+
+        string[] messages = _log.Entries.Where(e => e.Source == "example.base" && e.Phase == "Start").Select(e => e.Message).ToArray();
+        Assert.Equal(
+            ["greeting Hi", "gem:example.gems.ruby hardness 10 weight 2.5 picture 'a red gem'", "precious gem:example.gems.ruby"],
+            messages);
+    }
+
+    [Fact]
     public void Never_loads_a_module_refused_for_a_conflict()
     {
         (string install, byte[] distribution) = _samples.Install(["Example.Base", "Example.Rogue"]);
