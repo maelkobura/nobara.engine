@@ -290,8 +290,13 @@ public sealed class JobTests : IDisposable
         using (engine)
         {
             var record = new Record();
-            JobHandle failing = context.Jobs.Schedule(new ThrowJob());
+            using var gate = new ManualResetEventSlim();
+
+            // The failing job waits until its dependent is scheduled: a job that
+            // depends on a job already done runs.
+            JobHandle failing = context.Jobs.Schedule(new ThrowJob { Gate = gate });
             JobHandle dependent = context.Jobs.Schedule(new RecordJob { Record = record, Name = "dependent" }, failing);
+            gate.Set();
 
             dependent.Complete();
             Assert.True(failing.IsCompleted);
@@ -564,7 +569,13 @@ public sealed class JobTests : IDisposable
 
     private struct ThrowJob : IJob
     {
-        public readonly void Execute() => throw new InvalidOperationException("the harvest failed");
+        public ManualResetEventSlim? Gate;
+
+        public readonly void Execute()
+        {
+            Gate?.Wait(Timeout);
+            throw new InvalidOperationException("the harvest failed");
+        }
     }
 
     private struct NestedJob : IJob
