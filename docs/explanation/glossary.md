@@ -77,6 +77,12 @@ turn each loaded resource of the type into an object of the module. The core
 decodes each resource once per process. See [the core
 page](../../src/Core/README.md#loading-resources).
 
+### Development mode
+
+A way to run the engine with checks that cost time, chosen when the engine
+starts (`EngineOptions.DevelopmentMode`). In this version it checks the data
+that jobs declare. See [the core page](../../src/Core/README.md#declared-accesses).
+
 ### Distribution
 
 A game, as a set of modules declared in a project file and an engine file
@@ -159,8 +165,16 @@ reference](../reference/analyzers.md#optional-dependency-rules).
 
 ### Job
 
-A unit of work that the core's job system runs on a worker thread. Modules
-never create threads.
+A unit of work that the core's job system runs on a worker thread: a struct
+that implements `IJob`, or `IJobFor` for a parallel job that runs once per
+index of a range. Modules never create threads. See [the core
+page](../../src/Core/README.md#jobs).
+
+### Job data
+
+The name of a piece of data that jobs read or write, such as the storage of a
+component. Jobs declare the job data they touch, so that the job system orders
+conflicting jobs, and checks the declarations in development mode.
 
 ### Level
 
@@ -264,6 +278,12 @@ A module that provides a reusable foundation for other modules, such as
 rendering, voxel storage, or physics. A platform module never depends on a
 business module.
 
+### Profiler
+
+The part of the core that measures, for each context, module, phase, and
+job, the time spent, the managed memory allocated, and the pauses of the
+garbage collector. See [the core page](../../src/Core/README.md#profiler).
+
 ### Protected namespace
 
 A namespace that the distribution protects: a module loaded dynamically,
@@ -354,3 +374,9 @@ several modules may add members. See [the `.nof` reference](../reference/formats
 
 One step of the fixed-rate simulation. The core runs ticks with an
 accumulator; [nGame](#ngame) orders the systems inside each tick.
+
+### Worker thread
+
+A thread of the pool that the core creates for the job system, shared by
+every context of a process. There is about one per processor, minus the loop
+thread.

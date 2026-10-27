@@ -73,12 +73,13 @@ public sealed class LoopSubscription : IDisposable
 {
     private readonly ContextLoop _loop;
 
-    internal LoopSubscription(ContextLoop loop, ModuleRuntime module, LoopPhase? phase, IPhaseHandler handler)
+    internal LoopSubscription(ContextLoop loop, ModuleRuntime module, LoopPhase? phase, IPhaseHandler handler, Profiling.ProfilerMarker marker)
     {
         _loop = loop;
         Module = module;
         Phase = phase;
         Handler = handler;
+        Marker = marker;
     }
 
     /// <summary>Gets the phase, or <see langword="null"/> for the start of the frame.</summary>
@@ -90,6 +91,8 @@ public sealed class LoopSubscription : IDisposable
     internal ModuleRuntime Module { get; }
 
     internal IPhaseHandler Handler { get; }
+
+    internal Profiling.ProfilerMarker Marker { get; }
 
     internal bool Revoked { get; private set; }
 

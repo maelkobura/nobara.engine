@@ -143,12 +143,24 @@ internal sealed class TestDistribution : IDisposable
         return distribution.ToByteArray();
     }
 
+    /// <summary>Gets or sets the number of worker threads; <see langword="null"/> keeps the default.</summary>
+    public int? Workers { get; set; }
+
+    /// <summary>Gets or sets whether the engine runs in development mode.</summary>
+    public bool DevelopmentMode { get; set; }
+
+    /// <summary>Gets or sets whether the profiler measures from start-up.</summary>
+    public bool Profiling { get; set; }
+
     /// <summary>Runs steps 0 and 1.</summary>
     public Engine Load(Side side = Side.Client, bool logToFile = false) => Engine.Load(Options(side, logToFile));
 
     /// <summary>Gets the options that load this distribution.</summary>
     public EngineOptions Options(Side side = Side.Client, bool logToFile = false, TimeProvider? clock = null, FramePacing pacing = FramePacing.Free) => new()
     {
+        WorkerCount = Workers,
+        DevelopmentMode = DevelopmentMode,
+        Profiling = Profiling,
         TimeProvider = clock ?? Clock,
         FramePacing = pacing,
         Side = side,

@@ -192,9 +192,15 @@ Loop threads and the job system belong to the core. No module creates a
 thread.
 
 - There is one loop thread per context.
-- A pool of worker threads, shared between contexts, runs jobs.
-- Systems declare which data they read and write, or work on a copy and
-  apply the result afterward.
+- A pool of worker threads, shared between contexts, runs jobs: small structs
+  that run once, or once per index of a range in parallel batches. Jobs of the
+  frame that runs pass before background jobs, such as chunk generation.
+- Jobs declare which data they read and write, and the job system runs
+  conflicting jobs one after the other; or they work on a copy and the loop
+  thread applies the result afterward. In development mode, the declarations
+  are checked when the jobs run.
+- A job that throws is charged to its module, under its error policy, like an
+  error in a phase.
 - `async` is for I/O outside hot paths, and returns to the loop thread of the
   context through a synchronization point.
 
