@@ -3,9 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using Nobara.Core.Configuration;
+using Nobara.Core.Jobs;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Core.Profiling;
 using Nobara.Core.Resources;
 
 namespace Nobara.Core;
@@ -36,6 +38,8 @@ public sealed class ModuleContext
         Settings = new ModuleSettings(context.Engine.Settings, runtime, context.Side);
         Resources = new ModuleResources(context, context.Resources, runtime);
         ModuleConfig = context.Engine.DistributionData.ModuleConfigs.GetValueOrDefault(runtime.Info.Id);
+        Jobs = new ModuleJobs(context.Engine.Jobs, runtime.Jobs);
+        Profiler = new ModuleProfiler(context.Engine.Profiler, context.Name, runtime.Info.Id);
     }
 
     /// <summary>Gets the module.</summary>
@@ -64,6 +68,12 @@ public sealed class ModuleContext
 
     /// <summary>Gets the resources: decoders, decoded objects, tags, and free properties.</summary>
     public ModuleResources Resources { get; }
+
+    /// <summary>Gets the job system: the jobs of the module run on the worker threads of the process.</summary>
+    public ModuleJobs Jobs { get; }
+
+    /// <summary>Gets the profiler, to measure scopes of the module.</summary>
+    public ModuleProfiler Profiler { get; }
 
     /// <summary>
     /// Gets the <c>&lt;ModuleConfig module="..."&gt;</c> block of

@@ -4,9 +4,11 @@
 
 using System.Reflection;
 using Nobara.Core.Configuration;
+using Nobara.Core.Jobs;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Core.Profiling;
 using Nobara.Core.Resources;
 using F = Nobara.Formats;
 
@@ -86,6 +88,22 @@ public sealed class EngineOptions
     /// does not run hundreds of ticks in a row. Defaults to 250 ms.
     /// </summary>
     public TimeSpan MaxFrameTime { get; init; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>
+    /// Gets the number of worker threads of the job system. Defaults to the
+    /// number of processors minus one, for the loop thread, and at least 1.
+    /// </summary>
+    public int? WorkerCount { get; init; }
+
+    /// <summary>
+    /// Gets whether the engine runs the checks of development mode, which cost
+    /// time: in this version, the accesses that jobs declare
+    /// (<see cref="JobData.CheckRead"/>, <see cref="JobData.CheckWrite"/>).
+    /// </summary>
+    public bool DevelopmentMode { get; init; }
+
+    /// <summary>Gets whether the profiler measures from start-up. <see cref="Engine.Profiler"/> can change it later.</summary>
+    public bool Profiling { get; init; }
 }
 
 /// <summary>
@@ -134,6 +152,9 @@ public sealed class Engine : IDisposable
         _logs = logs;
         _fileLog = fileLog;
         Logger = CreateLogger(string.Empty, "core", null);
+        DevelopmentMode = options.DevelopmentMode;
+        Profiler = new Profiler(options.Profiling);
+        Jobs = new JobScheduler(Math.Max(1, options.WorkerCount ?? Environment.ProcessorCount - 1), options.DevelopmentMode, Profiler);
     }
 
     /// <summary>Gets the identity of the game.</summary>
@@ -147,6 +168,15 @@ public sealed class Engine : IDisposable
 
     /// <summary>Gets the logger of the core for the process.</summary>
     public Logger Logger { get; }
+
+    /// <summary>Gets the profiler of the process: what each context, module, phase, and job costs.</summary>
+    public Profiler Profiler { get; }
+
+    /// <summary>Gets whether the checks of development mode run. See <see cref="EngineOptions.DevelopmentMode"/>.</summary>
+    public bool DevelopmentMode { get; }
+
+    /// <summary>Gets the number of worker threads of the job system.</summary>
+    public int WorkerCount => Jobs.WorkerCount;
 
     /// <summary>Gets the context created at start-up, which lives as long as the process: the client, or the dedicated server.</summary>
     public EngineContext MainContext { get; private set; } = null!;
@@ -168,6 +198,8 @@ public sealed class Engine : IDisposable
     internal TimeSpan MaxFrameTime { get; }
 
     internal ContextControl ContextControl => _contextControl ??= new ContextControl(this);
+
+    internal JobScheduler Jobs { get; }
 
     /// <summary>
     /// The start-up point of a game: loads the distribution, starts the main
@@ -296,7 +328,7 @@ public sealed class Engine : IDisposable
         }
     }
 
-    /// <summary>Stops every running context, then closes the logs.</summary>
+    /// <summary>Stops every running context, stops the worker threads, then closes the logs.</summary>
     public void Dispose()
     {
         if (_disposed)
@@ -310,6 +342,7 @@ public sealed class Engine : IDisposable
             context.Stop();
         }
 
+        Jobs.Dispose();
         Resources?.Release();
         _logs.Flush();
         _fileLog?.Dispose();

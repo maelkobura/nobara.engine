@@ -6,8 +6,10 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
+using Nobara.Core.Jobs;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Core.Profiling;
 using Nobara.Core.Resources;
 
 namespace Nobara.Core;
@@ -88,6 +90,8 @@ public sealed class EngineContext
 
         foreach (ModuleRuntime module in _modules)
         {
+            module.Jobs = new JobOwner(this, module);
+            module.SynchronizationMarker = engine.Profiler.CreateMarker(Name, module.Info.Id, ProfileKind.Synchronization, "Synchronization");
             module.Context = new ModuleContext(this, module, engine.CreateLogger(Name, module.Info.Id, _phase));
         }
 
@@ -420,6 +424,13 @@ public sealed class EngineContext
     {
         ModuleRuntime culprit = Attribute(exception) ?? called;
         ModuleInfo info = culprit.Info;
+        if (culprit.Disabled)
+        {
+            // A late failure of a module already disabled, such as one of its jobs.
+            culprit.Context.Logger.Error($"Module '{info.Id}' threw during {EngineStopException.Describe(step)} after it was disabled; the exception is ignored.", exception);
+            return;
+        }
+
         string through = culprit == called ? string.Empty : $" (called by '{called.Info.Id}')";
         culprit.Context.Logger.Error(
             $"Module '{info.Id}'{through} threw during {EngineStopException.Describe(step)}; its policy is {info.ErrorPolicy}.", exception);
@@ -470,6 +481,8 @@ public sealed class EngineContext
                 Quietly(module, LifecycleStep.Stop, m => m.Instance?.Stop(m.Context));
             }
 
+            // The jobs of the module are done before it frees what they use.
+            WaitForJobs(module);
             if (module.InitializeCalled && !module.Released)
             {
                 Quietly(module, LifecycleStep.Release, m => m.Instance?.Release(m.Context));
@@ -523,6 +536,17 @@ public sealed class EngineContext
             module.Started = false;
         }
 
+        // Jobs are done before any module frees what they use.
+        foreach (ModuleRuntime module in Enumerable.Reverse(_modules))
+        {
+            WaitForJobs(module);
+        }
+
+        foreach (JobFailedException failure in _loop.DiscardPosted().OfType<JobFault>().Select(f => f.ToException()))
+        {
+            Logger.Error($"{failure.Message} The context stops; the exception is ignored.", failure.InnerException);
+        }
+
         Step = LifecycleStep.Release;
         _phase.Current = Step.ToString();
         Logger.Info($"{Step}: {_modules.Count(m => m.InitializeCalled && !m.Released && !m.Disabled)} modules.");
@@ -536,6 +560,14 @@ public sealed class EngineContext
         _phase.Current = string.Empty;
         State = ContextState.Stopped;
         Logger.Info($"The {Name} context is stopped.");
+    }
+
+    // Closes the jobs of a module: it schedules no more, and those in flight
+    // are done when this returns. Their failures from now on are logged.
+    private void WaitForJobs(ModuleRuntime module)
+    {
+        module.Jobs.Closed = true;
+        Engine.Jobs.WaitFor(module.Jobs);
     }
 
     // Calls a module during a shutdown or an emergency: exceptions are logged
@@ -563,7 +595,7 @@ public sealed class EngineContext
     {
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            if (current is not (TargetInvocationException or TypeInitializationException or AggregateException))
+            if (current is not (TargetInvocationException or TypeInitializationException or AggregateException or JobFailedException))
             {
                 foreach (StackFrame frame in new StackTrace(current, fNeedFileInfo: false).GetFrames())
                 {

@@ -4,6 +4,7 @@
 
 using System.Collections.Concurrent;
 using Nobara.Core.Loading;
+using Nobara.Core.Profiling;
 using F = Nobara.Formats;
 
 namespace Nobara.Core.Loop;
@@ -33,6 +34,8 @@ internal sealed class ContextLoop
     private readonly List<LoopSubscription> _subscriptions = [];
     private readonly ConcurrentQueue<Posted> _posted = new();
     private readonly bool _hasFixedPhase;
+    private readonly ProfilerMarker[] _phaseMarkers;
+    private readonly ProfilerMarker _frameStartMarker;
 
     // Handlers of each phase, then of the start of the frame, rebuilt when a
     // subscription changes.
@@ -79,7 +82,13 @@ internal sealed class ContextLoop
         }
 
         _tickDuration = TimeSpan.FromSeconds(1 / TickRate);
+        Profiler profiler = context.Engine.Profiler;
+        _phaseMarkers = _phases.Select(p => profiler.CreateMarker(context.Name, string.Empty, ProfileKind.Phase, p.Name)).ToArray();
+        _frameStartMarker = profiler.CreateMarker(context.Name, string.Empty, ProfileKind.Phase, FrameStart);
     }
+
+    /// <summary>The name of the start of the frame in logs and profiles.</summary>
+    public const string FrameStart = "FrameStart";
 
     public IReadOnlyList<LoopPhase> Phases => _phases;
 
@@ -162,7 +171,8 @@ internal sealed class ContextLoop
                 $"Module '{module.Info.Id}' cannot subscribe to phase '{phase.Name}': module '{owner.Info.Id}' reserves it ({phase.Reservation}). Register with that module instead.");
         }
 
-        var subscription = new LoopSubscription(this, module, phase, handler);
+        ProfilerMarker marker = _context.Engine.Profiler.CreateMarker(_context.Name, module.Info.Id, ProfileKind.Handler, phase?.Name ?? FrameStart);
+        var subscription = new LoopSubscription(this, module, phase, handler, marker);
         _subscriptions.Add(subscription);
         Changed();
         return subscription;
@@ -197,6 +207,19 @@ internal sealed class ContextLoop
     public void Changed() => _changed = true;
 
     public void Post(ModuleRuntime? module, SendOrPostCallback callback, object? state) => _posted.Enqueue(new Posted(module, callback, state));
+
+    /// <summary>Empties the synchronization point without running it, when the context stops.</summary>
+    /// <returns>The states of the callbacks that were dropped.</returns>
+    public List<object?> DiscardPosted()
+    {
+        var states = new List<object?>();
+        while (_posted.TryDequeue(out Posted posted))
+        {
+            states.Add(posted.State);
+        }
+
+        return states;
+    }
 
     /// <summary>Gets how long until the next tick is due, at the current scale.</summary>
     public TimeSpan UntilNextTick()
@@ -291,19 +314,19 @@ internal sealed class ContextLoop
         ulong firstTick = Tick + 1;
         var frameTime = new PhaseTime(Frame, Tick, elapsed, alpha);
 
-        RunHandlers(_frameStart, null, frameTime);
+        RunHandlers(_frameStart, _frameStartMarker, null, frameTime);
         foreach (LoopPhase phase in _phases)
         {
             if (!phase.IsFixed)
             {
-                RunHandlers(_handlers[phase.Index], phase, frameTime with { Tick = Tick });
+                RunHandlers(_handlers[phase.Index], _phaseMarkers[phase.Index], phase, frameTime with { Tick = Tick });
                 continue;
             }
 
             for (int i = 0; i < ticks; i++)
             {
                 ulong tick = firstTick + (ulong)i;
-                RunHandlers(_handlers[phase.Index], phase, new PhaseTime(Frame, tick, tickDuration, 0));
+                RunHandlers(_handlers[phase.Index], _phaseMarkers[phase.Index], phase, new PhaseTime(Frame, tick, tickDuration, 0));
                 if (tick > Tick)
                 {
                     Tick = tick;
@@ -328,20 +351,28 @@ internal sealed class ContextLoop
         return ticks;
     }
 
-    private void RunHandlers(LoopSubscription[] handlers, LoopPhase? phase, in PhaseTime time)
+    private void RunHandlers(LoopSubscription[] handlers, ProfilerMarker marker, LoopPhase? phase, in PhaseTime time)
     {
-        _context.EnterPhase(phase?.Name ?? "FrameStart");
-        int next = 0;
-        while (next < handlers.Length)
+        _context.EnterPhase(phase?.Name ?? FrameStart);
+        ProfilerScope scope = marker.Begin();
+        try
         {
-            int failed = LoopDispatch.Run(handlers, next, time, out Exception? exception);
-            if (failed < 0)
+            int next = 0;
+            while (next < handlers.Length)
             {
-                return;
-            }
+                int failed = LoopDispatch.Run(handlers, next, time, out Exception? exception);
+                if (failed < 0)
+                {
+                    return;
+                }
 
-            _context.HandleLoopFault(handlers[failed].Module, exception!);
-            next = failed + 1;
+                _context.HandleLoopFault(handlers[failed].Module, exception!);
+                next = failed + 1;
+            }
+        }
+        finally
+        {
+            scope.Dispose();
         }
     }
 
@@ -360,7 +391,9 @@ internal sealed class ContextLoop
             // the synchronization point of the same module.
             SynchronizationContext? previous = SynchronizationContext.Current;
             SynchronizationContext.SetSynchronizationContext(posted.Module?.Context.SynchronizationContext);
+            ProfilerScope scope = posted.Module is null ? default : posted.Module.SynchronizationMarker.Begin();
             Exception? exception = LoopDispatch.Run(posted.Callback, posted.State);
+            scope.Dispose();
             SynchronizationContext.SetSynchronizationContext(previous);
             if (exception is not null)
             {
@@ -403,6 +436,7 @@ internal static class LoopDispatch
                 continue;
             }
 
+            ProfilerScope scope = subscription.Marker.Begin();
             try
             {
                 subscription.Handler.Run(time);
@@ -411,6 +445,10 @@ internal static class LoopDispatch
             {
                 exception = thrown;
                 return i;
+            }
+            finally
+            {
+                scope.Dispose();
             }
         }
 

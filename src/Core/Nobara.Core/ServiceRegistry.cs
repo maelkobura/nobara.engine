@@ -39,6 +39,10 @@ internal sealed class ModuleRuntime
 
     public List<Action<EmergencyStop>> EmergencyHooks { get; } = [];
 
+    public Jobs.JobOwner Jobs { get; set; } = null!;
+
+    public Profiling.ProfilerMarker SynchronizationMarker { get; set; } = null!;
+
     public bool DependsOn(string moduleId, bool requiredOnly) =>
         Info.Dependencies.Any(d => string.Equals(d.ModuleId, moduleId, StringComparison.Ordinal) && (!requiredOnly || !d.Optional));
 }

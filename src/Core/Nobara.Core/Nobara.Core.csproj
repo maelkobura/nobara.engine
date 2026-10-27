@@ -17,9 +17,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <!-- Native arrays point into unmanaged memory. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
     <Version>1.0.0</Version>
     <PackageId>Nobara.Core</PackageId>
-    <Description>The core of the Nobara engine: module loading, contexts, services, lifecycle, loop, resources, and configuration.</Description>
+    <Description>The core of the Nobara engine: module loading, contexts, services, lifecycle, loop, resources, configuration, jobs, and profiling.</Description>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 
     <!-- The version and naming files of the resource compiler are compiled here as internal types. -->

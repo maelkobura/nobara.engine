@@ -10,7 +10,11 @@ The core loads the modules of a distribution, refuses compositions that
 cannot run, and takes each module through its lifecycle in a context, with a
 service registry, a loop of phases with a fixed tick, error policies, and
 logging. It loads the resources of the modules, applies their overrides,
-resolves their tags, and gives the modules their configuration keys.
+resolves their tags, and gives the modules their configuration keys. It runs
+the jobs of the modules on a pool of worker threads, measures what each
+context, module, phase, and job costs, and provides the low-level
+foundations that modules share: unmanaged arrays, pools, bit sets, and
+integer math.
 
 ## Status
 
@@ -42,13 +46,17 @@ manifests, resources, and schemas.
 | `EngineContext.RunFrame()`, `EngineContext.Run()`, `EngineContext.RequestStop()` | Run one frame of the loop, run frames until a stop is requested, and request that stop. |
 | `IModule` | The code of a module, instantiated once per context. Each lifecycle step is a method that does nothing by default. |
 | `[assembly: ModuleEntry(typeof(...))]` | Names the class that implements `IModule` in the assembly of a module. |
-| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, its logger, the loop, its settings, its resources, its module configuration, and the data folders. |
+| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, its logger, the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
 | `ModuleSettings` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, and the settings file. |
 | `ModuleResources`, `ResourceData`, `ResourceTag`, `FreeProperty` | `context.Resources`: decoders, decoded objects, loaded resources, tags, free properties, and binary files. |
 | `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
 | `ModuleLoop`, `IPhaseHandler`, `LoopSubscription` | The loop as a module sees it: its phases, subscriptions to a phase or to the start of the frame, and `GetTickControl`. |
 | `TickControl`, `ContextControl` | The levers of the core: on the fixed tick (pause, time scale, tick rate), and on contexts. |
 | `IModuleSource`, `AssemblyModuleSource` | Where the modules are found: the single loading interface, and its implementation over the `system/`, `game/`, and `lib/` folders. |
+| `ModuleJobs`, `IJob`, `IJobFor`, `JobHandle`, `JobPriority` | `context.Jobs`: jobs that run once or once per index, their dependencies, priorities, and waits. |
+| `JobAccess`, `JobData` | The data that a job reads and writes, and the checks of development mode. |
+| `Profiler`, `ModuleProfiler`, `ProfilerMarker`, `ProfileEntry` | `Engine.Profiler` and `context.Profiler`: what each context, module, phase, job, and scope costs. |
+| `NativeArray<T>`, `ObjectPool<T>`, `BitSet`, `IntMath` | The low-level foundations, in `Nobara.Core.Memory`, `Nobara.Core.Collections`, and `Nobara.Core.Mathematics`. |
 | `Logger`, `ILogSink` | Structured logging. |
 | `EnginePaths` | The data folders: config, worlds, mods, cache, logs, profiles. |
 | `[HotPath]`, `[LoopCallback]`, `[UsesOptionalDependency]` | The attributes that [the engine analyzers](../../docs/reference/analyzers.md) read. |
@@ -182,6 +190,129 @@ private async Task LoadAsync()
 An exception thrown by a posted callback or a continuation is charged to the
 module that posted it. The callbacks of a disabled module are dropped.
 Phase handlers do not use `async`.
+
+### Jobs
+
+No module creates threads. A module that has work to spread over the
+processors schedules jobs with `context.Jobs`, and the worker threads of the
+process run them. A job is a struct: scheduling copies it and allocates
+nothing.
+
+```csharp
+public struct ScaleJob : IJobFor
+{
+    public NativeArray<float> Heights;
+    public float Factor;
+
+    public void Execute(int index) => Heights[index] *= Factor;
+}
+
+JobHandle scale = context.Jobs.ScheduleFor(new ScaleJob { Heights = _heights, Factor = 2 }, _heights.Length, batchSize: 256);
+JobHandle sum = context.Jobs.Schedule(new SumJob { Heights = _heights, Total = _total }, dependsOn: scale);
+sum.Complete();
+```
+
+- `IJob` runs once; `IJobFor` runs once per index of a range, in batches that
+  run in parallel, each on its own copy of the struct. `Execute` is hot path
+  code, checked by the engine analyzers.
+- A job runs once the job it depends on is done. `Combine` makes one handle
+  of several.
+- `Complete` waits on the loop thread. While it waits, the loop thread runs
+  ready tick jobs itself, starting with the one it waits for. `IsCompleted`
+  tests without waiting, for a background job polled from frame to frame.
+- `JobPriority.Tick`, the default, is for the work of the frame that runs.
+  `JobPriority.Background` is for work that spans frames, such as generating
+  chunks: tick jobs run first, and background jobs never take every worker
+  thread when there are several.
+- Jobs neither schedule nor wait for other jobs: they declare dependencies
+  instead. Schedule and wait from the loop thread of the context.
+
+The worker threads are shared by every context of the process: about one per
+processor, minus the loop thread (`EngineOptions.WorkerCount`). Once the jobs
+of a frame are stable, scheduling and waiting allocate nothing: the tests
+measure it.
+
+A job that throws fails. The jobs that depend on it, directly or not, do not
+run. `Complete` does not throw: the exception is charged, at the next
+synchronization point, to the module whose code is closest to the throw
+point, under its error policy, as `JobFailedException`. A job that its waiter
+must know failed catches the exception in `Execute` and records it in its
+result.
+
+Before a module is released, when its context stops or when its error policy
+disables it, the core waits for its jobs. It schedules no more of them.
+
+#### Declared accesses
+
+A job that shares data with other jobs declares what it reads and writes. The
+data is named by a `JobData`, which the module creates once per piece of data:
+
+```csharp
+_heightData = context.Jobs.CreateData("heights");
+context.Jobs.ScheduleFor(job, length, 256, new JobAccess(reads: [_terrainData], writes: [_heightData]));
+```
+
+The job system runs a job that reads a piece of data after the earlier job
+that writes it, and a job that writes it after the earlier jobs that read or
+write it. Jobs that only read the same data run together.
+
+In development mode (`EngineOptions.DevelopmentMode`), the code that owns the
+data calls `CheckRead` or `CheckWrite` where it reads or writes it. They throw
+`JobAccessException`, with the names of the job, its module, and the data,
+when a job touches data it did not declare, or declares as read only data it
+writes, and when a loop thread touches data that an unfinished job writes, or
+writes data that an unfinished job reads. Outside development mode, they
+return at once.
+
+Data that one job prepares for the loop thread, such as a chunk generated in
+the background, needs no declaration: the job works on its own copy, and the
+loop thread applies the result once `IsCompleted` is true, or the job posts it
+to the synchronization point.
+
+### Profiler
+
+The profiler measures, for each context, module, phase, and job, the time
+spent on the thread that ran the code, the managed memory it allocated, and
+the pauses of the garbage collector during it. Turn it on with
+`EngineOptions.Profiling`, or at any time with `Engine.Profiler.Enabled`.
+
+| Kind | What it measures |
+| --- | --- |
+| `Phase` | A whole phase, or the start of the frame, every module included. |
+| `Handler` | The handlers of one module in one phase. |
+| `Synchronization` | The callbacks of one module at the synchronization point. |
+| `Job` | The batches of one job type of one module. |
+| `Scope` | A scope that a module measures itself. |
+
+A module measures its own scopes, such as each of its systems, with a marker
+it creates once:
+
+```csharp
+_growth = context.Profiler.CreateMarker("Crop growth");
+
+using (_growth.Begin())
+{
+    GrowCrops();
+}
+```
+
+`Engine.Profiler.Snapshot()` returns the measures since the last `Reset()`, as
+`ProfileEntry` records; `FormatReport()` formats them as a table. A disabled
+profiler costs one test per measured scope. An enabled one allocates nothing.
+Measures include the scopes nested in them; a pause of the garbage collector
+counts for every scope it falls in.
+
+### Low-level foundations
+
+The core provides the low-level types that several modules use. Their
+methods that hot path code calls are marked `[HotPath]` and allocate nothing.
+
+| Type | Use |
+| --- | --- |
+| `NativeArray<T>` | A fixed-length array of unmanaged values outside the managed heap, for large data such as the cells of a grid. Dispose it when it is no longer used. |
+| `ObjectPool<T>` | Objects kept to be used again instead of allocated, with a fixed capacity. It is not thread-safe. |
+| `BitSet` | A set of small integers, one bit per value, such as the members of a tag: membership, union, intersection, and enumeration without allocating. |
+| `IntMath` | Division rounded down or up, and a remainder that is never negative, for grid coordinates and batch counts. |
 
 ### Discovery checks
 
@@ -351,7 +482,8 @@ Each context has its own registry; contexts share no service.
 ### Error policies
 
 The core intercepts every exception that a module throws when the core calls
-it: in a lifecycle step, in a phase handler, or in a posted callback. The
+it: in a lifecycle step, in a phase handler, in a posted callback, or in a
+job. The
 exception is charged to the module whose code is closest to the throw
 point in the stack trace: the called module, or a module whose service it
 called. The policy of that module applies:
@@ -387,7 +519,9 @@ None.
 
 `EngineOptions.MinimumLogLevel`, `LogToConsole`, and `LogToFile` set the
 logging of the process; `TimeProvider`, `FramePacing`, and `MaxFrameTime` set
-the loop.
+the loop; `WorkerCount` sets the number of worker threads; `DevelopmentMode`
+turns on the checks of development mode; `Profiling` turns on the profiler at
+start-up.
 
 ## Resources
 
@@ -421,6 +555,13 @@ It provides no resource type.
   modules.
 - A message logged with an interpolated string at a disabled level is neither
   formatted nor allocated.
+- Jobs run on the worker threads, and on a loop thread that waits for them.
+  `JobHandle`, `JobData`, and the profiler can be used from any thread;
+  `ModuleJobs` from the loop thread of its context only.
+- Scheduling and waiting for jobs, measuring a scope, and the hot path methods
+  of the low-level foundations allocate nothing once warm: the tests measure
+  it. The bookkeeping of the job system grows when more jobs are in flight than
+  ever before, and never shrinks.
 
 ## Known limitations
 
@@ -428,9 +569,23 @@ It provides no resource type.
   `CreateIntegratedServer` throws `NotSupportedException`.
 - The levers on the tick and on contexts do not check that they are used
   from the loop thread.
-- The job system and the profiler are not implemented.
-- The low-level foundations (pools, unmanaged memory, collections, math) are
-  not implemented; only the attributes are.
+- The worker threads are shared by the contexts of a process first come,
+  first served: no share is kept for the tick of a server context.
+- `Complete` does not tell its caller that a job failed; the error policy of
+  the module applies at the next synchronization point. A job that depends on
+  a job that already failed when it is scheduled runs.
+- Jobs cannot be canceled: the core waits for them before it releases their
+  module.
+- Accesses are checked only where the code that owns the data calls
+  `CheckRead` or `CheckWrite`. `NativeArray<T>` does not check them by itself.
+- One lock protects the bookkeeping of the job system, and every completion
+  wakes every waiting thread. Very small jobs pay for it: make batches large
+  enough.
+- The profiler measures elapsed time on the thread that ran the code, not the
+  processor time of that thread. It keeps totals since the last reset, not a
+  history per frame.
+- The low-level foundations hold only what several modules need now: no
+  vector math, no growable unmanaged list.
 - Resources are not reloaded while the game runs.
 - No module is loaded dynamically yet, so the protected namespaces never
   refuse anything.
