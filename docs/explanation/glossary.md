@@ -108,6 +108,17 @@ A module that adds something to a parent module (a feature, a backend, a
 transport, or a client-only part). It has the same level as its parent and
 depends on it. See [Extensions](architecture.md#extensions).
 
+### Fixed phase
+
+A phase of the loop that runs once per tick due rather than once per frame,
+so zero, one, or several times in a frame. See [the core
+page](../../src/Core/README.md#loop).
+
+### Frame
+
+One pass of the loop of a context: the synchronization point, the start of
+the frame, then each phase in order.
+
 ### Free property
 
 A value of a resource that its own type does not declare, written in its
@@ -148,6 +159,12 @@ never create threads.
 
 The classification of a module declared in its manifest: platform or
 business. The core uses it only for load order and for the dependency rule.
+
+### Lever
+
+A control that the core grants to the module that holds the matching
+reservation: the tick levers (pause, time scale, tick rate) and the lever on
+contexts. See [the core page](../../src/Core/README.md#reserved-phases-and-levers).
 
 ### Lifecycle
 
@@ -222,6 +239,12 @@ A resource marked `override="true"` that changes the resource with the same
 identifier, with simple fields and queries. See [the `.nof`
 reference](../reference/formats/nof.md#overrides).
 
+### Phase
+
+A named part of the loop of a context, such as input, simulation, or
+rendering, declared by the distribution in `engine.nobara`. Modules subscribe
+handlers to the phases they need.
+
 ### Platform module
 
 A module that provides a reusable foundation for other modules, such as
@@ -281,6 +304,18 @@ dependencies. There is one per context.
 ### Side
 
 Where a module runs: client, server, or both.
+
+### Start-up point
+
+`Engine.Run`, which every `main()` of a game calls: it loads the engine,
+runs the loop of the main context, and returns the exit code of the
+process.
+
+### Synchronization point
+
+The queue of each context whose callbacks run on its loop thread at the start
+of each frame. Code on another thread hands its results to the loop through
+it.
 
 ### System
 

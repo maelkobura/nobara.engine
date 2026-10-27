@@ -5,6 +5,7 @@
 using Google.Protobuf;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
+using Nobara.Core.Loop;
 using F = Nobara.Formats;
 
 namespace Nobara.Core.Tests.Support;
@@ -40,6 +41,15 @@ internal sealed class TestDistribution : IDisposable
     public int Instances { get; private set; }
 
     public F.Policy DefaultPolicy { get; set; } = F.Policy.Stop;
+
+    /// <summary>Gets or sets the loop of the distribution; <see langword="null"/> leaves it undeclared.</summary>
+    public F.Loop? Loop { get; set; }
+
+    /// <summary>Gets the clock of the loop, which only the test moves.</summary>
+    public ManualClock Clock { get; } = new();
+
+    /// <summary>Gets or sets the engine under test, for handlers that need it.</summary>
+    public Engine? Engine { get; set; }
 
     /// <summary>Adds a module.</summary>
     /// <param name="id">The identifier.</param>
@@ -82,6 +92,7 @@ internal sealed class TestDistribution : IDisposable
             Name = "Example",
             Version = "0.1.0",
             ErrorPolicy = new F.ErrorPolicy { DefaultPolicy = DefaultPolicy },
+            Loop = Loop,
         };
         foreach (Entry entry in _modules)
         {
@@ -103,8 +114,13 @@ internal sealed class TestDistribution : IDisposable
     }
 
     /// <summary>Runs steps 0 and 1.</summary>
-    public Engine Load(Side side = Side.Client, bool logToFile = false) => Engine.Load(new EngineOptions
+    public Engine Load(Side side = Side.Client, bool logToFile = false) => Engine.Load(Options(side, logToFile));
+
+    /// <summary>Gets the options that load this distribution.</summary>
+    public EngineOptions Options(Side side = Side.Client, bool logToFile = false, TimeProvider? clock = null, FramePacing pacing = FramePacing.Free) => new()
     {
+        TimeProvider = clock ?? Clock,
+        FramePacing = pacing,
         Side = side,
         DistributionManifest = Manifest(),
         ModuleSource = new Source(this),
@@ -113,7 +129,7 @@ internal sealed class TestDistribution : IDisposable
         LogToFile = logToFile,
         LogSinks = [Log],
         MinimumLogLevel = LogLevel.Debug,
-    });
+    };
 
     public void Dispose()
     {
@@ -146,6 +162,52 @@ internal sealed class TestDistribution : IDisposable
             });
         }
     }
+}
+
+/// <summary>A clock that moves only when the test advances it.</summary>
+internal sealed class ManualClock : TimeProvider
+{
+    private long _ticks;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+
+    public void Advance(TimeSpan time) => Interlocked.Add(ref _ticks, time.Ticks);
+
+    // A timer moves the clock to its due time and fires at once: waiting takes no real time.
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        var timer = new Timer(this, callback, state);
+        timer.Change(dueTime, period);
+        return timer;
+    }
+
+    private sealed class Timer(ManualClock clock, TimerCallback callback, object? state) : ITimer
+    {
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            if (dueTime != global::System.Threading.Timeout.InfiniteTimeSpan)
+            {
+                clock.Advance(dueTime);
+                callback(state);
+            }
+
+            return true;
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+}
+
+/// <summary>A phase handler that runs the code a test gives it.</summary>
+internal sealed class PhaseHandler(Action<PhaseTime> action) : IPhaseHandler
+{
+    public void Run(in PhaseTime time) => action(time);
 }
 
 /// <summary>What modules did, in order.</summary>
