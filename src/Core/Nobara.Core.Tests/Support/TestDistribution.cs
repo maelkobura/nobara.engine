@@ -51,6 +51,9 @@ internal sealed class TestDistribution : IDisposable
     /// <summary>Gets or sets the engine under test, for handlers that need it.</summary>
     public Engine? Engine { get; set; }
 
+    /// <summary>Gets or sets changes to the distribution manifest: settings, module configurations, protected namespaces.</summary>
+    public Action<F.DistributionManifest>? Configure { get; set; }
+
     /// <summary>Adds a module.</summary>
     /// <param name="id">The identifier.</param>
     /// <param name="configure">Changes to its manifest: dependencies, conflicts, side…</param>
@@ -72,6 +75,32 @@ internal sealed class TestDistribution : IDisposable
         };
         configure?.Invoke(manifest);
         _modules.Add(new Entry(manifest, behavior, required));
+        return this;
+    }
+
+    /// <summary>Gives a module compiled resources, schemas, and binary files.</summary>
+    /// <param name="id">The identifier of a module added before.</param>
+    /// <param name="bundle">Its compiled resources, or <see langword="null"/>.</param>
+    /// <param name="schemas">Its schemas as a serialized descriptor set, or <see langword="null"/>.</param>
+    /// <param name="files">Its binary files, by path relative to its resources folder.</param>
+    public TestDistribution Data(string id, F.ResourceBundle? bundle, byte[]? schemas = null, IReadOnlyDictionary<string, byte[]>? files = null)
+    {
+        Entry entry = _modules.Single(m => m.Manifest.Id == id);
+        if (bundle is not null)
+        {
+            entry.Data["nobara/resources.pb"] = bundle.ToByteArray();
+        }
+
+        if (schemas is not null)
+        {
+            entry.Data["nobara/schemas.pb"] = schemas;
+        }
+
+        foreach ((string path, byte[] content) in files ?? new Dictionary<string, byte[]>())
+        {
+            entry.Data["nobara/files/" + path] = content;
+        }
+
         return this;
     }
 
@@ -110,6 +139,7 @@ internal sealed class TestDistribution : IDisposable
             distribution.ErrorPolicy.Modules.Add(new F.ModulePolicy { Module = id, Policy = policy });
         }
 
+        Configure?.Invoke(distribution);
         return distribution.ToByteArray();
     }
 
@@ -139,7 +169,10 @@ internal sealed class TestDistribution : IDisposable
         }
     }
 
-    private sealed record Entry(F.ModuleManifest Manifest, Action<TestModule>? Behavior, bool Required);
+    private sealed record Entry(F.ModuleManifest Manifest, Action<TestModule>? Behavior, bool Required)
+    {
+        public Dictionary<string, byte[]> Data { get; } = new(StringComparer.Ordinal);
+    }
 
     private sealed class Source(TestDistribution distribution) : IModuleSource
     {
@@ -153,13 +186,16 @@ internal sealed class TestDistribution : IDisposable
         {
             distribution.Loaded.Add(image.Id);
             Entry entry = distribution._modules.Single(m => m.Manifest.Id == image.Id);
-            return new LoadedModule(typeof(TestModule).Assembly, () =>
-            {
-                distribution.Instances++;
-                var module = new TestModule(image.Id, distribution.Journal);
-                entry.Behavior?.Invoke(module);
-                return module;
-            });
+            return new LoadedModule(
+                typeof(TestModule).Assembly,
+                () =>
+                {
+                    distribution.Instances++;
+                    var module = new TestModule(image.Id, distribution.Journal);
+                    entry.Behavior?.Invoke(module);
+                    return module;
+                },
+                name => entry.Data.TryGetValue(name, out byte[]? data) ? new MemoryStream(data, writable: false) : null);
         }
     }
 }

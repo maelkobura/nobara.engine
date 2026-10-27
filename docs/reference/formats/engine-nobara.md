@@ -76,13 +76,16 @@ have no policy of their own: `stop` (the default), `disable`, or `log`.
 | `<Set key value/>` | Gives its value to the key. | A `distribution` key. |
 
 The key must be declared by a module of the distribution, and the value must
-match its type, bounds, and values. Each key appears once.
+match its type, bounds, and values. Each key appears once. The player changes
+the other `user` keys in the settings file `config/settings.xml`; see [the
+core page](../../../src/Core/README.md#configuration-keys).
 
 ## `<ModuleConfig>`
 
 `<ModuleConfig module="…">` holds a configuration that only the named module
 understands. The compiler stores its content in the generic representation,
-with positions in the file; the module checks it when it starts. The module
+with positions in the file; the module receives it as `context.ModuleConfig`
+and checks it when it starts. The module
 must be part of the distribution, and has one block at most.
 
 ## Known limitations

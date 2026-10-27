@@ -2,9 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using Nobara.Core.Configuration;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Core.Resources;
 
 namespace Nobara.Core;
 
@@ -31,6 +33,9 @@ public sealed class ModuleContext
         Logger = logger;
         Loop = new ModuleLoop(context, context.Loop, runtime);
         SynchronizationContext = new ModuleSynchronizationContext(context.Loop, runtime);
+        Settings = new ModuleSettings(context.Engine.Settings, runtime, context.Side);
+        Resources = new ModuleResources(context, context.Resources, runtime);
+        ModuleConfig = context.Engine.DistributionData.ModuleConfigs.GetValueOrDefault(runtime.Info.Id);
     }
 
     /// <summary>Gets the module.</summary>
@@ -53,6 +58,25 @@ public sealed class ModuleContext
 
     /// <summary>Gets the loop of the context: its phases, and the subscriptions and levers of the module.</summary>
     public ModuleLoop Loop { get; }
+
+    /// <summary>Gets the configuration keys of the module and of its declared dependencies.</summary>
+    public ModuleSettings Settings { get; }
+
+    /// <summary>Gets the resources: decoders, decoded objects, tags, and free properties.</summary>
+    public ModuleResources Resources { get; }
+
+    /// <summary>
+    /// Gets the <c>&lt;ModuleConfig module="..."&gt;</c> block of
+    /// <c>engine.nobara</c> that targets the module, in the generic
+    /// representation, or <see langword="null"/> when the distribution gives
+    /// none.
+    /// </summary>
+    /// <remarks>
+    /// The compiler does not know the content of the block: the module checks
+    /// it, usually during initialization, and names the position of an error
+    /// with <see cref="GenericElement.Source"/>.
+    /// </remarks>
+    public GenericElement? ModuleConfig { get; }
 
     /// <summary>
     /// Gets the synchronization point of the context for this module, as a

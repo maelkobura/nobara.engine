@@ -149,6 +149,21 @@ context, and contexts of the same process share no service.
 The registry is distinct from the content registries (blocks, items,
 entities). Those are platform modules.
 
+### Resource system
+
+The core manages the resource system without knowing what a resource
+contains. It reads the compiled resources of every loaded module once per
+process, refuses an object defined by two modules, applies the overrides,
+and resolves the tags. The module that owns a resource type registers a
+decoder, which turns each resource into an object of the module; every
+context of the process shares the decoded objects. A content registry is
+such a module. See [the core page](../../src/Core/README.md#loading-resources).
+
+The same rule as for services applies: a module reads the resources of the
+types defined by itself and by its declared dependencies. A free property is
+the exception that keeps modules independent: the module that defines a
+resource does not know the modules that read its free properties.
+
 ### Event bus
 
 The event bus is a platform module, so publishing or listening to events

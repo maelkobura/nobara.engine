@@ -135,6 +135,9 @@ public sealed class ModuleInfo
     /// </summary>
     public ErrorPolicy ErrorPolicy { get; }
 
+    /// <summary>Gets the configuration keys the module declares, as compiled.</summary>
+    internal IReadOnlyList<Nobara.Formats.SettingDeclaration> SettingDeclarations { get; init; } = [];
+
     /// <summary>Tells whether the module runs on a side.</summary>
     /// <param name="side">A single side: <see cref="Side.Client"/> or <see cref="Side.Server"/>.</param>
     /// <returns><see langword="true"/> when the module runs on <paramref name="side"/>.</returns>

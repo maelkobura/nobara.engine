@@ -3,9 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Reflection;
+using Nobara.Core.Configuration;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Core.Resources;
 using F = Nobara.Formats;
 
 namespace Nobara.Core;
@@ -91,8 +93,10 @@ public sealed class EngineOptions
 /// contexts that run them.
 /// </summary>
 /// <remarks>
-/// <see cref="Load"/> runs steps 0 and 1, once per process. Each context then
-/// runs steps 2 to 7 for its own instances of the modules.
+/// <see cref="Load"/> runs steps 0 and 1, once per process, then reads the
+/// configuration and the resources of the loaded modules, which every context
+/// shares. Each context then runs steps 2 to 7 for its own instances of the
+/// modules.
 /// </remarks>
 /// <example>
 /// The <c>main()</c> of a game calls the start-up point:
@@ -120,6 +124,7 @@ public sealed class Engine : IDisposable
 
     private Engine(Distribution distribution, EngineOptions options, EnginePaths paths, LogDispatcher logs, FileLogSink? fileLog)
     {
+        DistributionData = distribution;
         Distribution = distribution.Info;
         LoopDeclaration = distribution.Manifest.Loop;
         Time = options.TimeProvider ?? TimeProvider.System;
@@ -147,6 +152,12 @@ public sealed class Engine : IDisposable
     public EngineContext MainContext { get; private set; } = null!;
 
     internal IReadOnlyList<LoadedEntry> Loaded { get; private set; } = [];
+
+    internal Distribution DistributionData { get; }
+
+    internal SettingStore Settings { get; private set; } = null!;
+
+    internal ResourceCatalog Resources { get; private set; } = null!;
 
     internal F.Loop? LoopDeclaration { get; }
 
@@ -176,7 +187,7 @@ public sealed class Engine : IDisposable
         {
             engine = Load(options);
         }
-        catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException)
+        catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException or ResourceLoadException)
         {
             // Load logs the problems once its logs are open; a distribution
             // that cannot be read fails before.
@@ -210,6 +221,11 @@ public sealed class Engine : IDisposable
                 // The context logged the error and wrote the crash report.
                 return 1;
             }
+            catch (ResourceLoadException)
+            {
+                // The context logged the problems before it stopped.
+                return 1;
+            }
             finally
             {
                 Console.CancelKeyPress -= OnCancel;
@@ -226,6 +242,7 @@ public sealed class Engine : IDisposable
     /// <exception cref="ArgumentException"><see cref="EngineOptions.Side"/> is not a single side.</exception>
     /// <exception cref="ModuleCompositionException">The distribution cannot be read, or its modules cannot run together. No module code has run.</exception>
     /// <exception cref="ModuleLoadException">The code of an accepted module cannot be loaded.</exception>
+    /// <exception cref="ResourceLoadException">The resources of the loaded modules cannot be used together: duplicates, overrides, or tags. No module code has run.</exception>
     public static Engine Load(EngineOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -260,11 +277,17 @@ public sealed class Engine : IDisposable
         var engine = new Engine(distribution, options, paths, new LogDispatcher(sinks, options.MinimumLogLevel), fileLog);
         try
         {
-            engine.LoadModules(distribution, options.ModuleSource ?? new AssemblyModuleSource(install), options.Side);
+            IReadOnlyList<ModuleInfo> discovered = engine.LoadModules(distribution, options.ModuleSource ?? new AssemblyModuleSource(install), options.Side);
+            engine.Settings = SettingStore.Create(engine.Modules, distribution.Manifest, paths, engine.Logger);
+            engine.Resources = ResourceCatalog.Build(
+                engine.Loaded.Select(e => new CatalogModule(e.Info, e.Module.OpenResource)).ToArray(),
+                discovered.Select(m => m.ShortName),
+                distribution.ProtectedNamespaces,
+                engine.Logger);
             engine.MainContext = engine.CreateContext(options.Side);
             return engine;
         }
-        catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException)
+        catch (Exception exception) when (exception is ModuleCompositionException or ModuleLoadException or ResourceLoadException)
         {
             engine.Logger.Critical(exception.Message);
             exception.Data[LoggedKey] = true;
@@ -287,6 +310,7 @@ public sealed class Engine : IDisposable
             context.Stop();
         }
 
+        Resources?.Release();
         _logs.Flush();
         _fileLog?.Dispose();
     }
@@ -302,7 +326,9 @@ public sealed class Engine : IDisposable
         return context;
     }
 
-    private void LoadModules(Distribution distribution, IModuleSource source, Side side)
+    // Returns every module of the distribution that discovery accepted,
+    // those of a side the process does not host included.
+    private IReadOnlyList<ModuleInfo> LoadModules(Distribution distribution, IModuleSource source, Side side)
     {
         Logger.Info($"Loading {distribution.Info.Name} {distribution.Info.Version}: {distribution.Manifest.Modules.Count} modules.");
 
@@ -326,6 +352,7 @@ public sealed class Engine : IDisposable
         Loaded = loaded;
         Modules = loaded.Select(e => e.Info).ToArray();
         Logger.Info($"Loaded {loaded.Count} modules.");
+        return accepted.Select(m => m.Info).ToArray();
     }
 
     private static string DefaultInstallDirectory(Assembly? entryAssembly)

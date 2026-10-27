@@ -1,0 +1,51 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Resource types of the tests of the core, compiled with the resource
+// compiler by the tests themselves.
+syntax = "proto3";
+
+package nobara.coretests;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Core.Tests.Schemas";
+
+message Block {
+  option (nobara.resource_type) = "block";
+  option (nobara.accepts_tags) = true;
+
+  string display_name = 1;
+  int32 hardness = 2;
+  Drops drops = 3;
+  repeated string label = 4;
+  Shape shape = 5;
+  repeated bytes component = 6 [(nobara.generic) = "component"];
+  string picture = 7 [(nobara.file) = true];
+}
+
+enum Shape {
+  SHAPE_UNSPECIFIED = 0;
+  SHAPE_CUBE = 1;
+  SHAPE_HALF_SLAB = 2;
+}
+
+message Drops {
+  repeated Drop drop = 1;
+}
+
+message Drop {
+  string item = 1;
+  int32 min = 2;
+  int32 max = 3;
+  float chance = 4;
+}
+
+message Item {
+  option (nobara.resource_type) = "item";
+  option (nobara.accepts_tags) = true;
+
+  string display_name = 1;
+  int32 max_stack = 2;
+}

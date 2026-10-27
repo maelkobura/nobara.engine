@@ -19,10 +19,10 @@
 
     <Version>1.0.0</Version>
     <PackageId>Nobara.Core</PackageId>
-    <Description>The core of the Nobara engine: module loading, contexts, services, and lifecycle.</Description>
+    <Description>The core of the Nobara engine: module loading, contexts, services, lifecycle, loop, resources, and configuration.</Description>
     <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
 
-    <!-- The version files of the resource compiler are compiled here as internal types. -->
+    <!-- The version and naming files of the resource compiler are compiled here as internal types. -->
     <DefineConstants>$(DefineConstants);NOBARA_CORE</DefineConstants>
   </PropertyGroup>
 
@@ -46,9 +46,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Protobuf Include="$(NobaraFormatsDirectory)/nobara/formats/*.proto" ProtoRoot="$(NobaraFormatsDirectory)" GrpcServices="None" Access="Internal" />
+    <Protobuf Include="$(NobaraFormatsDirectory)/nobara/formats/*.proto;$(NobaraFormatsDirectory)/nobara/options.proto" ProtoRoot="$(NobaraFormatsDirectory)" GrpcServices="None" Access="Internal" />
     <Compile Include="..\..\..\tools\Nobara.ResourceCompiler\Manifests\SemanticVersion.cs" Link="Loading\Shared\SemanticVersion.cs" />
     <Compile Include="..\..\..\tools\Nobara.ResourceCompiler\Manifests\VersionRange.cs" Link="Loading\Shared\VersionRange.cs" />
+    <Compile Include="..\..\..\tools\Nobara.ResourceCompiler\Nof\Names.cs" Link="Resources\Shared\Names.cs" />
   </ItemGroup>
 
 </Project>

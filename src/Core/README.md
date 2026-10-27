@@ -9,7 +9,8 @@ described in context in [the architecture page](../../docs/explanation/architect
 The core loads the modules of a distribution, refuses compositions that
 cannot run, and takes each module through its lifecycle in a context, with a
 service registry, a loop of phases with a fixed tick, error policies, and
-logging.
+logging. It loads the resources of the modules, applies their overrides,
+resolves their tags, and gives the modules their configuration keys.
 
 ## Status
 
@@ -29,7 +30,7 @@ None. The core depends on no module.
 <!-- nobara:generated:end -->
 
 Third-party library: `Google.Protobuf` (BSD-3-Clause), to read the compiled
-manifests.
+manifests, resources, and schemas.
 
 ## Entry points
 
@@ -41,7 +42,10 @@ manifests.
 | `EngineContext.RunFrame()`, `EngineContext.Run()`, `EngineContext.RequestStop()` | Run one frame of the loop, run frames until a stop is requested, and request that stop. |
 | `IModule` | The code of a module, instantiated once per context. Each lifecycle step is a method that does nothing by default. |
 | `[assembly: ModuleEntry(typeof(...))]` | Names the class that implements `IModule` in the assembly of a module. |
-| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, its logger, the loop, and the data folders. |
+| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, its logger, the loop, its settings, its resources, its module configuration, and the data folders. |
+| `ModuleSettings` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, and the settings file. |
+| `ModuleResources`, `ResourceData`, `ResourceTag`, `FreeProperty` | `context.Resources`: decoders, decoded objects, loaded resources, tags, free properties, and binary files. |
+| `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
 | `ModuleLoop`, `IPhaseHandler`, `LoopSubscription` | The loop as a module sees it: its phases, subscriptions to a phase or to the start of the frame, and `GetTickControl`. |
 | `TickControl`, `ContextControl` | The levers of the core: on the fixed tick (pause, time scale, tick rate), and on contexts. |
 | `IModuleSource`, `AssemblyModuleSource` | Where the modules are found: the single loading interface, and its implementation over the `system/`, `game/`, and `lib/` folders. |
@@ -201,6 +205,134 @@ Every problem is reported at once in a `ModuleCompositionException`, whose
 messages name the module and the cause. A dedicated server does not load
 modules that only run on the client.
 
+### Configuration keys
+
+A module declares its keys in `<Settings>` of its `module.nobara`, and reads
+them with `context.Settings`, typed: `GetBool`, `GetInt`, `GetFloat`,
+`GetString`, and `GetEnum`. It reads its own keys and those of its declared
+dependencies, on the side of its context; any other key throws
+`SettingException`, whose `Failure` says why.
+
+```csharp
+public void Initialize(ModuleContext context)
+{
+    _viewRadius = context.Settings.GetInt("voxel.viewRadius");
+}
+```
+
+The value of a key comes from, in this order:
+
+1. the settings file of the player, for a `user` key that the distribution
+   does not lock;
+2. the distribution: `<Default>`, `<Lock>`, or `<Set>` in `engine.nobara`;
+3. the default the key declares.
+
+The settings file is `config/settings.xml` in the data folders: the user data
+of the operating system on a client, the folder of the server on a dedicated
+server. It is plain XML that a player or a host can edit:
+
+```xml
+<Settings>
+  <Setting key="voxel.viewRadius" value="192" />
+</Settings>
+```
+
+The core reads it once, when the engine loads, before any context starts.
+A value of the wrong type or out of bounds, an unknown key, a `distribution`
+key, and any other element are ignored with a warning, and the key keeps its
+default. A key that the distribution locks ignores the file. A file that
+cannot be read gives every key its default.
+
+`Set` gives a `user` key a value chosen by the player, `Reset` gives it its
+default back, and `Save` writes the file. Only the values the player chose
+are written, so a later default of the distribution applies to the other
+keys. `Set` refuses a `distribution` key, a locked key, and a value out of
+bounds. Every context of the process sees the same values.
+
+A duplicate key, an invalid default, and an invalid value of the
+distribution are refused when the engine loads, with a
+`ModuleCompositionException` of kind `InvalidConfiguration`.
+
+### Module configuration
+
+A module that needs structured configuration receives the
+`<ModuleConfig module="...">` block of `engine.nobara` that targets it as
+`context.ModuleConfig`, a `GenericElement`: the element, its attributes, its
+children, their typed values, and their positions in the file. The module
+checks the block itself and names the position of an error with
+`GenericElement.Source`. Without a block, `ModuleConfig` is `null`.
+
+### Loading resources
+
+The core reads the resources of every loaded module once per process, when
+the engine loads and before any module code runs: `nobara/resources.pb` and
+`nobara/schemas.pb` from the assembly of each module. It refuses, with a
+`ResourceLoadException` that lists every problem:
+
+- two modules that define the same object without `override`;
+- a resource whose type no loaded schema defines;
+- an override whose target is missing, or a query that selects nothing,
+  unless the override is `optional="true"`;
+- a tag member that is not defined, unless it is optional, and tags that
+  contain each other;
+- a qualified free property whose short name no module of the distribution
+  has. A module that this process does not load, such as a client module on a
+  dedicated server, counts as a module of the distribution.
+
+Overrides of a resource apply in increasing `priority`, then in load order of
+their modules, then by module name. Each applies to the result of the ones
+before. Simple fields replace the values of the target. A query selects
+among the elements under its scope, depth first: the first match, the match
+at `index`, or every match. It runs its nested queries in each selected
+element, then its operations. The elements that an operation inserts are
+fields of the parent of the selected element, or of the selected element for
+`<Add>`, whose `index` is a position among the values of the same field. An
+element of a field that holds one value replaces that value. The free
+properties of an override replace those of the same name, or are added. The
+content hash of a resource combines the hash it was compiled with and the
+hashes of its overrides.
+
+A tag is the union of the members that every module contributes; a member is
+required when one contribution requires it. Its overrides apply like those of
+a resource, on its `<Member>` elements. Nested tags are then expanded.
+
+The module whose schemas define a resource type registers its decoder during
+registration. The core decodes every resource of the type before that module
+initializes, once per process, and every context shares the decoded objects:
+
+```csharp
+public void Register(ModuleContext context)
+{
+    context.Resources.RegisterDecoder("block", data => new BlockType(data.ObjectId, Block.Parser.ParseFrom(data.Content.Span)));
+}
+```
+
+From initialization on, a module reads the resources of the types defined by
+itself and by its declared dependencies: `GetAll<T>`, `Get<T>`, `TryGet<T>`
+for decoded objects, `GetData` and `Find` for the loaded resources, `GetTags`
+and `TryGetTag` for tags, and `OpenFile` for the binary files that a
+resource names. A decoder that throws follows the error policy of its
+module.
+
+A module declares each free property it reads, with its type, during
+registration:
+
+```csharp
+_weight = context.Resources.DeclareProperty("Weight", PropertyType.Float);
+```
+
+Once every module is registered, the core checks that the modules that read
+a property agree on its type, and that every value has it. Otherwise the
+context stops with a `ResourceLoadException`. `FreeProperty.TryGetFloat` and
+its siblings read the property qualified by the short name of the module
+first, such as `Motion.Weight`, then the plain property; `false` means the
+resource does not have it and the module applies its own default.
+
+The distribution can protect namespaces (`<ProtectedNamespaces>` of
+`project.nobara`, `context.Resources.ProtectedNamespaces`). The protection
+applies to modules loaded dynamically, such as mods; the modules of the
+distribution are not concerned.
+
 ### Services
 
 A module publishes a service under a type, usually an interface, during
@@ -259,10 +391,12 @@ the loop.
 
 ## Resources
 
-The core reads two compiled formats, whose definitions are in
+The core reads the compiled formats, whose definitions are in
 [the resource compiler](../../tools/Nobara.ResourceCompiler/README.md#compiled-formats):
 
 - `nobara/module.pb`, the module manifest, from the assembly of each module;
+- `nobara/resources.pb`, `nobara/schemas.pb`, and `nobara/files/`, the
+  resources, schemas, and binary files of each module;
 - `nobara/distribution.pb`, the distribution manifest, from the entry
   assembly of the game.
 
@@ -297,10 +431,18 @@ It provides no resource type.
 - The job system and the profiler are not implemented.
 - The low-level foundations (pools, unmanaged memory, collections, math) are
   not implemented; only the attributes are.
-- Resources (inventory, decoders, duplicates, overrides, tags, free
-  properties) are not loaded.
-- The configuration service, the player configuration file, and module
-  configurations from the engine file are not implemented.
+- Resources are not reloaded while the game runs.
+- No module is loaded dynamically yet, so the protected namespaces never
+  refuse anything.
+- A query selects the elements under the content of its target, never the
+  content itself: a field of the content changes with a simple field of the
+  override. A field in the generic representation, such as a component, is a
+  single value for queries.
+- Resources and tags stay loaded when the module that defines them is
+  disabled; only its decoders and free properties are withdrawn.
+- Free properties that no module reads are not reported.
+- Modules are not told when the value of a key changes, and the settings
+  file is written only by `Save`.
 - The static loading mode is an interface only: no implementation of
   `IModuleSource` loads modules compiled into the executable.
 - The distribution manifest records the hashes of module assemblies only, so
