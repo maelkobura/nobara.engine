@@ -166,8 +166,11 @@ resource does not know the modules that read its free properties.
 
 ### Event bus
 
-The event bus is a platform module, so publishing or listening to events
-requires a declared dependency on it. Hot paths never use the bus. Bulk
+The event bus is a platform module, nEvent, so publishing or listening to
+events requires a declared dependency on it. Its events are `struct` types,
+its handlers have priorities and can cancel an event, and an event is
+delivered at once or queued for the end of the tick; see [its module
+sheet](../../src/nEvent/README.md). Hot paths never use the bus. Bulk
 changes, for example an explosion that destroys thousands of blocks, are
 handled by entity component system systems and by batched voxel
 notifications.
