@@ -152,9 +152,9 @@ None.
 
 ## Constraints
 
-- Emitting synchronously, subscribing, and handing out deferred events run on
-  the loop thread of the context. `Post` and disposing a handle run on any
-  thread.
+- Emitting synchronously and handing out deferred events run on the loop
+  thread of the context. Subscribing, `Post`, and disposing a handle run on
+  any thread.
 - `Emit`, `EmitCancellable`, `Post`, `HasSubscribers`, and the hand-out of
   deferred events are hot path code: they allocate nothing, call nothing by
   reflection, and take no lock. The tests measure it. Subscribing allocates.

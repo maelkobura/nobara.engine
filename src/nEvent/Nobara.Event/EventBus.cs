@@ -225,16 +225,17 @@ internal sealed class EventBus : IEventBus
         where TCancel : struct, ICancelReader<TEvent>
     {
         RequireLoopThread();
+        if (!TCancel.Reads && default(TEvent) is ICancellable)
+        {
+            throw new InvalidOperationException($"Event '{typeof(TEvent).FullName}' is cancellable: emit it with EmitCancellable, so that the handlers can cancel it.");
+        }
+
         if (!Volatile.Read(ref _lists).TryGetValue(typeof(TEvent), out IHandlerList? list))
         {
             return;
         }
 
         var typed = Unsafe.As<HandlerList<TEvent>>(list);
-        if (!TCancel.Reads && typed.Cancellable)
-        {
-            throw new InvalidOperationException($"Event '{typeof(TEvent).FullName}' is cancellable: emit it with EmitCancellable, so that the handlers can cancel it.");
-        }
 
         Registration<TEvent>[] handlers = typed.Handlers;
         if (handlers.Length == 0)

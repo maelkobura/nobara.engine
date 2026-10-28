@@ -137,6 +137,15 @@ public sealed class BusTests
     }
 
     [Fact]
+    public void Refuses_a_cancellable_event_emitted_without_subscribers()
+    {
+        var bus = new EventBus();
+        var request = new Request();
+
+        Assert.Throws<InvalidOperationException>(() => bus.Emit(ref request));
+    }
+
+    [Fact]
     public void Refuses_a_cancellable_event_emitted_without_cancellation_and_deferred()
     {
         var bus = new EventBus();
@@ -432,8 +441,8 @@ public sealed class BusTests
 
         const int Threads = 4;
         const int PerThread = 250;
-        Task[] producers = Enumerable.Range(0, Threads)
-            .Select(thread => Task.Run(() =>
+        Thread[] producers = Enumerable.Range(0, Threads)
+            .Select(thread => new Thread(() =>
             {
                 for (int i = 0; i < PerThread; i++)
                 {
@@ -441,7 +450,16 @@ public sealed class BusTests
                 }
             }))
             .ToArray();
-        Task.WaitAll(producers);
+        foreach (Thread producer in producers)
+        {
+            producer.Start();
+        }
+
+        foreach (Thread producer in producers)
+        {
+            producer.Join();
+        }
+
         bus.DistributeDeferred();
 
         Assert.Equal(Threads * PerThread, received.Count);
