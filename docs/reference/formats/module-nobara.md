@@ -129,7 +129,9 @@ One `<Package>` element per third-party NuGet package that is not a module.
 
 ## `<States>`
 
-One `<State>` element per context state the module provides.
+One `<State>` element per context state the module provides. The module also
+registers each state in code; see [the nContext module
+sheet](../../../src/nContext/README.md#states).
 
 | Attribute | Required | Content |
 | --- | --- | --- |
