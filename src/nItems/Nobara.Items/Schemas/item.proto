@@ -1,0 +1,43 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource type Item: an entry of the item registry. Its identifier is
+// derived from the namespace and the name, such as item:example.food.steak.
+syntax = "proto3";
+
+package nobara.items;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Items.Schemas";
+
+message Item {
+  option (nobara.resource_type) = "item";
+  option (nobara.accepts_tags) = true;
+
+  // How many items one stack holds; 0 when absent, which takes the default of
+  // the distribution (items.defaultMaxStack).
+  int32 max_stack = 1 [(nobara.min) = 1];
+
+  // The localization key of the name; derived from the identifier when absent.
+  string display_name = 2 [(nobara.i18n) = true];
+
+  // How the item looks; absent for an item without its own look.
+  Visual visual = 3;
+
+  // The item components and their default values, in the generic
+  // representation: <Component ref="example.food.edible">.
+  repeated bytes component = 4 [(nobara.generic) = "component"];
+}
+
+// The look of an item: a 3D model or a sprite, never both.
+message Visual {
+  oneof kind {
+    // A mesh object: mesh:example.items.sword.
+    string model = 1 [(nobara.ref) = "mesh"];
+    // A texture resource, shown as an extruded sprite:
+    // texture://Example/Textures/Steak.
+    string sprite = 2 [(nobara.resource) = "texture"];
+  }
+}

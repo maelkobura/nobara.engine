@@ -177,7 +177,8 @@ A component, for a field marked `"component"`, takes these attributes:
 | `optional` | No | `true` when the component is ignored if its module is not active. |
 
 The object identifiers in the values of a component must resolve, except in an
-optional component.
+optional component. The components of an item are described in [the `Item`
+resource](item.md#components).
 
 ## Free properties
 
