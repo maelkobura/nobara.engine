@@ -99,8 +99,15 @@ debug configuration, no ReadyToRun, no archive. Its executable accepts
 
 A way to run the engine with checks that cost time, chosen when the engine
 starts (`EngineOptions.DevelopmentMode`). In this version it checks the data
-that jobs declare, and it accepts reloaded resources. See [the core
-page](../../src/Core/README.md#declared-accesses).
+that jobs and tick systems declare, and it accepts reloaded resources. See
+[the core page](../../src/Core/README.md#declared-accesses).
+
+### Dimension clock
+
+The game time of one dimension: a raw count of game ticks on 64 bits, which
+goes up by one at each tick unless the dimension is frozen, and which can
+jump forward. It knows no day or season. See [the nGame module
+sheet](../../src/nGame/README.md#game-time).
 
 ### Distribution
 
@@ -187,6 +194,12 @@ A value of a resource that its own type does not declare, written in its
 `<Properties>` block for other modules to read, such as `Weight`. See [the
 `.nof` reference](../reference/formats/nof.md#free-properties).
 
+### Game time
+
+The time of the simulated world, as opposed to real time: the tick number of
+the context and the dimension clocks. It stops during a pause and follows the
+time scale. See [the nGame module sheet](../../src/nGame/README.md#game-time).
+
 ### Generic representation
 
 The compiled form of XML content whose schema the compiler does not know: an
@@ -265,6 +278,12 @@ it resolved to. See [its reference](../reference/formats/project-nobara-lock.md)
 Code that a loop phase runs, marked with the `[LoopCallback]` attribute. It is
 never `async`. See [NOB301](../reference/analyzers.md#nob301).
 
+### Loop access
+
+The data that code on the loop thread, such as a tick system, declares it
+reads and writes, checked in development mode while the code runs. See [the
+core page](../../src/Core/README.md#declared-accesses).
+
 ### Loop thread
 
 The thread that runs the loop of a context. There is one per context.
@@ -315,8 +334,9 @@ handlers. See [its module sheet](../../src/nEvent/README.md).
 ### nGame
 
 The platform module that owns the simulation tick and game time. It splits
-the simulation phase into ordered steps, schedules the systems of the tick,
-and keeps pause, time scale, and tick rate.
+the simulation phase into stages, runs the tick systems in a deterministic
+order, keeps pause, time scale, tick rate, and dimension clocks, and runs the
+scheduler. See [its module sheet](../../src/nGame/README.md).
 
 ### Nobara.Sdk
 
@@ -407,6 +427,12 @@ A kind of resource, such as `Block`, defined by a message of a `.proto`
 schema marked with `(nobara.resource_type)`. See [the schema options
 reference](../reference/formats/proto-options.md).
 
+### Scheduled task
+
+Code that the scheduler of nGame runs later: at a tick of a dimension clock,
+after a delay, periodically, or after real time. Tasks are not saved. See
+[the nGame module sheet](../../src/nGame/README.md#scheduler).
+
 ### Service
 
 An object that a module publishes in the service registry of a context, under
@@ -428,6 +454,13 @@ page](../../src/Core/README.md#configuration-keys).
 
 Where a module runs: client, server, or both.
 
+### Stage
+
+A milestone of the simulation tick that orders the tick systems joined to
+it: `Intents`, `Schedule`, `World`, `Entities`, `Physics`, `Late`, and the
+stages that modules or the distribution insert. A stage holds no code. See
+[the nGame module sheet](../../src/nGame/README.md#stages).
+
 ### Start-up point
 
 `Engine.Run`, which every `main()` of a game calls: it loads the engine,
@@ -442,7 +475,8 @@ it.
 
 ### System
 
-Logic that runs on entities with certain components during a tick.
+Logic that runs on entities with certain components during a tick. Every
+system of the entity component system is a tick system.
 
 ### Tag
 
@@ -452,7 +486,15 @@ several modules may add members. See [the `.nof` reference](../reference/formats
 ### Tick
 
 One step of the fixed-rate simulation. The core runs ticks with an
-accumulator; [nGame](#ngame) orders the systems inside each tick.
+accumulator; [nGame](#ngame) runs the stages and tick systems inside each
+tick. Ticks are numbered from 1 in each context.
+
+### Tick system
+
+Code that runs once per simulation tick, in a stage, registered with nGame
+under a qualified name, with its constraints and its declared accesses. All
+the code of the tick is made of tick systems. See [the nGame module
+sheet](../../src/nGame/README.md#tick-systems).
 
 ### Worker thread
 

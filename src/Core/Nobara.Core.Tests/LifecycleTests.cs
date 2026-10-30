@@ -63,6 +63,23 @@ public sealed class LifecycleTests : IDisposable
     }
 
     [Fact]
+    public void Gives_each_module_its_rank_in_the_load_order()
+    {
+        var ranks = new Dictionary<string, int>();
+        _distribution
+            .Module("example.mobs", m => m.Requires("example.creatures"), m => m.OnRegister = c => ranks[c.Module.Id] = c.LoadOrder)
+            .Module("example.creatures", m => m.Requires("example.time"), m => m.OnRegister = c => ranks[c.Module.Id] = c.LoadOrder)
+            .Module("example.time", m => m.Level = F.Level.Platform, m => m.OnRegister = c => ranks[c.Module.Id] = c.LoadOrder);
+        using Engine engine = _distribution.Load();
+
+        engine.MainContext.Start();
+
+        Assert.Equal(0, ranks["example.time"]);
+        Assert.Equal(1, ranks["example.creatures"]);
+        Assert.Equal(2, ranks["example.mobs"]);
+    }
+
+    [Fact]
     public void Gives_each_module_the_side_of_its_context()
     {
         Side seen = Side.None;

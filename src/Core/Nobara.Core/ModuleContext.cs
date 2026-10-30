@@ -45,6 +45,17 @@ public sealed class ModuleContext
     /// <summary>Gets the module.</summary>
     public ModuleInfo Module => _runtime.Info;
 
+    /// <summary>
+    /// Gets the rank of the module in the load order of the context, from 0.
+    /// A module comes after its dependencies, and each module of the context
+    /// has its own rank.
+    /// </summary>
+    /// <remarks>
+    /// A module that orders the code of other modules uses it to break ties in
+    /// a deterministic way. The rank is not stable across distributions.
+    /// </remarks>
+    public int LoadOrder => _runtime.Order;
+
     /// <summary>Gets the side of the context: <see cref="Side.Client"/> or <see cref="Side.Server"/>.</summary>
     public Side Side => _context.Side;
 
@@ -133,6 +144,37 @@ public sealed class ModuleContext
     {
         Logger.Info($"Module '{Module.Id}' requests the {_context.Name} context to stop.");
         _context.RequestStop();
+    }
+
+    /// <summary>
+    /// Applies the error policy to an exception that code of this module
+    /// threw while another module called it, such as a tick system or a
+    /// scheduled task: the caller catches the exception, reports it here, and
+    /// goes on with the code of the other modules.
+    /// </summary>
+    /// <param name="exception">The exception that the code threw.</param>
+    /// <remarks>
+    /// <para>
+    /// As at the boundaries the core watches itself, the exception is charged
+    /// to the module whose code is closest to the throw point, or to this
+    /// module when none is found. The method that caught the exception does
+    /// not count. The policy of that module applies: <c>log</c> logs it,
+    /// <c>disable</c> disables that module and the modules that require it
+    /// before the method returns, and <c>stop</c> throws
+    /// <see cref="EngineStopException"/>, which the caller lets through.
+    /// </para>
+    /// <para>Call it on the loop thread of the context.</para>
+    /// </remarks>
+    /// <exception cref="EngineStopException">The policy of the module charged is <c>stop</c>; the context stops.</exception>
+    public void ReportFault(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        if (exception is EngineStopException)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(exception);
+        }
+
+        _context.ReportFault(_runtime, exception);
     }
 
     /// <summary>Gets the lever that creates and destroys contexts.</summary>

@@ -266,6 +266,79 @@ public sealed class JobTests : IDisposable
     }
 
     [Fact]
+    public void In_development_mode_loop_code_touches_only_the_data_its_loop_access_declares()
+    {
+        _distribution.DevelopmentMode = true;
+        (Engine engine, ModuleContext context) = Start();
+        using (engine)
+        {
+            JobData heights = context.Jobs.CreateData("heights");
+            JobData terrain = context.Jobs.CreateData("terrain");
+            LoopAccess access = context.Jobs.DeclareLoopAccess("tick system 'example.jobs.erosion'", [terrain], [heights]);
+
+            using (access.Enter())
+            {
+                terrain.CheckRead();
+                heights.CheckRead();
+                heights.CheckWrite();
+                JobAccessException written = Assert.Throws<JobAccessException>(terrain.CheckWrite);
+                Assert.Equal("The tick system 'example.jobs.erosion' of module 'example.jobs' writes 'terrain', which it does not declare as written. Declare it in its accesses.", written.Message);
+
+                LoopAccess inner = context.Jobs.DeclareLoopAccess("inner", [], []);
+                using (inner.Enter())
+                {
+                    Assert.Throws<JobAccessException>(terrain.CheckRead);
+                }
+
+                // Leaving the inner scope restores the outer one.
+                terrain.CheckRead();
+            }
+
+            // Outside every scope, loop code is free, as before.
+            terrain.CheckWrite();
+        }
+    }
+
+    [Fact]
+    public void In_development_mode_a_job_scheduled_inside_a_loop_access_declares_only_data_of_the_scope()
+    {
+        _distribution.DevelopmentMode = true;
+        (Engine engine, ModuleContext context) = Start();
+        using (engine)
+        {
+            JobData heights = context.Jobs.CreateData("heights");
+            JobData terrain = context.Jobs.CreateData("terrain");
+            LoopAccess access = context.Jobs.DeclareLoopAccess("tick system 'example.jobs.erosion'", [terrain], [heights]);
+
+            using (access.Enter())
+            {
+                context.Jobs.Schedule(new TouchJob { Data = heights, Write = true }, new JobAccess([terrain], [heights])).Complete();
+                JobAccessException exception = Assert.Throws<JobAccessException>(() => context.Jobs.Schedule(new TouchJob { Data = terrain, Write = true }, new JobAccess([], [terrain])));
+                Assert.Contains("TouchJob', which writes 'terrain'; the tick system 'example.jobs.erosion' does not declare it as written", exception.Message, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
+    public void Without_development_mode_a_loop_access_checks_nothing()
+    {
+        (Engine engine, ModuleContext context) = Start();
+        using (engine)
+        {
+            JobData terrain = context.Jobs.CreateData("terrain");
+            LoopAccess access = context.Jobs.DeclareLoopAccess("tick system 'example.jobs.erosion'", [], []);
+
+            using (access.Enter())
+            {
+                terrain.CheckWrite();
+            }
+
+            Assert.Equal("tick system 'example.jobs.erosion'", access.Name);
+            Assert.Equal("example.jobs", access.ModuleId);
+        }
+    }
+
+    [Fact]
     public void Without_development_mode_accesses_are_not_checked()
     {
         (Engine engine, ModuleContext context) = Start();

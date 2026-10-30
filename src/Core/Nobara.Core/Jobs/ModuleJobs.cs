@@ -49,6 +49,32 @@ public sealed class ModuleJobs
         return new JobData(_scheduler, name);
     }
 
+    /// <summary>
+    /// Declares the data that code of the module reads and writes on a loop
+    /// thread, such as a system of the simulation tick, so that development
+    /// mode checks it inside <see cref="LoopAccess.Enter"/>.
+    /// </summary>
+    /// <param name="name">The code in error messages, such as <c>tick system 'example.farm.growth'</c>.</param>
+    /// <param name="reads">The data the code only reads.</param>
+    /// <param name="writes">The data the code writes, and may read.</param>
+    /// <returns>The declaration; create it once and enter it each time the code runs.</returns>
+    /// <exception cref="ArgumentException">A piece of data belongs to another engine.</exception>
+    public LoopAccess DeclareLoopAccess(string name, ReadOnlySpan<JobData> reads, ReadOnlySpan<JobData> writes)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        foreach (JobData data in reads)
+        {
+            CheckOwned(data, nameof(reads));
+        }
+
+        foreach (JobData data in writes)
+        {
+            CheckOwned(data, nameof(writes));
+        }
+
+        return new LoopAccess(_scheduler, name, _owner.ModuleId, reads.ToArray(), writes.ToArray());
+    }
+
     /// <summary>Schedules a job that runs once.</summary>
     /// <typeparam name="T">The type of the job.</typeparam>
     /// <param name="job">The job; it is copied.</param>
@@ -117,4 +143,13 @@ public sealed class ModuleJobs
     /// <returns>A handle to depend on or to wait for.</returns>
     /// <exception cref="InvalidOperationException">The calling thread runs a job, or the module is disabled or released.</exception>
     public JobHandle Combine(ReadOnlySpan<JobHandle> handles) => _scheduler.Combine(_owner, handles);
+
+    private void CheckOwned(JobData data, string parameter)
+    {
+        ArgumentNullException.ThrowIfNull(data, parameter);
+        if (data.Scheduler != _scheduler)
+        {
+            throw new ArgumentException($"Data '{data.Name}' belongs to another engine.", parameter);
+        }
+    }
 }
