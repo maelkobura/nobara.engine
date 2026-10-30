@@ -16,8 +16,8 @@ namespace Nobara.Game;
 /// Tasks of game time run in stage <see cref="TickStages.Schedule"/>, in the
 /// order of their due tick, then of their scheduling. They follow the pause,
 /// the time scale, and the frozen dimensions: a task of a frozen dimension
-/// waits. A task whose due tick has passed, after a jump of its clock, runs
-/// at the next tick.
+/// waits. A task whose due tick has passed, such as after a jump of its
+/// clock, runs at the next run of that stage.
 /// </para>
 /// <para>
 /// Tasks of real time run at the start of each frame, before the phases, in
@@ -36,7 +36,7 @@ public interface IScheduler
     /// <summary>Runs a task once, when the clock of a dimension reaches a tick.</summary>
     /// <param name="module">The module of the task; an exception in the task follows its error policy.</param>
     /// <param name="dimension">The dimension whose clock counts.</param>
-    /// <param name="tick">The tick of that clock; a tick already reached runs at the next tick.</param>
+    /// <param name="tick">The tick of that clock; a tick already reached runs at the next run of stage <see cref="TickStages.Schedule"/>.</param>
     /// <param name="task">The code to run.</param>
     /// <returns>The handle; dispose it to cancel the task.</returns>
     /// <exception cref="ArgumentException">The dimension has no clock.</exception>
@@ -45,7 +45,7 @@ public interface IScheduler
     /// <summary>Runs a task once, a number of ticks of a dimension clock from now.</summary>
     /// <param name="module">The module of the task.</param>
     /// <param name="dimension">The dimension whose clock counts.</param>
-    /// <param name="ticks">The delay, in ticks of that clock; 0 runs it at the next tick.</param>
+    /// <param name="ticks">The delay, in ticks of that clock; 0 runs it at the next run of stage <see cref="TickStages.Schedule"/>.</param>
     /// <param name="task">The code to run.</param>
     /// <returns>The handle; dispose it to cancel the task.</returns>
     /// <exception cref="ArgumentException">The dimension has no clock.</exception>

@@ -28,7 +28,7 @@ public sealed class GameModule : IModule
     /// <inheritdoc/>
     public void Register(ModuleContext context)
     {
-        LoopPhase simulation = context.Loop.Phases.FirstOrDefault(p => p.Reservation == LoopReservations.Phase("Simulation"))
+        LoopPhase simulation = context.Loop.Phases.FirstOrDefault(p => p.IsFixed && p.Reservation == LoopReservations.Phase("Simulation"))
             ?? throw new InvalidOperationException(
                 $"Module '{context.Module.Id}' runs the simulation phase, and the loop has none; declare a fixed phase named 'Simulation' in <Loop>.");
 

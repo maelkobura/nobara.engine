@@ -200,7 +200,7 @@ each clock that is not frozen goes up by one.
 - `SetFrozen` freezes a clock: it does not move and its tasks wait. The tick
   number of the context still goes up.
 - `Jump` moves a clock forward without simulating the ticks between. Tasks
-  left behind run at the next tick.
+  left behind run at the next run of stage `Schedule`.
 
 The levers belong to the context that has authority over game time. Each
 context of this version is the main context of its process and has it.
@@ -228,7 +228,9 @@ scheduler.EveryRealTime(context, TimeSpan.FromSeconds(5), new PingTask());
   the same order. They go on during a pause and ignore the time scale.
 - A periodic task whose periods were skipped, by a jump or a slow frame,
   runs once, then goes on at its period.
-- A task scheduled by a running task runs at a later run, never the same one.
+- A task whose due tick is already reached runs at the next run of stage
+  `Schedule`: in the same tick when it is scheduled before that stage. A task
+  scheduled by a running task runs at a later run, never the same one.
 - Disposing the handle cancels the task at once.
 - The scheduler is not saved: a module that needs lasting tasks saves them
   itself. It suits tasks in small numbers.
@@ -302,6 +304,8 @@ None.
 
 - Systems never run in parallel with each other, and declared accesses are
   only checked; they do not change the order.
+- Tasks declare no accesses, so development mode does not check the data
+  they touch.
 - A system cannot run once every few ticks.
 - Game time is not sent to clients, and the clocks are not saved.
 - Every context has authority over game time, and pausing is always allowed:

@@ -384,7 +384,7 @@ internal sealed partial class TickSchedule : ITickSchedule
     // place keep the load order of their modules, then their names.
     private List<StageEntry> PlaceStages(List<string> problems)
     {
-        var placed = _stages.Values.Where(s => s.IsStandard).ToList();
+        var placed = TickStages.Standard.Select(name => _stages[name]).ToList();
         var pending = _stages.Values.Where(s => !s.IsStandard).OrderBy(s => s.LoadOrder).ThenBy(s => s.Name, StringComparer.Ordinal).ToList();
         bool progress = true;
         while (progress && pending.Count > 0)
