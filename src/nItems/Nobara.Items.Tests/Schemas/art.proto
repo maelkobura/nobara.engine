@@ -1,0 +1,32 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// Resource types of a test module, which items reference in <Visual>, and a
+// type whose plugin derives items.
+syntax = "proto3";
+
+package nobara.itemtests;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Items.Tests.Schemas";
+
+message Mesh {
+  option (nobara.resource_type) = "mesh";
+
+  string file = 1;
+}
+
+message Texture {
+  option (nobara.resource_type) = "texture";
+
+  string file = 1;
+}
+
+message Gem {
+  option (nobara.resource_type) = "gem";
+
+  int32 hardness = 1;
+  bool create_item = 2;
+}

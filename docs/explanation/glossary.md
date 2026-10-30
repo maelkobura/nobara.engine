@@ -238,12 +238,34 @@ core, and the entry assembly; `system/` and `game/` for the modules; `lib/`
 for their libraries; the executable at the root. See [the command-line
 reference](../reference/cli.md#the-installed-game).
 
+### Interaction kind
+
+A way of using an item that handlers are attached to, such as `Use`,
+`UseOnBlock`, `UseOnEntity`, or `Attack`; a module may declare more. Which
+input triggers which kind is the business of the game. See [the nItems module
+sheet](../../src/nItems/README.md#usage).
+
 ### Isolation class
 
 A class marked `[UsesOptionalDependency]` that holds all the code of a module
 that uses one of its optional dependencies, so that the module loads when the
 dependency is absent. See [the analyzer
 reference](../reference/analyzers.md#optional-dependency-rules).
+
+### Item
+
+A type of object that can be held and stored, defined by an `Item` resource
+and kept in the item registry of nItems, such as `item:example.food.steak`.
+An item describes a type, never an instance: stacks of items belong to the
+module that stores them. See [the `Item` reference](../reference/formats/item.md).
+
+### Item component
+
+A piece of data attached to an item, defined in code by a module and given
+default values in the `.nof` file of the item, such as the nourishment of a
+food. A stack may change the value for itself. Not to be confused with a
+[component](#component) of an entity. See [the nItems module
+sheet](../../src/nItems/README.md#item-components).
 
 ### Job
 
@@ -352,6 +374,13 @@ the simulation phase into stages, runs the tick systems in a deterministic
 order, keeps pause, time scale, tick rate, and dimension clocks, and runs the
 scheduler. See [its module sheet](../../src/nGame/README.md).
 
+### nItems
+
+The platform module of the item registry: the resource type `Item`, the item
+types and their tags, the types of item components, and the usage service
+of items, with their handlers and prolonged uses. See [its module
+sheet](../../src/nItems/README.md).
+
 ### Nobara.Sdk
 
 The MSBuild SDK that reads the manifest of a module and generates its version
@@ -390,6 +419,13 @@ business module.
 The part of the core that measures, for each context, module, phase, and
 job, the time spent, the managed memory allocated, and the pauses of the
 garbage collector. See [the core page](../../src/Core/README.md#profiler).
+
+### Prolonged use
+
+A use of an item that lasts, such as eating or drawing a bow, started by a
+handler and timed by nItems on the dimension clock of its actor: the pause
+and a frozen dimension suspend it. An actor has one at a time. See [the
+nItems module sheet](../../src/nItems/README.md#prolonged-uses).
 
 ### Protected namespace
 

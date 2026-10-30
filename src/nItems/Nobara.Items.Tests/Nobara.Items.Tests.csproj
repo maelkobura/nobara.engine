@@ -1,0 +1,49 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Grpc.Tools" Version="2.80.0" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
+  </ItemGroup>
+
+  <!--
+    The types of a test module that items reference: meshes and textures.
+    They import the options of the compiler, whose generated classes come from
+    the referenced compiler.
+  -->
+  <ItemGroup>
+    <Protobuf Include="Schemas/*.proto" ProtoRoot="Schemas" GrpcServices="None" AdditionalImportDirs="../../../tools/Nobara.ResourceCompiler/Protos" />
+  </ItemGroup>
+
+  <!--
+    The tests compile .nof files with the resource compiler and the plugin of
+    the type, then load them with the real modules nGame and nItems.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Items\Nobara.Items.csproj" />
+    <ProjectReference Include="..\Nobara.Items.Build\Nobara.Items.Build.csproj" />
+    <ProjectReference Include="..\..\nGame\Nobara.Game\Nobara.Game.csproj" />
+    <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+</Project>

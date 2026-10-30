@@ -15,13 +15,14 @@ public sealed class DistributionInfo
     private readonly string? _clientState;
     private readonly string? _serverState;
 
-    internal DistributionInfo(string id, string name, string version, string? clientState = null, string? serverState = null)
+    internal DistributionInfo(string id, string name, string version, string? clientState = null, string? serverState = null, IReadOnlyList<string>? modules = null)
     {
         Id = id;
         Name = name;
         Version = version;
         _clientState = string.IsNullOrEmpty(clientState) ? null : clientState;
         _serverState = string.IsNullOrEmpty(serverState) ? null : serverState;
+        Modules = modules ?? [];
     }
 
     /// <summary>The name of the manifest resource of the entry assembly that holds the compiled distribution manifest.</summary>
@@ -35,6 +36,18 @@ public sealed class DistributionInfo
 
     /// <summary>Gets the version of the game.</summary>
     public string Version { get; }
+
+    /// <summary>
+    /// Gets the identifiers of the modules that the distribution declares, in
+    /// the order it lists them, whether they are active in a context or not:
+    /// a module of the other side, or one disabled after an error, is listed.
+    /// </summary>
+    /// <remarks>
+    /// Compatibility rules use it to tell a module that is declared but
+    /// inactive, whose data is ignored, from a name that no module has, which
+    /// is an error.
+    /// </remarks>
+    public IReadOnlyList<string> Modules { get; }
 
     /// <summary>
     /// Gets the initial state of the application on a side, as
@@ -61,7 +74,7 @@ internal sealed class Distribution
     private Distribution(F.DistributionManifest manifest)
     {
         Manifest = manifest;
-        Info = new DistributionInfo(manifest.Id, manifest.Name, manifest.Version, manifest.States?.Client, manifest.States?.Server);
+        Info = new DistributionInfo(manifest.Id, manifest.Name, manifest.Version, manifest.States?.Client, manifest.States?.Server, manifest.Modules.Select(m => m.Id).ToArray());
         foreach (F.ModulePolicy policy in manifest.ErrorPolicy?.Modules ?? [])
         {
             _policies[policy.Module] = policy.Policy;

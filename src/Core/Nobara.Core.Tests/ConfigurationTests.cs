@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Xml.Linq;
+using Google.Protobuf;
 using Nobara.Core.Configuration;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
@@ -294,5 +295,21 @@ public sealed class ConfigurationTests : IDisposable
         Assert.Equal("engine.nobara(13,5)", stage.Source.ToString());
         Assert.True(otherRead);
         Assert.Null(other);
+    }
+
+    [Fact]
+    public void Reads_an_element_serialized_in_the_generic_representation()
+    {
+        var node = new F.GenericNode { Name = "Component", Source = new F.SourcePosition { File = "Resources/food.nof", Line = 4, Column = 6 } };
+        node.Attributes.Add(new F.GenericAttribute { Name = "ref", Value = new F.Value { Text = "example.food.edible" } });
+        node.Children.Add(new F.GenericNode { Name = "Food", Value = new F.Value { Text = "3", Integer = 3 } });
+
+        GenericElement element = GenericElement.Parse(node.ToByteArray());
+
+        Assert.Equal("example.food.edible", element.Attribute("ref")!.Value.Text);
+        Assert.True(element.Child("Food")!.Value!.TryGetInteger(out long food));
+        Assert.Equal(3, food);
+        Assert.Equal("Resources/food.nof(4,6)", element.Source.ToString());
+        Assert.Throws<FormatException>(() => GenericElement.Parse(new byte[] { 0xFF, 0xFF, 0xFF }));
     }
 }

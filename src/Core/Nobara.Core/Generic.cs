@@ -196,5 +196,26 @@ public sealed class GenericElement
     /// <returns>For example <c>&lt;Stage&gt; at engine.nobara(12,5)</c>.</returns>
     public override string ToString() => string.Create(CultureInfo.InvariantCulture, $"<{Name}> at {Source}");
 
+    /// <summary>
+    /// Reads an element that the resource compiler serialized in its generic
+    /// representation, such as a field of a schema marked
+    /// <c>(nobara.generic)</c>: a component and its values.
+    /// </summary>
+    /// <param name="data">The serialized element: the bytes of the field.</param>
+    /// <returns>The element.</returns>
+    /// <exception cref="FormatException">The bytes are not an element in the generic representation.</exception>
+    /// <remarks>Read generic fields once, when the resources are loaded; the method allocates.</remarks>
+    public static GenericElement Parse(ReadOnlySpan<byte> data)
+    {
+        try
+        {
+            return new GenericElement(F.GenericNode.Parser.ParseFrom(data));
+        }
+        catch (Google.Protobuf.InvalidProtocolBufferException exception)
+        {
+            throw new FormatException("The bytes are not an element in the generic representation: " + exception.Message, exception);
+        }
+    }
+
     internal static GenericElement From(F.GenericNode node) => new(node);
 }

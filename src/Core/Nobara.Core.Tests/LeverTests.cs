@@ -167,6 +167,19 @@ public sealed class LeverTests : IDisposable
     }
 
     [Fact]
+    public void Lists_the_modules_of_the_distribution_active_or_not()
+    {
+        DistributionInfo? info = null;
+        using Engine engine = _distribution
+            .Module("example.flow", behavior: m => m.OnInitialize = c => info = c.Distribution)
+            .Module("example.dedicated", m => m.Side = Nobara.Formats.Side.Server)
+            .Load(Side.Client);
+        engine.MainContext.Start();
+
+        Assert.Equal(["example.flow", "example.dedicated"], info!.Modules);
+    }
+
+    [Fact]
     public void An_intercepted_stop_request_reaches_the_module_at_the_next_frame_and_the_context_goes_on()
     {
         ModuleContext flow = null!;
