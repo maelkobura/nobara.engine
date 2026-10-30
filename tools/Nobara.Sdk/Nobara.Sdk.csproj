@@ -107,9 +107,12 @@
     The global packages folder keeps an extracted copy of every package
     version, and MSBuild resolves the SDK from that copy. Remove the copy of
     this version after packing so that the next restore extracts the new one.
+    Callers whose builds use a packages folder of their own, such as the SDK
+    tests, set NobaraKeepCachedSdk to leave the shared copy alone: other
+    builds may hold it open.
   -->
   <Target Name="NobaraDropCachedSdk" AfterTargets="Pack">
-    <RemoveDir Directories="$(NuGetPackageRoot)$(PackageId.ToLowerInvariant())\$(PackageVersion)" Condition="'$(NuGetPackageRoot)' != ''" />
+    <RemoveDir Directories="$(NuGetPackageRoot)$(PackageId.ToLowerInvariant())\$(PackageVersion)" Condition="'$(NuGetPackageRoot)' != '' and '$(NobaraKeepCachedSdk)' != 'true'" />
   </Target>
 
 </Project>
