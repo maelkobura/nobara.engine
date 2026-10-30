@@ -210,8 +210,11 @@ thread.
 The core provides the mechanics of the loop: loop threads, coarse phases, an
 accumulator, and a fixed simulation tick. A platform module, `nGame`, owns
 the simulation tick. It splits the simulation phase into ordered, extensible
-steps, schedules every system of the tick, and keeps game time: pause, time
-scale, tick rate, and raw clocks per dimension.
+stages, runs every system of the tick in a deterministic order, keeps game
+time (pause, time scale, tick rate, and raw clocks per dimension), and
+schedules tasks; see [its module sheet](../../src/nGame/README.md). Each
+system declares the data it reads and writes from the start: systems run one
+after another, and the declarations are checked in development mode.
 
 The two meet through a reservation and levers. `nGame` reserves the
 simulation phase, so the other modules register their systems with it rather

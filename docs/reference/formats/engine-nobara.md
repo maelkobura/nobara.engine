@@ -86,7 +86,9 @@ core page](../../../src/Core/README.md#configuration-keys).
 understands. The compiler stores its content in the generic representation,
 with positions in the file; the module receives it as `context.ModuleConfig`
 and checks it when it starts. The module
-must be part of the distribution, and has one block at most.
+must be part of the distribution, and has one block at most. The block of
+`nobara.game` is described in [its module
+sheet](../../../src/nGame/README.md#configuration).
 
 ## Known limitations
 

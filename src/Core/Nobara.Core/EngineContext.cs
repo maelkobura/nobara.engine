@@ -383,6 +383,10 @@ public sealed class EngineContext
         HandleFault(module, LifecycleStep.Execution, exception);
     }
 
+    // Applies the policy of the module charged with an exception that a
+    // module caught while it called code of another module.
+    internal void ReportFault(ModuleRuntime called, Exception exception) => HandleFault(called, Step, exception, reported: true);
+
     internal void AddEmergencyHook(ModuleRuntime module, Action<EmergencyStop> hook) => module.EmergencyHooks.Add(hook);
 
     internal void VerifyStates(IEnumerable<RegisteredState> registered)
@@ -475,9 +479,9 @@ public sealed class EngineContext
         }
     }
 
-    private void HandleFault(ModuleRuntime called, LifecycleStep step, Exception exception)
+    private void HandleFault(ModuleRuntime called, LifecycleStep step, Exception exception, bool reported = false)
     {
-        ModuleRuntime culprit = Attribute(exception) ?? called;
+        ModuleRuntime culprit = Attribute(exception, reported) ?? called;
         ModuleInfo info = culprit.Info;
         if (culprit.Disabled)
         {
@@ -645,14 +649,18 @@ public sealed class EngineContext
         }
     }
 
-    // The module whose code is closest to the throw point.
-    private ModuleRuntime? Attribute(Exception exception)
+    // The module whose code is closest to the throw point. For an exception
+    // that a module caught and reported, the last frame is the method that
+    // caught it, which is not where the error comes from.
+    private ModuleRuntime? Attribute(Exception exception, bool reported = false)
     {
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
             if (current is not (TargetInvocationException or TypeInitializationException or AggregateException or JobFailedException))
             {
-                foreach (StackFrame frame in new StackTrace(current, fNeedFileInfo: false).GetFrames())
+                StackFrame[] frames = new StackTrace(current, fNeedFileInfo: false).GetFrames();
+                int count = reported && current == exception ? Math.Max(0, frames.Length - 1) : frames.Length;
+                foreach (StackFrame frame in frames.AsSpan(0, count))
                 {
                     Assembly? assembly = frame.GetMethod()?.DeclaringType?.Assembly;
                     if (assembly is not null && _byAssembly.TryGetValue(assembly, out ModuleRuntime? module) && !module.Disabled)

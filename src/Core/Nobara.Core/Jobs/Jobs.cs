@@ -244,6 +244,106 @@ public sealed class JobData
     public override string ToString() => Name;
 }
 
+/// <summary>
+/// The data that code on a loop thread declares it reads and writes, such as
+/// a system of the simulation tick. In development mode, while the code runs
+/// inside <see cref="Enter"/>, touching other data throws.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Create it once with <see cref="ModuleJobs.DeclareLoopAccess"/>. Inside a
+/// scope, in development mode, <see cref="JobData.CheckRead"/> and
+/// <see cref="JobData.CheckWrite"/> on the same thread throw
+/// <see cref="JobAccessException"/> for data that is not declared, or that is
+/// declared as read only and written. Scheduling a job that declares data the
+/// scope does not declare throws too: the job works on behalf of the code.
+/// </para>
+/// <para>
+/// Outside development mode, <see cref="Enter"/> does nothing. Scopes nest:
+/// disposing one restores the previous one.
+/// </para>
+/// </remarks>
+public sealed class LoopAccess
+{
+    private readonly JobData[] _reads;
+    private readonly JobData[] _writes;
+
+    internal LoopAccess(JobScheduler scheduler, string name, string moduleId, JobData[] reads, JobData[] writes)
+    {
+        Scheduler = scheduler;
+        Name = name;
+        ModuleId = moduleId;
+        _reads = reads;
+        _writes = writes;
+    }
+
+    /// <summary>Gets the name of the code in error messages, such as <c>tick system 'example.farm.growth'</c>.</summary>
+    public string Name { get; }
+
+    /// <summary>Gets the module that declared the access.</summary>
+    public string ModuleId { get; }
+
+    /// <summary>Gets the data the code only reads.</summary>
+    public IReadOnlyList<JobData> Reads => _reads;
+
+    /// <summary>Gets the data the code writes, and may read.</summary>
+    public IReadOnlyList<JobData> Writes => _writes;
+
+    internal JobScheduler Scheduler { get; }
+
+    /// <summary>Starts a scope where the calling thread may touch only the declared data. Dispose it on the same thread.</summary>
+    /// <returns>The scope; it does nothing outside development mode.</returns>
+    /// <remarks>It allocates nothing, except the first time a thread enters a scope.</remarks>
+    [HotPath]
+    public LoopAccessScope Enter() => Scheduler.ChecksAccess ? Scheduler.EnterLoopAccess(this) : default;
+
+    [HotPath]
+    internal bool Allows(JobData data, bool write)
+    {
+        foreach (JobData candidate in _writes)
+        {
+            if (ReferenceEquals(candidate, data))
+            {
+                return true;
+            }
+        }
+
+        if (!write)
+        {
+            foreach (JobData candidate in _reads)
+            {
+                if (ReferenceEquals(candidate, data))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public override string ToString() => Name;
+}
+
+/// <summary>A scope opened by <see cref="LoopAccess.Enter"/>. Disposing it restores the previous scope of the thread.</summary>
+public readonly struct LoopAccessScope : IDisposable
+{
+    private readonly JobScheduler? _scheduler;
+    private readonly LoopAccess? _previous;
+
+    [HotPath]
+    internal LoopAccessScope(JobScheduler scheduler, LoopAccess? previous)
+    {
+        _scheduler = scheduler;
+        _previous = previous;
+    }
+
+    /// <summary>Ends the scope.</summary>
+    [HotPath]
+    public void Dispose() => _scheduler?.ExitLoopAccess(_previous);
+}
+
 /// <summary>Thrown, in development mode, when code touches data that it did not declare, or that a job in progress uses.</summary>
 public sealed class JobAccessException : Exception
 {

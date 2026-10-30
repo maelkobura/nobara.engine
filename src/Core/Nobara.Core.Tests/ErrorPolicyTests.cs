@@ -63,6 +63,33 @@ public sealed class ErrorPolicyTests : IDisposable
     }
 
     [Fact]
+    public void A_module_that_calls_code_of_another_module_reports_its_exceptions_under_the_policy_of_that_module()
+    {
+        var contexts = new Dictionary<string, ModuleContext>();
+        _distribution
+            .Module("example.crops", behavior: m => m.OnInitialize = c => contexts[c.Module.Id] = c)
+            .Module("example.weeds", behavior: m => m.OnInitialize = c => contexts[c.Module.Id] = c)
+            .Module("example.rocks", behavior: m => m.OnInitialize = c => contexts[c.Module.Id] = c)
+            .Policy("example.crops", F.Policy.Log)
+            .Policy("example.weeds", F.Policy.Disable);
+        using Engine engine = _distribution.Load();
+        EngineContext context = engine.MainContext;
+        context.Start();
+
+        contexts["example.crops"].ReportFault(new InvalidOperationException("blight"));
+        Assert.True(context.IsModuleActive("example.crops"));
+        Assert.Contains(_distribution.Log.Entries, e => e.Level == LogLevel.Error && e.Exception?.Message == "blight" && e.Message.Contains("'example.crops' threw during execution", StringComparison.Ordinal));
+
+        contexts["example.weeds"].ReportFault(new InvalidOperationException("drought"));
+        Assert.False(context.IsModuleActive("example.weeds"));
+        Assert.Equal(["example.weeds"], _distribution.Journal.Of("Release"));
+
+        EngineStopException stop = Assert.Throws<EngineStopException>(() => contexts["example.rocks"].ReportFault(new InvalidOperationException("landslide")));
+        Assert.Equal("example.rocks", stop.ModuleId);
+        Assert.Equal(LifecycleStep.Execution, stop.Step);
+    }
+
+    [Fact]
     public void Stops_the_context_runs_the_emergency_hooks_and_writes_a_crash_report()
     {
         EmergencyStop? received = null;

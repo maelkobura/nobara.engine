@@ -28,6 +28,7 @@ internal sealed class JobScheduler : IDisposable
     private readonly object _gate = new();
     private readonly Thread[] _workers;
     private readonly ThreadLocal<int> _running = new();
+    private readonly ThreadLocal<LoopAccess?> _loopAccess = new();
     private readonly Dictionary<Type, JobRunner> _runners = [];
     private readonly Dictionary<Type, JobRunner> _forRunners = [];
     private readonly Profiler _profiler;
@@ -99,6 +100,11 @@ internal sealed class JobScheduler : IDisposable
         where T : struct
     {
         RequireNotInJob("schedule a job");
+        if (ChecksAccess)
+        {
+            CheckWithinLoopAccess(runner, access);
+        }
+
         lock (_gate)
         {
             owner.RequireOpen();
@@ -239,6 +245,13 @@ internal sealed class JobScheduler : IDisposable
                 $"Job '{record.Runner?.Name}' of module '{record.Owner?.ModuleId}' {(write ? "writes" : "reads")} '{data.Name}', which it does not declare{(write ? " as written" : string.Empty)}. Declare it in the JobAccess of the job.");
         }
 
+        LoopAccess? scope = _loopAccess.Value;
+        if (scope is not null && !scope.Allows(data, write))
+        {
+            throw new JobAccessException(
+                $"The {scope.Name} of module '{scope.ModuleId}' {(write ? "writes" : "reads")} '{data.Name}', which it does not declare{(write ? " as written" : string.Empty)}. Declare it in its accesses.");
+        }
+
         lock (_gate)
         {
             if (!IsDoneLocked(data.LastWriter))
@@ -277,7 +290,19 @@ internal sealed class JobScheduler : IDisposable
         }
 
         _running.Dispose();
+        _loopAccess.Dispose();
     }
+
+    [HotPath]
+    public LoopAccessScope EnterLoopAccess(LoopAccess access)
+    {
+        LoopAccess? previous = _loopAccess.Value;
+        _loopAccess.Value = access;
+        return new LoopAccessScope(this, previous);
+    }
+
+    [HotPath]
+    public void ExitLoopAccess(LoopAccess? previous) => _loopAccess.Value = previous;
 
     private void Work()
     {
@@ -499,6 +524,35 @@ internal sealed class JobScheduler : IDisposable
             if (data.Scheduler != this)
             {
                 throw new ArgumentException($"Data '{data.Name}' belongs to another engine.", nameof(access));
+            }
+        }
+    }
+
+    // A job scheduled inside a loop access scope works on behalf of the code
+    // of the scope: it declares only data that the scope declares.
+    private void CheckWithinLoopAccess(JobRunner runner, in JobAccess access)
+    {
+        LoopAccess? scope = _loopAccess.Value;
+        if (scope is null)
+        {
+            return;
+        }
+
+        foreach (JobData data in access.Reads)
+        {
+            if (!scope.Allows(data, write: false))
+            {
+                throw new JobAccessException(
+                    $"The {scope.Name} of module '{scope.ModuleId}' schedules job '{runner.Name}', which reads '{data.Name}'; the {scope.Name} does not declare it.");
+            }
+        }
+
+        foreach (JobData data in access.Writes)
+        {
+            if (!scope.Allows(data, write: true))
+            {
+                throw new JobAccessException(
+                    $"The {scope.Name} of module '{scope.ModuleId}' schedules job '{runner.Name}', which writes '{data.Name}'; the {scope.Name} does not declare it as written.");
             }
         }
     }

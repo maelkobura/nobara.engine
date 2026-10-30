@@ -45,7 +45,7 @@ manifests, resources, and schemas.
 | `EngineContext.RunFrame()`, `EngineContext.Run()`, `EngineContext.RequestStop()` | Run one frame of the loop, run frames until a stop is requested, and request that stop. |
 | `IModule` | The code of a module, instantiated once per context. Each lifecycle step is a method that does nothing by default. |
 | `[assembly: ModuleEntry(typeof(...))]` | Names the class that implements `IModule` in the assembly of a module. |
-| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, its logger, the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
+| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), its logger, the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
 | `ModuleSettings` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, and the settings file. |
 | `ModuleResources`, `ResourceData`, `ResourceTag`, `FreeProperty` | `context.Resources`: decoders, decoded objects, loaded resources, tags, free properties, and binary files. |
 | `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
@@ -55,7 +55,7 @@ manifests, resources, and schemas.
 | `Engine.ReloadResources`, `ModuleResources.RegisterReloadHandler`, `ResourceReload` | [Reloading resources](#reloading-resources) while the game runs, in development mode. |
 | `EngineOptions.OnLoaded` | Code that `Engine.Run` calls once the engine is loaded, before the main context starts, such as a development tool. |
 | `ModuleJobs`, `IJob`, `IJobFor`, `JobHandle`, `JobPriority` | `context.Jobs`: jobs that run once or once per index, their dependencies, priorities, and waits. |
-| `JobAccess`, `JobData` | The data that a job reads and writes, and the checks of development mode. |
+| `JobAccess`, `JobData`, `LoopAccess` | The data that a job, or code on the loop thread, reads and writes, and the checks of development mode. |
 | `Profiler`, `ModuleProfiler`, `ProfilerMarker`, `ProfileEntry` | `Engine.Profiler` and `context.Profiler`: what each context, module, phase, job, and scope costs. |
 | `NativeArray<T>`, `ObjectPool<T>`, `BitSet`, `IntMath` | The low-level foundations, in `Nobara.Core.Memory`, `Nobara.Core.Collections`, and `Nobara.Core.Mathematics`. |
 | `Logger`, `ILogSink` | Structured logging. |
@@ -111,6 +111,9 @@ server.
 
 Each step runs for every module before the next step starts. Steps 6 and 7
 run for the modules that reached the matching earlier step.
+`context.LoadOrder` is the rank of the module in the load order of its
+context, from 0: a module that orders the code of other modules breaks ties
+with it.
 
 ### Loop
 
@@ -264,6 +267,25 @@ when a job touches data it did not declare, or declares as read only data it
 writes, and when a loop thread touches data that an unfinished job writes, or
 writes data that an unfinished job reads. Outside development mode, they
 return at once.
+
+Code that runs on the loop thread can declare its accesses too, such as a
+system of the simulation tick. The module declares them once, then runs the
+code inside the declaration:
+
+```csharp
+_access = context.Jobs.DeclareLoopAccess("tick system 'example.farm.growth'", reads: [_terrainData], writes: [_heightData]);
+
+using (_access.Enter())
+{
+    Grow();
+}
+```
+
+In development mode, inside the scope, `CheckRead` and `CheckWrite` on that
+thread throw `JobAccessException` for data that the declaration does not
+name, or names as read only and that is written, and scheduling a job that
+declares data outside the declaration throws too. Scopes nest. Outside
+development mode, `Enter` does nothing.
 
 Data that one job prepares for the loop thread, such as a chunk generated in
 the background, needs no declaration: the job works on its own copy, and the
@@ -539,6 +561,13 @@ Required modules and platform modules always use `Stop`. A cascade that would
 disable a module whose policy is `Stop` stops the context instead.
 
 Exceptions thrown during steps 6 and 7, and by emergency hooks, are logged.
+
+A module that calls code of other modules itself, such as the systems of the
+simulation tick, catches their exceptions and hands each one to
+`ModuleContext.ReportFault` on the context of the module it called, then goes
+on. The exception is charged as above, without counting the method that
+caught it, and the policy applies before the call returns: `Stop` throws
+`EngineStopException`, which the caller lets through.
 
 ### States
 
