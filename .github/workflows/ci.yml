@@ -28,11 +28,8 @@ jobs:
       - run: dotnet pack tools/Nobara.Sdk -c Release -o artifacts/packages --nologo
       # Writes obj/nobara/modules.props and fails when Nobara.slnx is out of date.
       - run: dotnet run --project tools/Nobara.Cli -- generate --check
-      - run: dotnet build Nobara.slnx --nologo -nodeReuse:false
-      # A lingering build node keeps the SDK assembly of the global packages
-      # folder open, and the SDK tests replace that folder when they pack.
-      - run: dotnet build-server shutdown
-      - run: dotnet test Nobara.slnx --no-build --nologo
+      - run: dotnet build Nobara.slnx --nologo
+      - run: dotnet test Nobara.slnx --nologo
 
   module-sheets:
     name: Module sheets
