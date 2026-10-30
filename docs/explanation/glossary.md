@@ -83,6 +83,12 @@ turn each loaded resource of the type into an object of the module. The core
 decodes each resource once per process. See [the core
 page](../../src/Core/README.md#loading-resources).
 
+### Deferred event
+
+An event that a module queues instead of emitting at once. The event bus hands
+it to its handlers after the simulation, on the loop thread. Any thread can
+queue one, jobs included. A deferred event cannot be cancelled.
+
 ### Development build
 
 A build of a target for development, made with `nobara build --development`:
@@ -129,10 +135,34 @@ and every module that requires it, or log and continue. The distribution
 chooses it for each module; required and platform modules always stop. See
 [the core](../../src/Core/README.md#error-policies).
 
+### Event
+
+A `struct` that a module declares to tell other modules that something
+happened or is about to happen, such as a player joining. Handlers receive it
+by reference, and an event that implements `ICancellable` can be cancelled.
+See [the nEvent module sheet](../../src/nEvent/README.md).
+
 ### Event bus
 
-A platform module that delivers decoupled notifications between modules. It
-is not used on hot paths.
+The part of a context that delivers events to their handlers, supplied by the
+platform module nEvent. It is not used on hot paths. See [the nEvent module
+sheet](../../src/nEvent/README.md).
+
+### Event handler
+
+The code that a module subscribes to the event bus for one type of event. A
+handler has a priority, and the module receives a handle that removes it. A
+handler that throws is logged with its module and the other handlers still
+run. Not to be confused with a phase handler, which a module subscribes to a
+phase of the loop.
+
+### Event priority
+
+The place of an event handler among the handlers of an event: `Lowest`,
+`Low`, `Normal`, `High`, `Highest`, then `Monitor`, which only reads the final
+event. Handlers run from the lowest priority to the highest, so the highest
+has the last word. Handlers of the same priority run in the load order of
+their modules, then in the order they subscribed.
 
 ### Extension
 
@@ -275,6 +305,12 @@ page](../../tools/Nobara.Sdk/README.md#local-modules).
 Where the core finds the modules of a distribution: one assembly per module in
 the `system/` and `game/` folders, or, on platforms without dynamic loading,
 modules compiled into the executable.
+
+### nEvent
+
+The platform module that supplies the event bus of each context: typed events,
+priorities, cancellation, synchronous and deferred delivery, and removable
+handlers. See [its module sheet](../../src/nEvent/README.md).
 
 ### nGame
 

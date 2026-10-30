@@ -186,7 +186,7 @@ internal sealed class SdkWorkspace : IDisposable
         string repository = FindRepositoryRoot();
         string feed = Path.Combine(Path.GetTempPath(), "nobara-sdk-tests", "feed-" + Guid.NewGuid().ToString("N"));
         var start = StartInfo(repository);
-        foreach (string argument in new[] { "pack", Path.Combine("tools", "Nobara.Sdk"), "-c", "Release", "-o", feed, "--nologo" })
+        foreach (string argument in new[] { "pack", Path.Combine("tools", "Nobara.Sdk"), "-c", "Release", "-o", feed, "--nologo", "-p:NobaraKeepCachedSdk=true" })
         {
             start.ArgumentList.Add(argument);
         }
