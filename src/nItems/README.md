@@ -227,3 +227,11 @@ refused with a warning and needs a restart of the context.
 - Uses are not predicted on the client, and the service sends no event on the
   event bus.
 - An item added or removed by a reload needs a restart of the context.
+- Durations are converted at the tick rate of the time they are loaded: a
+  change of the tick rate while the game runs does not convert them again.
+- A duration of 0 seconds reads as 0 ticks, which `UseResult.Prolong`
+  refuses: a handler answers `Handled` for such a value.
+- The items are read from the start of nItems on: a module cannot read them
+  while it initializes.
+- A handler added or removed after the registry froze rebuilds the tables at
+  once, even during the tick.
