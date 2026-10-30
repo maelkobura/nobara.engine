@@ -137,13 +137,50 @@ public sealed class ModuleContext
     }
 
     /// <summary>
-    /// Asks the context to stop after the frame that runs. For the main
-    /// context, the game ends. It can be called from any thread.
+    /// Stops the context after the frame that runs. For the main context, the
+    /// game ends. It can be called from any thread.
     /// </summary>
+    /// <remarks>
+    /// The stop is not handed to the module that intercepts stop requests
+    /// (<see cref="InterceptStopRequests"/>): a module calls this method once
+    /// the context has to stop.
+    /// </remarks>
     public void RequestStop()
     {
         Logger.Info($"Module '{Module.Id}' requests the {_context.Name} context to stop.");
-        _context.RequestStop();
+        _context.StopAfterFrame();
+    }
+
+    /// <summary>
+    /// Receives the stop requests of the context instead of letting it stop:
+    /// Ctrl+C, the cancellation of <see cref="EngineContext.Run"/>, and
+    /// <see cref="EngineContext.RequestStop"/>. The handler runs on the loop
+    /// thread at the start of the next frame, and the module stops the context
+    /// with <see cref="RequestStop"/> when it decides to.
+    /// </summary>
+    /// <param name="handler">The code to run for each request; an exception it throws is charged to this module.</param>
+    /// <remarks>
+    /// It is how the module that drives the states of the application lets the
+    /// active state decide what a stop request does. Requests made before the
+    /// handler runs are merged into one. When the module is disabled, requests
+    /// stop the context again.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The step is not <see cref="LifecycleStep.Registration"/>, the module
+    /// does not reserve <see cref="LoopReservations.Contexts"/>, or it already
+    /// intercepts stop requests.
+    /// </exception>
+    public void InterceptStopRequests(Action handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        RequireStep(LifecycleStep.Registration, "Stop requests are intercepted during registration");
+        if (!Module.Reservations.Contains(LoopReservations.Contexts, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Module '{Module.Id}' cannot intercept stop requests: only the module that reserves '{LoopReservations.Contexts}' can.");
+        }
+
+        _context.InterceptStopRequests(_runtime, handler);
     }
 
     /// <summary>

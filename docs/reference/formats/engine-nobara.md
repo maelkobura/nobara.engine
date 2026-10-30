@@ -54,7 +54,9 @@ attribute must be one of those listed on this page, except inside
 
 `client` and `server` attributes, at least one: the identifier of the initial
 context state of each side, such as `state:example.boot`. An active module of
-that side must provide the state.
+that side must provide the state. nContext enters it at the first frame, and
+refuses to start on a side that has none; see [its module
+sheet](../../../src/nContext/README.md#start-and-stop).
 
 ## `<ErrorPolicy>`
 
