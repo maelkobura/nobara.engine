@@ -12,11 +12,16 @@ namespace Nobara.Core.Loading;
 /// <summary>The identity of the game that a distribution describes.</summary>
 public sealed class DistributionInfo
 {
-    internal DistributionInfo(string id, string name, string version)
+    private readonly string? _clientState;
+    private readonly string? _serverState;
+
+    internal DistributionInfo(string id, string name, string version, string? clientState = null, string? serverState = null)
     {
         Id = id;
         Name = name;
         Version = version;
+        _clientState = string.IsNullOrEmpty(clientState) ? null : clientState;
+        _serverState = string.IsNullOrEmpty(serverState) ? null : serverState;
     }
 
     /// <summary>The name of the manifest resource of the entry assembly that holds the compiled distribution manifest.</summary>
@@ -30,6 +35,20 @@ public sealed class DistributionInfo
 
     /// <summary>Gets the version of the game.</summary>
     public string Version { get; }
+
+    /// <summary>
+    /// Gets the initial state of the application on a side, as
+    /// <c>&lt;States&gt;</c> of <c>engine.nobara</c> declares it, such as
+    /// <c>state:example.boot</c>.
+    /// </summary>
+    /// <param name="side"><see cref="Side.Client"/> or <see cref="Side.Server"/>.</param>
+    /// <returns>The identifier of the state, or <see langword="null"/> when the distribution declares none for the side.</returns>
+    public string? GetInitialState(Side side) => side switch
+    {
+        Side.Client => _clientState,
+        Side.Server => _serverState,
+        _ => null,
+    };
 }
 
 /// <summary>The compiled distribution manifest, read once per process.</summary>
@@ -42,7 +61,7 @@ internal sealed class Distribution
     private Distribution(F.DistributionManifest manifest)
     {
         Manifest = manifest;
-        Info = new DistributionInfo(manifest.Id, manifest.Name, manifest.Version);
+        Info = new DistributionInfo(manifest.Id, manifest.Name, manifest.Version, manifest.States?.Client, manifest.States?.Server);
         foreach (F.ModulePolicy policy in manifest.ErrorPolicy?.Modules ?? [])
         {
             _policies[policy.Module] = policy.Policy;

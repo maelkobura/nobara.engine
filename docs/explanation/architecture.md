@@ -222,9 +222,12 @@ than with the phase, and it receives the levers of the core on the tick:
 pause, time scale, and tick rate. Without `nGame`, the simulation phase is an
 ordinary phase that runs in real time at the declared rate, so the core also
 runs tools and auxiliary servers on its own. The module that drives the
-states of the application receives, the same way, the lever that creates and
-destroys contexts, and applies its transitions at the start of a frame. See
-[the core page](../../src/Core/README.md#loop).
+states of the application, `nContext`, reserves `core.contexts` the same way:
+it receives the lever that creates and destroys contexts, and the stop
+requests of its context, which it hands to the active state. It applies its
+transitions at the start of a frame, never during the tick. See [the core
+page](../../src/Core/README.md#loop) and [the nContext module
+sheet](../../src/nContext/README.md).
 
 ## Configuration
 

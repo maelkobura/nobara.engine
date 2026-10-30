@@ -45,7 +45,7 @@ manifests, resources, and schemas.
 | `EngineContext.RunFrame()`, `EngineContext.Run()`, `EngineContext.RequestStop()` | Run one frame of the loop, run frames until a stop is requested, and request that stop. |
 | `IModule` | The code of a module, instantiated once per context. Each lifecycle step is a method that does nothing by default. |
 | `[assembly: ModuleEntry(typeof(...))]` | Names the class that implements `IModule` in the assembly of a module. |
-| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), its logger, the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
+| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `InterceptStopRequests`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), its logger, the identity of the game and its initial states (`Distribution`), the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
 | `ModuleSettings` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, and the settings file. |
 | `ModuleResources`, `ResourceData`, `ResourceTag`, `FreeProperty` | `context.Resources`: decoders, decoded objects, loaded resources, tags, free properties, and binary files. |
 | `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
@@ -77,7 +77,10 @@ public static int Main() => Engine.Run(new EngineOptions { Side = Side.Client })
 
 `Engine.Run` loads the engine, starts the main context, runs its loop on the
 calling thread until a module calls `RequestStop` or Ctrl+C is pressed, stops
-the context, and returns 0. It returns 1 when the distribution cannot start or
+the context, and returns 0. When a module intercepts stop requests, Ctrl+C
+goes to that module, which stops the context when it decides to (see
+[Reserved phases and levers](#reserved-phases-and-levers)); a second Ctrl+C
+ends the process. It returns 1 when the distribution cannot start or
 a module stops the game on an error; the logs and the crash report say why.
 
 A host that drives the frames itself, such as a test, loads the engine
@@ -167,6 +170,7 @@ The levers of the core go to the modules that hold the matching reservation:
 | --- | --- | --- |
 | `context.Loop.GetTickControl()` | a fixed phase, such as `loop.simulation` | `Paused` suspends the fixed phases; `TimeScale` changes how fast time accumulates, so the number of ticks per second, and not the duration of a tick; `TickRate` changes the duration of a tick. The time scale goes up to 100 and the tick rate up to 1000 ticks per second. Changes take effect at the next frame. |
 | `context.GetContextControl()` | `core.contexts` | Creates and destroys the server context of an integrated server. This version runs only the main context. |
+| `context.InterceptStopRequests(handler)` | `core.contexts` | Hands the stop requests of the context to the module instead of stopping it: Ctrl+C, the cancellation of `Run`, and `EngineContext.RequestStop`. The handler runs on the loop thread at the start of the next frame; requests made before it runs are merged. The module stops the context with `ModuleContext.RequestStop`, which is never intercepted. Called during registration. |
 
 ### Synchronization point
 
@@ -575,6 +579,9 @@ The module that owns the states of the application calls
 `ModuleContext.VerifyStates` with every state registered in code. The core
 compares them with the states that the active modules of the context declare
 on its side, and throws `StateMismatchException` on any difference.
+`context.Distribution.GetInitialState(side)` gives the initial state that
+`<States>` of `engine.nobara` declares for a side, or `null`. The module that
+does this in a game is [nContext](../nContext/README.md).
 
 ## Events
 

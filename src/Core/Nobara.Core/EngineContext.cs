@@ -59,6 +59,9 @@ public sealed class EngineContext
     private readonly PhaseTracker _phase = new();
     private readonly ContextLoop _loop;
     private volatile bool _stopRequested;
+    private volatile ModuleRuntime? _stopInterceptor;
+    private Action? _stopHandler;
+    private int _stopRequestPending;
     private bool _inFrame;
 
     internal EngineContext(Engine engine, Side side)
@@ -128,7 +131,7 @@ public sealed class EngineContext
     /// <summary>Gets the number of the last tick that ran, or 0.</summary>
     public ulong Tick => _loop.Tick;
 
-    /// <summary>Gets whether <see cref="RequestStop"/> was called.</summary>
+    /// <summary>Gets whether the context stops after the frame that runs.</summary>
     public bool IsStopRequested => _stopRequested;
 
     internal ServiceRegistry Services { get; }
@@ -287,8 +290,53 @@ public sealed class EngineContext
         }
     }
 
-    /// <summary>Asks <see cref="Run"/> to stop the context after the frame that runs. It can be called from any thread.</summary>
-    public void RequestStop() => _stopRequested = true;
+    /// <summary>
+    /// Asks <see cref="Run"/> to stop the context after the frame that runs.
+    /// It can be called from any thread. Ctrl+C and the cancellation of
+    /// <see cref="Run"/> call it.
+    /// </summary>
+    /// <remarks>
+    /// When a module intercepts the stop requests of the context
+    /// (<see cref="ModuleContext.InterceptStopRequests"/>), the request goes to
+    /// that module instead, on the loop thread at the start of the next frame,
+    /// and the module decides when the context stops. Requests made before it
+    /// receives one are merged into it.
+    /// </remarks>
+    public void RequestStop()
+    {
+        ModuleRuntime? interceptor = _stopInterceptor;
+        if (interceptor is null || interceptor.Disabled || State is ContextState.Stopping or ContextState.Stopped)
+        {
+            _stopRequested = true;
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _stopRequestPending, 1) == 0)
+        {
+            _loop.Post(interceptor, static context => ((EngineContext)context!).DeliverStopRequest(), this);
+        }
+    }
+
+    /// <summary>Stops the context after the frame that runs, whoever intercepts stop requests.</summary>
+    internal void StopAfterFrame() => _stopRequested = true;
+
+    internal void InterceptStopRequests(ModuleRuntime module, Action handler)
+    {
+        if (_stopInterceptor is not null)
+        {
+            throw new InvalidOperationException($"Module '{_stopInterceptor.Info.Id}' already intercepts the stop requests of the {Name} context.");
+        }
+
+        _stopHandler = handler;
+        _stopInterceptor = module;
+    }
+
+    private void DeliverStopRequest()
+    {
+        Volatile.Write(ref _stopRequestPending, 0);
+        Logger.Info($"A stop of the {Name} context is requested; module '{_stopInterceptor!.Info.Id}' decides when it stops.");
+        _stopHandler!();
+    }
 
     /// <summary>Runs steps 6 and 7 for every active module of the context, in reverse load order.</summary>
     /// <remarks>

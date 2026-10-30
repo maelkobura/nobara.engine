@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using Nobara.Core.Loading;
 using Nobara.Core.Loop;
 using Nobara.Core.Tests.Support;
 
@@ -150,6 +151,111 @@ public sealed class LeverTests : IDisposable
         Assert.Throws<NotSupportedException>(control.CreateIntegratedServer);
         Assert.Contains(_distribution.Log.Entries, e => e.Source == "example.other" && e.Exception?.Message ==
             "Module 'example.other' cannot create or destroy contexts: only the module that reserves 'core.contexts' can.");
+    }
+
+    [Fact]
+    public void Gives_the_initial_state_of_each_side()
+    {
+        DistributionInfo? info = null;
+        _distribution.Configure = d => d.States = new Nobara.Formats.InitialStates { Client = "state:example.boot" };
+        using Engine engine = _distribution.Module("example.flow", behavior: m => m.OnInitialize = c => info = c.Distribution).Load();
+        engine.MainContext.Start();
+
+        Assert.Equal("state:example.boot", info!.GetInitialState(Side.Client));
+        Assert.Null(info.GetInitialState(Side.Server));
+        Assert.Null(info.GetInitialState(Side.Both));
+    }
+
+    [Fact]
+    public void An_intercepted_stop_request_reaches_the_module_at_the_next_frame_and_the_context_goes_on()
+    {
+        ModuleContext flow = null!;
+        var received = new List<ulong>();
+        using Engine engine = _distribution
+            .Module("example.flow", m => m.Reserves.Add(LoopReservations.Contexts), m => m.OnRegister = c =>
+            {
+                flow = c;
+                c.InterceptStopRequests(() => received.Add(flow.Loop.Frame));
+            })
+            .Load();
+        engine.MainContext.Start();
+
+        engine.MainContext.RequestStop();
+        engine.MainContext.RequestStop();
+        Assert.False(engine.MainContext.IsStopRequested);
+        Assert.Empty(received);
+
+        engine.MainContext.RunFrame();
+        Assert.Equal([1UL], received);
+        Assert.False(engine.MainContext.IsStopRequested);
+
+        engine.MainContext.RequestStop();
+        engine.MainContext.RunFrame();
+        Assert.Equal([1UL, 2UL], received);
+
+        // The module stops the context itself.
+        flow.RequestStop();
+        Assert.True(engine.MainContext.IsStopRequested);
+    }
+
+    [Fact]
+    public void Run_ends_when_the_module_that_intercepts_stop_requests_stops_the_context()
+    {
+        ModuleContext flow = null!;
+        using var cancellation = new CancellationTokenSource();
+        int frames = 0;
+        using Engine engine = _distribution
+            .Module("example.flow", m => m.Reserves.Add(LoopReservations.Contexts), m => m.OnRegister = c =>
+            {
+                flow = c;
+                c.InterceptStopRequests(() => flow.RequestStop());
+                c.Loop.SubscribeFrameStart(new PhaseHandler(_ =>
+                {
+                    if (++frames == 3)
+                    {
+                        cancellation.Cancel();
+                    }
+                }));
+            })
+            .Load();
+
+        engine.MainContext.Run(cancellation.Token);
+
+        // The cancellation at frame 3 reaches the module at frame 4, which stops the context after it.
+        Assert.Equal(4, frames);
+        Assert.Equal(ContextState.Stopped, engine.MainContext.State);
+    }
+
+    [Fact]
+    public void Only_the_module_that_reserves_the_contexts_intercepts_stop_requests()
+    {
+        using Engine engine = _distribution.Module("example.other", behavior: m => m.OnRegister = c => c.InterceptStopRequests(() => { })).Load();
+
+        EngineStopException stop = Assert.Throws<EngineStopException>(engine.MainContext.Start);
+
+        Assert.Equal(
+            "Module 'example.other' cannot intercept stop requests: only the module that reserves 'core.contexts' can.",
+            stop.InnerException!.Message);
+    }
+
+    [Fact]
+    public void Stop_requests_stop_the_context_again_once_the_module_that_intercepts_them_is_disabled()
+    {
+        using Engine engine = _distribution
+            .Module("example.flow", m => m.Reserves.Add(LoopReservations.Contexts), m => m.OnRegister = c =>
+            {
+                c.InterceptStopRequests(() => { });
+                c.Loop.Subscribe("Input", new PhaseHandler(_ => throw new InvalidOperationException("broken")));
+            })
+            .Policy("example.flow", Nobara.Formats.Policy.Disable)
+            .Load();
+        engine.MainContext.Start();
+
+        engine.MainContext.RunFrame();
+        engine.MainContext.RequestStop();
+
+        Assert.False(engine.MainContext.IsModuleActive("example.flow"));
+        Assert.True(engine.MainContext.IsStopRequested);
     }
 }
 

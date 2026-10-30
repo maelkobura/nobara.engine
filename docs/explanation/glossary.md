@@ -206,6 +206,13 @@ The compiled form of XML content whose schema the compiler does not know: an
 element with its attributes, children, typed values, and positions. It holds
 components, free properties, and module configurations.
 
+### Global event
+
+Something that happens to the whole application, such as a stop request,
+which the active state of the state stack decides about first. When the state
+does not handle it, its default action applies. See [the nContext module
+sheet](../../src/nContext/README.md#global-events).
+
 ### Grid
 
 A set of voxels organized in chunks, such as a world dimension. A grid is an
@@ -259,8 +266,8 @@ business. The core uses it only for load order and for the dependency rule.
 ### Lever
 
 A control that the core grants to the module that holds the matching
-reservation: the tick levers (pause, time scale, tick rate) and the lever on
-contexts. See [the core page](../../src/Core/README.md#reserved-phases-and-levers).
+reservation: the tick levers (pause, time scale, tick rate), the lever on
+contexts, and the interception of stop requests. See [the core page](../../src/Core/README.md#reserved-phases-and-levers).
 
 ### Lifecycle
 
@@ -324,6 +331,13 @@ page](../../tools/Nobara.Sdk/README.md#local-modules).
 Where the core finds the modules of a distribution: one assembly per module in
 the `system/` and `game/` folders, or, on platforms without dynamic loading,
 modules compiled into the executable.
+
+### nContext
+
+The platform module that drives the states of the application: it keeps the
+state stack of each context, applies the transitions at the start of a frame,
+and hands stop requests to the active state. See [its module
+sheet](../../src/nContext/README.md).
 
 ### nEvent
 
@@ -466,6 +480,29 @@ stages that modules or the distribution insert. A stage holds no code. See
 `Engine.Run`, which every `main()` of a game calls: it loads the engine,
 runs the loop of the main context, and returns the exit code of the
 process.
+
+### State
+
+A step of the path of the application, such as a main menu, a loading screen,
+the game, or a pause menu: a class that a module provides, declares in its
+manifest under an identifier such as `state:example.menu`, and registers with
+nContext. Not to be confused with the state of a module, its data. See [the
+nContext module sheet](../../src/nContext/README.md#states).
+
+### State stack
+
+The states of a context in a stack: the state at the top is the active state,
+and the states below it are suspended or keep running. Transitions push, pop,
+or replace states at the start of a frame, and the context stops when the
+stack becomes empty. See [the nContext module
+sheet](../../src/nContext/README.md#the-stack).
+
+### Stop request
+
+A request to stop a context that comes from outside its modules: Ctrl+C, or
+the host of the engine. The module that intercepts stop requests receives it
+instead, and nContext hands it to the active state. See [the core
+page](../../src/Core/README.md#reserved-phases-and-levers).
 
 ### Synchronization point
 
