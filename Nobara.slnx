@@ -17,6 +17,12 @@
     <Project Path="src/nEvent/Nobara.Event/Nobara.Event.csproj" />
     <Project Path="src/nEvent/Nobara.Event.Tests/Nobara.Event.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nFrames/">
+    <Project Path="src/nFrames/Nobara.Frames/Nobara.Frames.csproj" />
+    <Project Path="src/nFrames/Nobara.Frames.SDL2/Nobara.Frames.SDL2.csproj" />
+    <Project Path="src/nFrames/Nobara.Frames.SDL2.Tests/Nobara.Frames.SDL2.Tests.csproj" />
+    <Project Path="src/nFrames/Nobara.Frames.Tests/Nobara.Frames.Tests.csproj" />
+  </Folder>
   <Folder Name="/src/nGame/">
     <Project Path="src/nGame/Nobara.Game/Nobara.Game.csproj" />
     <Project Path="src/nGame/Nobara.Game.Tests/Nobara.Game.Tests.csproj" />
