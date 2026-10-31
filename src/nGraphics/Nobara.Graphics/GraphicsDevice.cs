@@ -132,7 +132,7 @@ public abstract class GraphicsDevice : IDisposable
             Capabilities.Require(GraphicsFeatures.DrawIndirect, $"Indirect buffer '{description.Name}'");
         }
 
-        return Track(new GpuBuffer(this, description, _memory, _memory.Allocate(description.Size)));
+        return Track(new GpuBuffer(this, description, _memory, _memory.Allocate(description.Size, description.Dedicated)));
     }
 
     /// <summary>Creates a texture, its content undefined.</summary>

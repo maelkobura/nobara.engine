@@ -50,7 +50,6 @@ internal sealed unsafe class GLDevice : GraphicsDevice
         gl.ClipControl(GLEnum.LowerLeft, GLEnum.ZeroToOne);
         gl.PixelStore(GLEnum.UnpackAlignment, 1);
         gl.PixelStore(GLEnum.PackAlignment, 1);
-        gl.Enable(GLEnum.TextureCubeMapSeamless);
 
         _swapchainFramebuffer = new GLFramebuffer(this, size.Width, size.Height);
         AttachSwapchain(_swapchainFramebuffer, ApplyVSync(options.VSync));

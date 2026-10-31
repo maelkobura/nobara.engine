@@ -173,6 +173,7 @@ public sealed class CommandBuffer
     private ComputePipeline? _compute;
     private int _setMask;
     private bool _indexBuffer;
+    private bool _indexAtBlockStart;
     private int _debugDepth;
 
     internal CommandBuffer(GraphicsDevice device, string? name)
@@ -399,6 +400,7 @@ public sealed class CommandBuffer
 
         Add(new Command(CommandKind.SetIndexBuffer, AddObject(buffer), a: (int)format, x: offset));
         _indexBuffer = true;
+        _indexAtBlockStart = buffer.Offset == 0 && offset == 0;
     }
 
     /// <summary>Sets the viewport, inside a render pass. A pass begins with a viewport that covers the framebuffer.</summary>
@@ -471,7 +473,13 @@ public sealed class CommandBuffer
         Add(new Command(CommandKind.DrawIndirect, AddObject(arguments), a: drawCount, b: stride, x: offset));
     }
 
-    /// <summary>Draws indexed with arguments read from a buffer. Requires <see cref="GraphicsFeatures.DrawIndirect"/>.</summary>
+    /// <summary>
+    /// Draws indexed with arguments read from a buffer. Requires
+    /// <see cref="GraphicsFeatures.DrawIndirect"/>, and an index buffer
+    /// created with <see cref="BufferDescription.Dedicated"/> and bound at
+    /// offset 0: the first index of the arguments counts from the start of
+    /// its memory block.
+    /// </summary>
     /// <param name="arguments">A buffer with <see cref="BufferUsage.Indirect"/> that holds the arguments, five 32-bit integers per draw.</param>
     /// <param name="offset">The byte of the first arguments; a multiple of 4.</param>
     /// <param name="drawCount">The number of draws.</param>
@@ -484,6 +492,11 @@ public sealed class CommandBuffer
         if (!_indexBuffer)
         {
             throw new InvalidOperationException("Bind an index buffer before an indexed draw.");
+        }
+
+        if (!_indexAtBlockStart)
+        {
+            throw new InvalidOperationException("An indexed indirect draw reads indices from the start of a memory block: create the index buffer with BufferDescription.Dedicated and bind it at offset 0.");
         }
 
         Add(new Command(CommandKind.DrawIndexedIndirect, AddObject(arguments), a: drawCount, b: stride, x: offset));

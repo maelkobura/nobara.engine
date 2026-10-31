@@ -34,6 +34,14 @@ public enum BufferUsage
 /// <param name="Usage">How the buffer is used.</param>
 public readonly record struct BufferDescription(long Size, BufferUsage Usage)
 {
+    /// <summary>
+    /// Gets whether the buffer has a block of memory of its own, at offset 0,
+    /// instead of a range of a shared block. An index buffer read by
+    /// <see cref="CommandBuffer.DrawIndexedIndirect"/> needs it: the first
+    /// index of indirect arguments counts from the start of the block.
+    /// </summary>
+    public bool Dedicated { get; init; }
+
     /// <summary>Gets the debug name shown by capture tools, or <see langword="null"/>.</summary>
     public string? Name { get; init; }
 }

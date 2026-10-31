@@ -27,6 +27,7 @@ public sealed class SpirVBenchTests(ITestOutputHelper output)
         ("Storage buffer in a fragment shader", "read-only std430 buffer", Scenes.StorageBufferInFragment),
         ("Compute shader writing a storage buffer", "compute shader, read-write std430 buffer, uniform buffer, read-back", Scenes.ComputeStorageBuffer),
         ("Compute shader writing a storage texture", "compute shader, rgba8 image2D, read-back", Scenes.ComputeStorageTexture),
+        ("Indirect draws and dispatch", "draw, indexed draw, and dispatch arguments read from a buffer, gl_BaseInstance", Scenes.Indirect),
     ];
 
     [Fact]

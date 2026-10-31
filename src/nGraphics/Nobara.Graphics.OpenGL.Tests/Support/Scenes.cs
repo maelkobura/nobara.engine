@@ -265,6 +265,116 @@ internal static class Scenes
         }
     }
 
+    /// <summary>
+    /// Draws the left third of the target with an indirect draw, the two other
+    /// thirds with an indexed indirect draw, and reads the color of the right
+    /// third from a buffer that a compute shader, started by an indirect
+    /// dispatch, wrote. The arguments sit at offsets that are not 0.
+    /// </summary>
+    public static void Indirect(GraphicsDevice device)
+    {
+        using var scene = new SceneResources(device);
+
+        // Taken first, so the arguments below sit further in the shared block.
+        scene.Add(device.CreateBuffer(new BufferDescription(64, BufferUsage.Vertex) { Name = "padding" }));
+        GpuBuffer arguments = scene.Add(device.CreateBuffer(new BufferDescription(256, BufferUsage.Indirect | BufferUsage.Storage) { Name = "arguments" }));
+        if (arguments.Offset == 0)
+        {
+            throw new Xunit.Sdk.XunitException("indirect: the arguments should not start their block.");
+        }
+
+        // At byte 16: a draw (count, instances, first, base instance); at 48: an indexed draw
+        // (count, instances, first index, base vertex, base instance); at 96: a dispatch.
+        uint[] args = new uint[64];
+        new uint[] { 3, 1, 0, 0 }.CopyTo(args, 4);
+        new uint[] { 3, 1, 3, 0, 1 }.CopyTo(args, 12);
+        new uint[] { 1, 1, 1 }.CopyTo(args, 24);
+        device.UpdateBuffer(arguments, 0, MemoryMarshal.AsBytes<uint>(args));
+
+        // The indexed draw starts at index 3: the first three indices would land off screen.
+        GpuBuffer indices = scene.Add(device.CreateBuffer(new BufferDescription(24, BufferUsage.Index) { Name = "indices", Dedicated = true }));
+        device.UpdateBuffer(indices, 0, MemoryMarshal.AsBytes<uint>([7, 7, 7, 0, 1, 2]));
+
+        GpuBuffer colors = scene.Add(device.CreateBuffer(new BufferDescription(48, BufferUsage.Storage) { Name = "colors" }));
+        device.UpdateBuffer(colors, 0, MemoryMarshal.AsBytes<float>([1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0]));
+        ResourceLayout computeLayout = scene.Add(device.CreateResourceLayout(new ResourceLayoutDescription([new(0, ResourceKind.ReadWriteStorageBuffer, ShaderStages.Compute)])));
+        ResourceSet computeSet = scene.Add(device.CreateResourceSet(new ResourceSetDescription(computeLayout, [BoundResource.Of(colors)])));
+        ComputePipeline blue = scene.Add(device.CreateComputePipeline(new ComputePipelineDescription(
+            scene.Add(SpirV.Load(device, ShaderStages.Compute, """
+                #version 450
+                layout(local_size_x = 1) in;
+                layout(std430, binding = 0) buffer Colors { vec4 colors[3]; };
+                void main() { colors[2] = vec4(0.0, 0.0, 1.0, 1.0); }
+                """, "blue.comp")),
+            [computeLayout]) { Name = "blue" }));
+
+        ResourceLayout layout = scene.Add(device.CreateResourceLayout(new ResourceLayoutDescription([new(0, ResourceKind.ReadOnlyStorageBuffer, ShaderStages.Fragment)])));
+        ResourceSet set = scene.Add(device.CreateResourceSet(new ResourceSetDescription(layout, [BoundResource.Of(colors)])));
+        GraphicsPipeline pipeline = scene.Add(device.CreateGraphicsPipeline(new GraphicsPipelineDescription
+        {
+            // The base instance says which draw this is; the vertex index, the corner of a full-screen triangle.
+            VertexShader = scene.Add(SpirV.Load(device, ShaderStages.Vertex, """
+                #version 460
+                layout(location = 0) out vec2 uv;
+                layout(location = 1) flat out int draw;
+                void main()
+                {
+                    vec2 p = gl_VertexID > 2 ? vec2(-10.0) : vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+                    uv = p;
+                    draw = gl_InstanceID + gl_BaseInstance;
+                    gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+                }
+                """, "indirect.vert")),
+            FragmentShader = scene.Add(SpirV.Load(device, ShaderStages.Fragment, """
+                #version 450
+                layout(location = 0) in vec2 uv;
+                layout(location = 1) flat in int draw;
+                layout(location = 0) out vec4 color;
+                layout(std430, binding = 0) readonly buffer Colors { vec4 colors[3]; };
+                void main()
+                {
+                    int third = int(uv.x * 3.0);
+                    if ((draw == 0) != (third == 0)) discard;
+                    color = colors[third];
+                }
+                """, "indirect.frag")),
+            ResourceLayouts = [layout],
+            Outputs = new([PixelFormat.Rgba8Unorm]),
+            Rasterizer = new RasterizerState { CullMode = CullMode.None },
+            Name = "indirect",
+        }));
+
+        scene.Run(commands =>
+        {
+            commands.SetPipeline(blue);
+            commands.SetResourceSet(0, computeSet);
+            commands.DispatchIndirect(arguments, 96);
+            commands.Barrier(BarrierScope.StorageBuffer);
+        });
+
+        byte[] pixels = scene.Render(commands =>
+        {
+            commands.SetPipeline(pipeline);
+            commands.SetResourceSet(0, set);
+            commands.DrawIndirect(arguments, 16, 1);
+            commands.SetIndexBuffer(indices, IndexFormat.UInt32);
+            commands.DrawIndexedIndirect(arguments, 48, 1);
+        });
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                if (x is 21 or 42)
+                {
+                    continue; // the borders of the thirds
+                }
+
+                AssertPixel(pixels, x, y, Palette[x * 3 / Size], 0, "indirect draws and dispatch");
+            }
+        }
+    }
+
     private static void AssertStripes(byte[] pixels, bool vertical, string scene)
     {
         for (int y = 0; y < Size; y++)

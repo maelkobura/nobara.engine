@@ -42,6 +42,16 @@ public sealed class MemoryTests
     }
 
     [Fact]
+    public void A_dedicated_buffer_has_a_block_of_its_own_however_small()
+    {
+        _device.CreateBuffer(new BufferDescription(64, BufferUsage.Vertex));
+        GpuBuffer indices = _device.CreateBuffer(new BufferDescription(64, BufferUsage.Index) { Dedicated = true });
+        Assert.Equal(0, indices.Offset);
+        Assert.Equal(64, indices.Block.Size);
+        Assert.Equal(1, _device.Memory.DedicatedBlockCount);
+    }
+
+    [Fact]
     public void Freed_ranges_merge_and_are_reused()
     {
         GpuBuffer a = _device.CreateBuffer(new BufferDescription(256, BufferUsage.Vertex));

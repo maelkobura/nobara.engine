@@ -145,6 +145,18 @@ public sealed class CommandBufferTests
         Assert.Throws<InvalidOperationException>(() => _commands.DrawIndirect(vertices, 0, 1));
         Assert.Throws<InvalidOperationException>(() => _commands.DrawIndirect(arguments, 2, 1));
         _commands.DrawIndirect(arguments, 0, 2, 16);
+
+        // Indexed indirect draws read indices from the start of a block: a shared range is refused.
+        GpuBuffer shared = _device.CreateBuffer(new BufferDescription(64, BufferUsage.Index));
+        GpuBuffer dedicated = _device.CreateBuffer(new BufferDescription(64, BufferUsage.Index) { Dedicated = true });
+        Assert.NotEqual(0, shared.Offset);
+        _commands.SetIndexBuffer(shared, IndexFormat.UInt32);
+        Assert.Throws<InvalidOperationException>(() => _commands.DrawIndexedIndirect(arguments, 0, 1));
+        _commands.SetIndexBuffer(dedicated, IndexFormat.UInt32, offset: 4);
+        Assert.Throws<InvalidOperationException>(() => _commands.DrawIndexedIndirect(arguments, 0, 1));
+        _commands.SetIndexBuffer(dedicated, IndexFormat.UInt32);
+        _commands.DrawIndexedIndirect(arguments, 0, 1);
+        Assert.Equal(0, dedicated.Offset);
     }
 
     [Fact]

@@ -45,6 +45,12 @@ public sealed class OpenGLDeviceTests : IDisposable
     }
 
     [Fact]
+    public void Runs_indirect_draws_and_dispatches_with_arguments_inside_a_shared_block()
+    {
+        Scenes.Indirect(_harness.Device);
+    }
+
+    [Fact]
     public void Refuses_a_SPIR_V_module_the_driver_cannot_load()
     {
         byte[] code = SpirV.Compile(ShaderStages.Vertex, "#version 450\nvoid main() { gl_Position = vec4(0.0); }");

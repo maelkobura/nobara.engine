@@ -176,7 +176,8 @@ lost, `BeginFrame` returns `false`: draw nothing to the swapchain, and
 ### Memory
 
 Buffers are ranges of large blocks of GPU memory, 16 MiB each, shared by
-buffers up to 4 MiB; a larger buffer has a block of its own. A block left
+buffers up to 4 MiB; a larger buffer, or one created with
+`BufferDescription.Dedicated`, has a block of its own. A block left
 empty is destroyed, except the last shared one. `Memory` gives the count of
 blocks and the bytes used.
 
@@ -205,7 +206,8 @@ from the bottom.
 
 Emitted: none.
 
-Listened to: the events of the window of nFrames, through its service:
+Listened to: the events of the window of nFrames, through a subscription to
+its service, delivered synchronously at the start of each frame:
 `Resized`, `ScaleChanged`, `ModeChanged`, `Minimized`, `Restored`,
 `SurfaceLost`, and `SurfaceRecreated`.
 
@@ -256,6 +258,13 @@ None.
 - No specialization constants, no push constants, no cube maps, no
   multisampling, no stencil test, and no texture-to-texture copies.
 - Storage textures bind level 0 of every layer.
+- An indexed indirect draw needs an index buffer created with
+  `BufferDescription.Dedicated` and bound at offset 0: OpenGL counts the first
+  index of indirect arguments from the start of the buffer object.
+- The OpenGL backend keeps the UTF-8 bytes of each distinct debug group or
+  marker name: names built at run time grow that cache.
+- The OpenGL context is created without the debug flag; debug groups and
+  object labels still reach capture tools.
 - A device creates no GPU fence between submissions of the same frame: the
   order of OpenGL keeps them in sequence.
 - Hardware ray tracing is a capability that no backend reports yet.

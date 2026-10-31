@@ -60,10 +60,10 @@ internal sealed class GpuMemoryAllocator
         }
     }
 
-    public GpuAllocation Allocate(long size)
+    public GpuAllocation Allocate(long size, bool dedicated = false)
     {
         long aligned = Align(size);
-        if (aligned > BlockSize / 4)
+        if (dedicated || aligned > BlockSize / 4)
         {
             GpuMemoryBlock own = _createBlock(size);
             _dedicated++;
