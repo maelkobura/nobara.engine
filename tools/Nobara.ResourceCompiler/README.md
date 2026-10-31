@@ -118,6 +118,11 @@ public sealed class BlockPlugin : ResourcePlugin
 `PluginLoader` loads plugin assemblies from memory, in an
 `AssemblyLoadContext` of their own that shares this library and
 `Google.Protobuf` with the compiler, so the files stay free to be rebuilt.
+The other dependencies of a plugin come from the host when the host has them
+in the version the plugin needs or a later one, such as the .NET libraries,
+and otherwise from the folder of the plugin, then from the probe folders. A probe folder that holds a copy of the .NET
+libraries, such as the folder of a self-contained game, therefore gives the
+plugins the same types as the compiler.
 
 ## Manifests and distributions
 

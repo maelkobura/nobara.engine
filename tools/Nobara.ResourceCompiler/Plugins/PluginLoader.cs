@@ -27,7 +27,11 @@ public sealed class PluginLoader : IDisposable
 
     /// <summary>Loads plugin assemblies and creates the plugins they declare with <see cref="ResourcePluginAttribute"/>.</summary>
     /// <param name="assemblies">The full paths of the plugin assemblies.</param>
-    /// <param name="probeDirectories">Folders searched for the dependencies of the plugins, after the folder of each plugin.</param>
+    /// <param name="probeDirectories">
+    /// Folders searched for the dependencies of the plugins, after the folder
+    /// of each plugin. The assemblies of the host, such as the .NET libraries,
+    /// always come from the host, even when a folder holds a copy of them.
+    /// </param>
     /// <param name="diagnostics">Receives a problem for each assembly or type that cannot be used.</param>
     /// <returns>The loader; dispose it once the compilation ends.</returns>
     public static PluginLoader Load(IEnumerable<string> assemblies, IEnumerable<string> probeDirectories, DiagnosticBag diagnostics)
@@ -95,10 +99,22 @@ public sealed class PluginLoader : IDisposable
 
         private readonly IReadOnlyList<string> _directories;
 
+        // The assemblies of the host: the .NET libraries and those of the
+        // application. A probe folder may hold copies of them, such as the
+        // folder of a self-contained game; loading such a copy here would give
+        // the plugins types that differ from the compiler's, such as XElement.
+        // Their paths, by name.
+        private readonly Dictionary<string, string> _host = new(StringComparer.OrdinalIgnoreCase);
+
         public PluginContext(IReadOnlyList<string> directories)
             : base("Nobara resource plugins", isCollectible: true)
         {
             _directories = directories;
+            string platform = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;
+            foreach (string path in platform.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                _host.TryAdd(Path.GetFileNameWithoutExtension(path), path);
+            }
         }
 
         public Assembly LoadFromPath(string path)
@@ -117,6 +133,13 @@ public sealed class PluginLoader : IDisposable
                 }
             }
 
+            // The default context resolves the assemblies of the host, unless
+            // the plugin needs a later version than the host has.
+            if (name.Name is not null && _host.TryGetValue(name.Name, out string? hostPath) && HostSatisfies(hostPath, name))
+            {
+                return null;
+            }
+
             foreach (string directory in _directories)
             {
                 string candidate = Path.Combine(directory, name.Name + ".dll");
@@ -127,6 +150,23 @@ public sealed class PluginLoader : IDisposable
             }
 
             return null;
+        }
+
+        private static bool HostSatisfies(string hostPath, AssemblyName requested)
+        {
+            if (requested.Version is null)
+            {
+                return true;
+            }
+
+            try
+            {
+                return AssemblyName.GetAssemblyName(hostPath).Version is { } version && version >= requested.Version;
+            }
+            catch (Exception exception) when (exception is IOException or BadImageFormatException or UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
     }
 }
