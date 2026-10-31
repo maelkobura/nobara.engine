@@ -27,7 +27,11 @@ public sealed class PluginLoader : IDisposable
 
     /// <summary>Loads plugin assemblies and creates the plugins they declare with <see cref="ResourcePluginAttribute"/>.</summary>
     /// <param name="assemblies">The full paths of the plugin assemblies.</param>
-    /// <param name="probeDirectories">Folders searched for the dependencies of the plugins, after the folder of each plugin.</param>
+    /// <param name="probeDirectories">
+    /// Folders searched for the dependencies of the plugins, after the folder
+    /// of each plugin. The assemblies of the host, such as the .NET libraries,
+    /// always come from the host, even when a folder holds a copy of them.
+    /// </param>
     /// <param name="diagnostics">Receives a problem for each assembly or type that cannot be used.</param>
     /// <returns>The loader; dispose it once the compilation ends.</returns>
     public static PluginLoader Load(IEnumerable<string> assemblies, IEnumerable<string> probeDirectories, DiagnosticBag diagnostics)
@@ -95,10 +99,21 @@ public sealed class PluginLoader : IDisposable
 
         private readonly IReadOnlyList<string> _directories;
 
+        // The assemblies of the host: the .NET libraries and those of the
+        // application. A probe folder may hold copies of them, such as the
+        // folder of a self-contained game; loading such a copy here would give
+        // the plugins types that differ from the compiler's, such as XElement.
+        private readonly HashSet<string> _host;
+
         public PluginContext(IReadOnlyList<string> directories)
             : base("Nobara resource plugins", isCollectible: true)
         {
             _directories = directories;
+            string platform = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;
+            _host = platform.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Select(Path.GetFileNameWithoutExtension)
+                .OfType<string>()
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
         public Assembly LoadFromPath(string path)
@@ -115,6 +130,12 @@ public sealed class PluginLoader : IDisposable
                 {
                     return shared;
                 }
+            }
+
+            // The default context resolves the assemblies of the host.
+            if (name.Name is not null && _host.Contains(name.Name))
+            {
+                return null;
             }
 
             foreach (string directory in _directories)
