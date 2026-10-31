@@ -150,8 +150,9 @@ public interface IInputRebinding
     /// <param name="cancel">The key that cancels, pressed without modifier.</param>
     /// <returns>The listening; dispose it to stop listening without a result.</returns>
     /// <remarks>
-    /// A modifier key, such as Shift, is captured alone when it is released
-    /// before another key is pressed. Only one listening runs at a time: a new
+    /// A modifier key, such as Shift, released before another key is pressed
+    /// is captured as the last key, after the modifiers still held: alone
+    /// when it is the only one. Only one listening runs at a time: a new
     /// one ends the previous one without a result.
     /// </remarks>
     InputListening Listen(InputValueKind kind, Action<InputBinding?> captured, Scancode cancel = Scancode.Escape);

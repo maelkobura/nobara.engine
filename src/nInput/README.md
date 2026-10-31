@@ -227,7 +227,8 @@ turned into a toggle), and goes back to the defaults (`ResetToDefault`,
   or without a map, with a binding triggered by the same input. The user
   interface decides whether to refuse or to swap.
 - `Listen` captures the next input for a rebinding screen: a key or a
-  button with the modifiers held, a modifier released alone, a step of the
+  button with the modifiers held, a modifier released before another key
+  (after the modifiers still held), a step of the
   wheel, or a movement of the mouse, as the kind of value of the action
   allows. Escape cancels. While it listens, the input reaches no layer.
 - `Save` writes `config/input.xml` in the configuration folder, with the
@@ -304,3 +305,10 @@ changed `<Active>` of a map are refused with a warning and need a restart.
 - A listening for a 1D axis does not take a modifier key alone.
 - `GetLayoutName` names keys of one side only; the game names the other
   controls.
+- The bindings of an action are listed by form (keys, axes, 1D composites,
+  2D composites, combinations), not in the order of the `.nof` file: the
+  positions of `Rebind` and `RemoveBinding` follow that list.
+- Typed text goes to the layer that has the text focus even when a layer
+  above it captures the keyboard.
+- An exception of the callback of `Listen` is charged to the module whose
+  code threw it, or to nInput when the core cannot find it.

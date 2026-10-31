@@ -97,7 +97,8 @@ public sealed class InputAction
     /// <summary>Sets the bindings of the player, or goes back to the defaults with <see langword="null"/>.</summary>
     internal void SetCustomBindings(IReadOnlyList<InputBinding>? bindings)
     {
-        if (bindings is null || bindings.SequenceEqual(Definition.Bindings))
+        // The order of bindings carries no meaning: the same bindings in another order are the defaults.
+        if (bindings is null || (bindings.Count == Definition.Bindings.Count && bindings.All(Definition.Bindings.Contains)))
         {
             HasCustomBindings = false;
             Bindings = Definition.Bindings;

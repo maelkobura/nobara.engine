@@ -26,17 +26,17 @@ structure of a resource is described in [the `.nof` reference](nof.md).
       <Value>Axis2D</Value>
       <Map>inputmap:example.input.on_foot</Map>
       <Bindings>
-        <Composite2D up="Key.W" down="Key.S" left="Key.A" right="Key.D"/>
+        <Composite2D up="Key.ArrowUp" down="Key.ArrowDown" left="Key.ArrowLeft" right="Key.ArrowRight"/>
       </Bindings>
     </Content>
   </InputAction>
   <InputAction>
-    <Name>Sprint</Name>
+    <Name>Aim</Name>
     <Content>
       <Value>Button</Value>
       <Map>inputmap:example.input.on_foot</Map>
-      <Interaction><Hold duration="0.3"/></Interaction>
-      <Bindings><Key>Key.LeftShift</Key></Bindings>
+      <Interaction><Hold duration="0.5"/></Interaction>
+      <Bindings><Key>Mouse.Right</Key></Bindings>
     </Content>
   </InputAction>
   <InputAction>
@@ -153,7 +153,7 @@ bindings for example; see [Overrides](nof.md#overrides):
 ```xml
 <Nobara version="1.0.0" namespace="Example/Input">
   <InputAction override="true">
-    <Name>Sprint</Name>
+    <Name>Aim</Name>
     <Content>
       <Query type="Bindings">
         <Replace><Bindings><Key>Key.LeftAlt</Key></Bindings></Replace>

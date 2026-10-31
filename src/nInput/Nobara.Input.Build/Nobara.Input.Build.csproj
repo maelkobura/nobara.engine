@@ -6,7 +6,7 @@
 <Project Sdk="Nobara.Sdk/1.0.0">
 
   <!--
-    The resource plugin of the types InputAction and InputMap, loaded by the
+    The resource plugin of the type InputAction, loaded by the
     resource compiler when a module that depends on nobara.input is built. It
     is never shipped with a game.
   -->
