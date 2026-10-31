@@ -29,7 +29,9 @@ jobs:
       # Writes obj/nobara/modules.props and fails when Nobara.slnx is out of date.
       - run: dotnet run --project tools/Nobara.Cli -- generate --check
       - run: dotnet build Nobara.slnx --nologo
-      - run: dotnet test Nobara.slnx --nologo
+      # The runner has no OpenGL 4.6 driver: tests in the GPU category run on
+      # developer machines (see AGENTS.md).
+      - run: dotnet test Nobara.slnx --nologo --filter "Category!=GPU"
 
   module-sheets:
     name: Module sheets

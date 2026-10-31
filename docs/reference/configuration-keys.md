@@ -24,6 +24,9 @@ player is described in [the core page](../../src/Core/README.md#configuration-ke
 | `frames.fullscreenWidth` | user | [nFrames](../../src/nFrames/README.md#configuration) |
 | `frames.mode` | user | [nFrames](../../src/nFrames/README.md#configuration) |
 | `frames.monitor` | user | [nFrames](../../src/nFrames/README.md#configuration) |
+| `graphics.backend` | user | [nGraphics](../../src/nGraphics/README.md#configuration) |
+| `graphics.framesInFlight` | distribution | [nGraphics](../../src/nGraphics/README.md#configuration) |
+| `graphics.vsync` | user | [nGraphics](../../src/nGraphics/README.md#configuration) |
 | `input.invertY` | user | [nInput](../../src/nInput/README.md#configuration) |
 | `input.mouseSensitivity` | user | [nInput](../../src/nInput/README.md#configuration) |
 | `items.defaultMaxStack` | distribution | [nItems](../../src/nItems/README.md#configuration) |

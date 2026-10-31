@@ -1,0 +1,24 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.graphics</Id>
+  <ShortName>Graphics</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>client</Side>
+
+  <Dependencies>
+    <Module id="nobara.frames" version="^1.0" />
+  </Dependencies>
+
+  <RequiresBackend side="client" />
+
+  <Settings>
+    <Setting key="graphics.backend" scope="user" type="string" default="auto" side="client" />
+    <Setting key="graphics.vsync" scope="user" type="enum" values="off,on,adaptive" default="on" side="client" />
+    <Setting key="graphics.framesInFlight" scope="distribution" type="int" min="1" max="3" default="2" side="client" />
+  </Settings>
+</NobaraModule>

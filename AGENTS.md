@@ -95,6 +95,12 @@ later is required; Node.js is required for markdownlint.
   once, and again after changing `tools/Nobara.Sdk`, `tools/Nobara.Analyzers`, or the resource compiler (then run
   `dotnet build-server shutdown` so no build node keeps the old task assembly). The tests of the SDK pack
   it themselves; the tests of the core build sample modules with the packed SDK of `artifacts/packages`.
+- Tests that need a GPU (an OpenGL 4.6 driver that loads SPIR-V) carry
+  `[Trait("Category", "GPU")]`. The CI runs every other test, with
+  `--filter "Category!=GPU"`, since its runner has no such driver; run them on
+  a machine with a GPU before opening a pull request that changes graphics
+  code. Tests that open a window without a GPU carry the category `Window`
+  and run in the CI.
 - The same command writes `obj/nobara/modules.props`, which maps the
   identifier of each module of `src/` to its project and sets
   `NobaraCoreProject` to the project of the core. `obj/` is not tracked by
