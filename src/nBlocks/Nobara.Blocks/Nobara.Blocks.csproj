@@ -1,0 +1,19 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Nobara.Sdk/1.0.0">
+
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- The plugin checks resources at build time with the same rules as the registry. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nobara.Blocks.Build" />
+    <InternalsVisibleTo Include="Nobara.Blocks.Tests" />
+  </ItemGroup>
+
+</Project>

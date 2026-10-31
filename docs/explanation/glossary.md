@@ -19,6 +19,29 @@ a specific third-party library or platform API, such as a graphics API. The
 base module selects a backend at run time. See [Technical
 variants](architecture.md#technical-variants).
 
+### Block
+
+A type of cell of a grid of voxels, defined by a `Block` resource and kept in
+the block registry of nBlocks, such as `block:example.blocks.lamp`. The type
+describes the block; the blocks placed in a world belong to the module that
+stores them. See [the `Block` reference](../reference/formats/block.md).
+
+### Block hook
+
+What happens to blocks, such as a block being broken or used, that modules
+subscribe to by type of block, by tag, or for every type. It is distinct from
+the event bus: the tables of subscribers are built per type, so a block whose
+type has no subscriber costs nothing. See [the nBlocks module
+sheet](../../src/nBlocks/README.md#block-hooks).
+
+### Block state
+
+One combination of the values of the state properties of a type of block,
+such as `block:example.blocks.lamp[lit=true]`, numbered by an index that the
+same blocks give on every side. Not to be confused with a
+[state](#state) of the application. See [the nBlocks module
+sheet](../../src/nBlocks/README.md#block-states).
+
 ### Build target
 
 A way to build a game, declared in `build.nobara`: a platform, a side, and
@@ -354,6 +377,12 @@ Where the core finds the modules of a distribution: one assembly per module in
 the `system/` and `game/` folders, or, on platforms without dynamic loading,
 modules compiled into the executable.
 
+### nBlocks
+
+The platform module of the block registry: the resource type `Block`, the
+block types, their states and tags, the air, and the block hooks. See [its
+module sheet](../../src/nBlocks/README.md).
+
 ### nContext
 
 The platform module that drives the states of the application: it keeps the
@@ -522,7 +551,8 @@ process.
 A step of the path of the application, such as a main menu, a loading screen,
 the game, or a pause menu: a class that a module provides, declares in its
 manifest under an identifier such as `state:example.menu`, and registers with
-nContext. Not to be confused with the state of a module, its data. See [the
+nContext. Not to be confused with the state of a module, its data, or with a
+[block state](#block-state). See [the
 nContext module sheet](../../src/nContext/README.md#states).
 
 ### State stack

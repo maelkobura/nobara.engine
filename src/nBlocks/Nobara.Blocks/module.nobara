@@ -1,0 +1,20 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.blocks</Id>
+  <ShortName>Blocks</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>both</Side>
+
+  <Dependencies>
+    <Module id="nobara.items" version="^1.0" />
+  </Dependencies>
+
+  <Settings>
+    <Setting key="blocks.maxStatesPerType" scope="distribution" type="int" min="1" default="1024" />
+  </Settings>
+</NobaraModule>
