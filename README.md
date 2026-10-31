@@ -8,8 +8,9 @@ assembly of modules on top of a small core.
 Early development: the build tools, the [core](src/Core/README.md), and the
 first platform modules, [nEvent](src/nEvent/README.md),
 [nGame](src/nGame/README.md), [nContext](src/nContext/README.md),
-[nItems](src/nItems/README.md), [nBlocks](src/nBlocks/README.md), and
-[nFrames](src/nFrames/README.md), exist; there is no release yet. Start with [the architecture
+[nItems](src/nItems/README.md), [nBlocks](src/nBlocks/README.md),
+[nFrames](src/nFrames/README.md), and [nInput](src/nInput/README.md), exist;
+there is no release yet. Start with [the architecture
 overview](docs/explanation/architecture.md).
 
 ## Building

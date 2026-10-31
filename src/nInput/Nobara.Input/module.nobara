@@ -1,0 +1,21 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.input</Id>
+  <ShortName>Input</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>client</Side>
+
+  <Dependencies>
+    <Module id="nobara.frames" version="^1.0" />
+  </Dependencies>
+
+  <Settings>
+    <Setting key="input.mouseSensitivity" scope="user" type="float" min="0.01" max="100" default="1" side="client" />
+    <Setting key="input.invertY" scope="user" type="bool" default="false" side="client" />
+  </Settings>
+</NobaraModule>

@@ -145,8 +145,8 @@ stops after the frame.
 they happened: keys by [scancode](../../docs/explanation/glossary.md#scancode),
 mouse buttons, mouse and wheel movements, typed text, and the compositions
 of input methods. nFrames fills it at the start of each frame and empties it
-at the start of the next. It is the source of the input module; other
-modules read input through that module.
+at the start of the next. It is the source of [nInput](../nInput/README.md);
+other modules read input through that module.
 
 ```csharp
 foreach (RawInputEvent e in input.Events)

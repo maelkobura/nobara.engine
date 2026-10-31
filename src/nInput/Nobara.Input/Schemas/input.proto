@@ -1,0 +1,129 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource types InputAction and InputMap. Their identifiers are derived
+// from the namespace and the name, such as inputaction:example.input.jump.
+syntax = "proto3";
+
+package nobara.input;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Input.Schemas";
+
+// An input action: what the game reads instead of keys.
+message InputAction {
+  option (nobara.resource_type) = "inputaction";
+
+  // The localization key of the name; derived from the identifier when absent.
+  string display_name = 1 [(nobara.i18n) = true];
+
+  // The kind of value the action gives.
+  ValueKind value = 2 [(nobara.required) = true];
+
+  // The map the action belongs to; absent for an action that is always active.
+  string map = 3 [(nobara.ref) = "inputmap"];
+
+  // The default bindings.
+  Bindings bindings = 4;
+
+  // How a press becomes a trigger of the action; Press when absent.
+  Interaction interaction = 5;
+
+  // The value from which a Float, or an axis bound to a Button, reads as
+  // pressed; 0.5 when absent.
+  float threshold = 6 [(nobara.min) = 0, (nobara.max) = 1];
+
+  // The dead zone of the analog inputs of a gamepad; 0.15 when absent.
+  float dead_zone = 7 [(nobara.min) = 0, (nobara.max) = 0.95];
+}
+
+enum ValueKind {
+  VALUE_KIND_BUTTON = 0;
+  VALUE_KIND_FLOAT = 1;
+  VALUE_KIND_AXIS1_D = 2;
+  VALUE_KIND_AXIS2_D = 3;
+}
+
+// The bindings of an action. Every binding is active at the same time.
+message Bindings {
+  // A key or a button of any device: <Key>Key.Space</Key>, <Key>Mouse.Left</Key>.
+  repeated string key = 1;
+
+  // An axis of a device: <Axis>Mouse.Delta</Axis>, <Axis>Mouse.Wheel</Axis>.
+  repeated string axis = 2;
+
+  // An axis made of two keys or buttons.
+  repeated Composite1D composite1_d = 3;
+
+  // A 2D axis made of four keys or buttons.
+  repeated Composite2D composite2_d = 4;
+
+  // Keys or buttons held together; the last one triggers.
+  repeated Combo combo = 5;
+}
+
+message Composite1D {
+  string negative = 1 [(nobara.required) = true];
+  string positive = 2 [(nobara.required) = true];
+}
+
+message Composite2D {
+  string up = 1 [(nobara.required) = true];
+  string down = 2 [(nobara.required) = true];
+  string left = 3 [(nobara.required) = true];
+  string right = 4 [(nobara.required) = true];
+}
+
+message Combo {
+  repeated string key = 1 [(nobara.required) = true];
+}
+
+// One interaction, as an empty or parameterized element.
+message Interaction {
+  oneof kind {
+    Press press = 1;
+    Release release = 2;
+    Hold hold = 3;
+    Tap tap = 4;
+    DoubleTap double_tap = 5;
+    Toggle toggle = 6;
+  }
+}
+
+message Press {
+}
+
+message Release {
+}
+
+// Triggers once the press lasted duration seconds.
+message Hold {
+  float duration = 1 [(nobara.required) = true, (nobara.min) = 0];
+}
+
+// Triggers at the release of a press shorter than max seconds.
+message Tap {
+  float max = 1 [(nobara.required) = true, (nobara.min) = 0];
+}
+
+// Triggers at a second press that starts at most window seconds after the first.
+message DoubleTap {
+  float window = 1 [(nobara.required) = true, (nobara.min) = 0];
+}
+
+// A press turns the action on, the next one turns it off.
+message Toggle {
+}
+
+// A map of actions, turned on and off together by the game.
+message InputMap {
+  option (nobara.resource_type) = "inputmap";
+
+  // The localization key of the name; derived from the identifier when absent.
+  string display_name = 1 [(nobara.i18n) = true];
+
+  // Whether the map is active when the game starts.
+  bool active = 2;
+}

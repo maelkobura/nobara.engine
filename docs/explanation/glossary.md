@@ -261,6 +261,47 @@ Reloading the `.nof` resources of modules while a development build runs:
 the changed module is compiled again and each context takes the result at
 its next frame. See [the hot reload page](../../tools/Nobara.HotReload/README.md).
 
+### Input action
+
+What the game reads instead of keys, such as "jump" or "move": a resource of
+type `InputAction` that declares its kind of value (button, float, 1D axis,
+or 2D axis), its default bindings, and its interaction. The player can change
+its bindings. See [the `InputAction` reference](../reference/formats/input-action.md).
+
+### Input binding
+
+A key, an axis, a composite of keys, or a combination of keys that gives the
+value of an input action. Keys are named by physical position, such as
+`Key.W`. See [the `InputAction` reference](../reference/formats/input-action.md#bindings).
+
+### Input interaction
+
+How a press of the bindings of an input action becomes a press of the action:
+press, release, hold, tap, double tap, or toggle. It is declared in the
+resource, and the player can change it. See [the `InputAction`
+reference](../reference/formats/input-action.md#interactions).
+
+### Input layer
+
+A reader of input in the stack of [nInput](#ninput), such as the debug
+overlay, a screen, the heads-up display, or the player controller. Input goes
+from the layer of highest priority down; each layer evaluates the actions from
+what reaches it, and may consume an input or capture a device. See [the
+nInput module sheet](../../src/nInput/README.md#layers).
+
+### Input map
+
+A group of input actions that the game turns on and off together, such as
+"on foot" or "vehicle": a resource of type `InputMap`. An action of an
+inactive map is not evaluated.
+
+### Input sampler
+
+What reads the input actions of a layer at the fixed tick: each sample
+gathers what happened since the previous one, so that no press is lost
+between two ticks and the movements of the mouse add up. See [the nInput
+module sheet](../../src/nInput/README.md#reading-actions).
+
 ### Installed game
 
 The folders that a build of a target produces: `bin/` for the runtime, the
@@ -416,6 +457,14 @@ The platform module that owns the simulation tick and game time. It splits
 the simulation phase into stages, runs the tick systems in a deterministic
 order, keeps pause, time scale, tick rate, and dimension clocks, and runs the
 scheduler. See [its module sheet](../../src/nGame/README.md).
+
+### nInput
+
+The platform module of input, on the client: the resource types
+`InputAction` and `InputMap`, the evaluation of the actions from the raw
+input of [nFrames](#nframes), the stack of input layers, text input, the mode
+of the mouse, the sampling at the fixed tick, and the bindings of the player.
+See [its module sheet](../../src/nInput/README.md).
 
 ### nItems
 
@@ -613,6 +662,12 @@ system of the entity component system is a tick system.
 
 A named group of objects of one registry, such as `#example.wood`, to which
 several modules may add members. See [the `.nof` reference](../reference/formats/nof.md#tags).
+
+### Text focus
+
+The input layer that receives typed text, such as a chat field: while a
+layer has it, the keyboard reaches no layer below it and triggers no input
+action. See [the nInput module sheet](../../src/nInput/README.md#text-input).
 
 ### Tick
 
