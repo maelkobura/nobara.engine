@@ -1,0 +1,121 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource type Block: an entry of the block registry. Its identifier is
+// derived from the namespace and the name, such as block:example.blocks.lamp.
+// The plugin Nobara.Blocks.Build checks what this schema cannot declare, and
+// nobara.blocks checks it again when it loads the blocks, overrides applied.
+syntax = "proto3";
+
+package nobara.blocks;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Blocks.Schemas";
+
+message Block {
+  option (nobara.resource_type) = "block";
+  option (nobara.accepts_tags) = true;
+
+  // The shape object, such as shape:nobara.cube or shape:nobara.model; the
+  // cube when absent. The module that provides shapes checks it.
+  string shape = 1;
+
+  // "shape" (the collision of the shape) or "none"; "shape" when absent.
+  string collision = 2;
+
+  // "opaque", "cutout", or "translucent"; "opaque" when absent.
+  string opacity = 3;
+
+  // A number of at least 0, or "unbreakable"; 1 when absent.
+  string hardness = 4;
+
+  // "none", "horizontal" (4), "facing" (6), or "full" (24); "none" when absent.
+  string orientations = 5;
+
+  // The cells that a block of several cells occupies besides its origin.
+  Footprint footprint = 6;
+
+  // The state properties.
+  States states = 7;
+
+  // Values that apply to some states only.
+  Variants variants = 8;
+
+  // Generates the item of the block: item: with the same namespace and name.
+  CreateItem create_item = 9;
+}
+
+// The cells of a block of several cells, relative to its origin, which is
+// always occupied and is not listed.
+message Footprint {
+  repeated Cell cell = 1 [(nobara.required) = true];
+}
+
+message Cell {
+  int32 x = 1 [(nobara.min) = -7, (nobara.max) = 7];
+  int32 y = 2 [(nobara.min) = -7, (nobara.max) = 7];
+  int32 z = 3 [(nobara.min) = -7, (nobara.max) = 7];
+}
+
+// The state properties, each kind in the order written.
+message States {
+  repeated BoolProperty bool = 1;
+  repeated IntProperty int = 2;
+  repeated EnumProperty enum = 3;
+}
+
+// <Bool name="lit" default="false"/>
+message BoolProperty {
+  string name = 1 [(nobara.required) = true];
+  bool default = 2;
+  // The property that takes the value of this one after a quarter turn.
+  string rotates_to = 3;
+}
+
+// <Int name="age" min="0" max="7" default="0"/>
+message IntProperty {
+  string name = 1 [(nobara.required) = true];
+  int32 min = 2;
+  int32 max = 3 [(nobara.required) = true];
+  // The minimum when absent.
+  optional int32 default = 4;
+  string rotates_to = 5;
+}
+
+// <Enum name="half" values="bottom,top" default="bottom"/>
+message EnumProperty {
+  string name = 1 [(nobara.required) = true];
+  // The values, separated by commas.
+  string values = 2 [(nobara.required) = true];
+  // The first value when absent.
+  string default = 3;
+  string rotates_to = 4;
+  // How a quarter turn changes the values: pairs "from:to" separated by commas.
+  string rotation = 5;
+}
+
+message Variants {
+  repeated Variant variant = 1 [(nobara.required) = true];
+}
+
+// Values for the states that match a condition: when="lit=true,age=7".
+message Variant {
+  string when = 1 [(nobara.required) = true];
+  string collision = 2;
+  string opacity = 3;
+  string hardness = 4;
+  // Free properties of these states, in the generic representation.
+  bytes properties = 5 [(nobara.generic) = "properties"];
+}
+
+// The item generated from the block, and what it changes from the defaults.
+message CreateItem {
+  int32 max_stack = 1 [(nobara.min) = 1];
+  string display_name = 2 [(nobara.i18n) = true];
+  // The state that the item places: "lit=true"; the default state when absent.
+  string state = 3;
+  // Free properties of the item, in the generic representation.
+  bytes properties = 4 [(nobara.generic) = "properties"];
+}
