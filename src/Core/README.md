@@ -45,8 +45,8 @@ manifests, resources, and schemas.
 | `EngineContext.RunFrame()`, `EngineContext.Run()`, `EngineContext.RequestStop()` | Run one frame of the loop, run frames until a stop is requested, and request that stop. |
 | `IModule` | The code of a module, instantiated once per context. Each lifecycle step is a method that does nothing by default. |
 | `[assembly: ModuleEntry(typeof(...))]` | Names the class that implements `IModule` in the assembly of a module. |
-| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `InterceptStopRequests`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), its logger, the identity of the game, its initial states, and its modules (`Distribution`), the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
-| `ModuleSettings` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, and the settings file. |
+| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `ForwardStopRequest`, `InterceptStopRequests`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), its logger, the identity of the game, its initial states, and its modules (`Distribution`), the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
+| `ModuleSettings`, `SettingSubscription` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, the changes of values, and the settings file. |
 | `ModuleResources`, `ResourceData`, `ResourceTag`, `FreeProperty` | `context.Resources`: decoders, decoded objects, loaded resources, tags, free properties, and binary files. |
 | `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
 | `ModuleLoop`, `IPhaseHandler`, `LoopSubscription` | The loop as a module sees it: its phases, subscriptions to a phase or to the start of the frame, and `GetTickControl`. |
@@ -170,7 +170,13 @@ The levers of the core go to the modules that hold the matching reservation:
 | --- | --- | --- |
 | `context.Loop.GetTickControl()` | a fixed phase, such as `loop.simulation` | `Paused` suspends the fixed phases; `TimeScale` changes how fast time accumulates, so the number of ticks per second, and not the duration of a tick; `TickRate` changes the duration of a tick. The time scale goes up to 100 and the tick rate up to 1000 ticks per second. Changes take effect at the next frame. |
 | `context.GetContextControl()` | `core.contexts` | Creates and destroys the server context of an integrated server. This version runs only the main context. |
-| `context.InterceptStopRequests(handler)` | `core.contexts` | Hands the stop requests of the context to the module instead of stopping it: Ctrl+C, the cancellation of `Run`, and `EngineContext.RequestStop`. The handler runs on the loop thread at the start of the next frame; requests made before it runs are merged. The module stops the context with `ModuleContext.RequestStop`, which is never intercepted. Called during registration. |
+| `context.InterceptStopRequests(handler)` | `core.contexts` | Hands the stop requests of the context to the module instead of stopping it: Ctrl+C, the cancellation of `Run`, `EngineContext.RequestStop`, and `ModuleContext.ForwardStopRequest`. The handler runs on the loop thread at the start of the next frame; requests made before it runs are merged. The module stops the context with `ModuleContext.RequestStop`, which is never intercepted. Called during registration. |
+
+A module that relays a stop request from outside the game, such as the
+player closing the window, calls `context.ForwardStopRequest()`: the request
+takes the same path as Ctrl+C, so the module that intercepts stop requests
+receives it, and without one the context stops after the frame.
+`RequestStop` is for a module that decides that the context stops.
 
 ### Synchronization point
 
@@ -367,6 +373,9 @@ modules that only run on the client.
 
 ### Configuration keys
 
+The keys of the modules of this repository are listed in [the configuration
+keys reference](../../docs/reference/configuration-keys.md).
+
 A module declares its keys in `<Settings>` of its `module.nobara`, and reads
 them with `context.Settings`, typed: `GetBool`, `GetInt`, `GetFloat`,
 `GetString`, and `GetEnum`. It reads its own keys and those of its declared
@@ -408,6 +417,23 @@ default back, and `Save` writes the file. Only the values the player chose
 are written, so a later default of the distribution applies to the other
 keys. `Set` refuses a `distribution` key, a locked key, and a value out of
 bounds. Every context of the process sees the same values.
+
+A module learns that values changed with `Subscribe`. The handler receives
+the key, on the loop thread of the context, at the start of the next frame,
+for each `Set` or `Reset` that gives another value to a key the module can
+read, whatever module or context made it. Disposing the returned
+`SettingSubscription` removes the handler; the core removes it when the
+module stops or is disabled.
+
+```csharp
+_changes = context.Settings.Subscribe(key =>
+{
+    if (key == "voxel.viewRadius")
+    {
+        _viewRadius = context.Settings.GetInt(key);
+    }
+});
+```
 
 A duplicate key, an invalid default, and an invalid value of the
 distribution are refused when the engine loads, with a
@@ -696,8 +722,8 @@ It provides no resource type.
 - Resources and tags stay loaded when the module that defines them is
   disabled; only its decoders and free properties are withdrawn.
 - Free properties that no module reads are not reported.
-- Modules are not told when the value of a key changes, and the settings
-  file is written only by `Save`.
+- The settings file is written only by `Save`, and a change of the file
+  while the game runs is not read.
 - `Save` writes the keys of the modules that the process loads: a value that
   the file holds for a module absent from the process, such as a client key
   in a server folder, is lost.

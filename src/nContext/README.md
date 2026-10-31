@@ -167,8 +167,10 @@ it returns `false`, or when the stack is empty, the default action of the
 event applies.
 
 The only global event of this version is `StopRequested`: Ctrl+C in the
-console, the cancellation of `EngineContext.Run`, or
-`EngineContext.RequestStop` by the host. nContext intercepts the stop
+console, the cancellation of `EngineContext.Run`,
+`EngineContext.RequestStop` by the host, or a request that a module relays
+with `ModuleContext.ForwardStopRequest`, such as nFrames when the player
+closes the window. nContext intercepts the stop
 requests of its context through the core, so the context does not stop by
 itself. Its default action pops every state, which stops the context; a state
 that handles it decides instead:

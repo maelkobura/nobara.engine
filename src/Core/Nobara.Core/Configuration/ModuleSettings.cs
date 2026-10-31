@@ -34,12 +34,14 @@ public sealed class ModuleSettings
     private readonly SettingStore _store;
     private readonly ModuleRuntime _module;
     private readonly Side _side;
+    private readonly Action<SendOrPostCallback, object?> _post;
 
-    internal ModuleSettings(SettingStore store, ModuleRuntime module, Side side)
+    internal ModuleSettings(SettingStore store, ModuleRuntime module, Side side, Action<SendOrPostCallback, object?> post)
     {
         _store = store;
         _module = module;
         _side = side;
+        _post = post;
     }
 
     /// <summary>Gets the keys the module can read on this side, sorted.</summary>
@@ -130,6 +132,46 @@ public sealed class ModuleSettings
     /// <exception cref="IOException">The file cannot be written.</exception>
     /// <exception cref="UnauthorizedAccessException">The file cannot be written.</exception>
     public void Save() => _store.Save();
+
+    /// <summary>
+    /// Subscribes to the changes of the keys the module can read: its own and
+    /// those of its declared dependencies, on the side of the context. The
+    /// handler receives the key whose value changed, on the loop thread of the
+    /// context, at the start of the next frame.
+    /// </summary>
+    /// <param name="handler">The code to run for each change; an exception it throws is charged to this module.</param>
+    /// <returns>The handle that removes the handler.</returns>
+    /// <remarks>
+    /// <para>
+    /// A change is a <c>Set</c> or a <c>Reset</c> that gives a key another
+    /// value, from any module of any context of the process. Each change is
+    /// delivered once, in the order of the changes; the handler reads the
+    /// value with the getters, so several changes of one key before the next
+    /// frame give the latest value each time.
+    /// </para>
+    /// <para>
+    /// The subscription ends when the handle is disposed, or when the module
+    /// stops or is disabled.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// _changes = context.Settings.Subscribe(key =>
+    /// {
+    ///     if (key == "voxel.viewRadius")
+    ///     {
+    ///         _viewRadius = context.Settings.GetInt(key);
+    ///     }
+    /// });
+    /// </code>
+    /// </example>
+    public SettingSubscription Subscribe(Action<string> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        var subscription = new SettingSubscription(_store, _module, info => Accessible(info), _post, handler);
+        _store.AddListener(subscription);
+        return subscription;
+    }
 
     private object Read(string key, SettingType type)
     {
