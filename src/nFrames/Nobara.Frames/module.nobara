@@ -1,0 +1,32 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.frames</Id>
+  <ShortName>Frames</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>client</Side>
+
+  <Dependencies>
+    <Module id="nobara.event" version="^1.0" optional="true" />
+  </Dependencies>
+
+  <Reserves>
+    <Resource name="window.main" />
+  </Reserves>
+
+  <RequiresBackend side="client" />
+
+  <Settings>
+    <Setting key="frames.backend" scope="user" type="string" default="auto" side="client" />
+    <Setting key="frames.mode" scope="user" type="enum" values="windowed,borderless,exclusive" default="windowed" side="client" />
+    <Setting key="frames.monitor" scope="user" type="int" min="0" max="63" default="0" side="client" />
+    <Setting key="frames.fullscreenWidth" scope="user" type="int" min="0" max="16384" default="0" side="client" />
+    <Setting key="frames.fullscreenHeight" scope="user" type="int" min="0" max="16384" default="0" side="client" />
+    <Setting key="frames.fullscreenRefreshRate" scope="user" type="float" min="0" max="1000" default="0" side="client" />
+    <Setting key="frames.backgroundFps" scope="user" type="int" min="1" max="1000" default="30" side="client" />
+  </Settings>
+</NobaraModule>

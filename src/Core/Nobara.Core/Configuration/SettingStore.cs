@@ -28,6 +28,7 @@ internal sealed class SettingStore
 
     private readonly Dictionary<string, Entry> _entries = new(StringComparer.Ordinal);
     private readonly Lock _lock = new();
+    private readonly List<SettingSubscription> _listeners = [];
 
     private SettingStore(string file)
     {
@@ -130,12 +131,16 @@ internal sealed class SettingStore
             return error;
         }
 
+        SettingSubscription[] listeners;
         lock (_lock)
         {
+            bool changed = !Equals(entry.Value, value);
             entry.Value = value!;
             entry.ChosenByPlayer = true;
+            listeners = changed ? [.. _listeners] : [];
         }
 
+        Notify(listeners, entry.Info);
         return null;
     }
 
@@ -143,10 +148,50 @@ internal sealed class SettingStore
     public void Reset(string key)
     {
         Entry entry = _entries[key];
+        SettingSubscription[] listeners;
         lock (_lock)
         {
+            bool changed = !Equals(entry.Value, entry.Default);
             entry.Value = entry.Default;
             entry.ChosenByPlayer = false;
+            listeners = changed ? [.. _listeners] : [];
+        }
+
+        Notify(listeners, entry.Info);
+    }
+
+    /// <summary>Adds a handler of the changes of keys.</summary>
+    public void AddListener(SettingSubscription listener)
+    {
+        lock (_lock)
+        {
+            _listeners.Add(listener);
+        }
+    }
+
+    /// <summary>Removes a handler of the changes of keys.</summary>
+    public void RemoveListener(SettingSubscription listener)
+    {
+        lock (_lock)
+        {
+            _listeners.Remove(listener);
+        }
+    }
+
+    /// <summary>Removes every handler of a module, when it stops or is disabled.</summary>
+    public void RemoveListeners(ModuleRuntime module)
+    {
+        lock (_lock)
+        {
+            _listeners.RemoveAll(l => l.Module == module);
+        }
+    }
+
+    private static void Notify(SettingSubscription[] listeners, SettingInfo info)
+    {
+        foreach (SettingSubscription listener in listeners)
+        {
+            listener.Notify(info);
         }
     }
 

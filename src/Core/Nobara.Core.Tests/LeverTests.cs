@@ -240,6 +240,42 @@ public sealed class LeverTests : IDisposable
     }
 
     [Fact]
+    public void A_forwarded_stop_request_goes_through_the_module_that_intercepts_stop_requests()
+    {
+        ModuleContext window = null!;
+        var received = new List<ulong>();
+        ModuleContext flow = null!;
+        using Engine engine = _distribution
+            .Module("example.flow", m => m.Reserves.Add(LoopReservations.Contexts), m => m.OnRegister = c =>
+            {
+                flow = c;
+                c.InterceptStopRequests(() => received.Add(flow.Loop.Frame));
+            })
+            .Module("example.window", behavior: m => m.OnRegister = c => window = c)
+            .Load();
+        engine.MainContext.Start();
+
+        window.ForwardStopRequest();
+        Assert.False(engine.MainContext.IsStopRequested);
+
+        engine.MainContext.RunFrame();
+        Assert.Equal([1UL], received);
+        Assert.False(engine.MainContext.IsStopRequested);
+    }
+
+    [Fact]
+    public void A_forwarded_stop_request_stops_the_context_when_nobody_intercepts_it()
+    {
+        ModuleContext window = null!;
+        using Engine engine = _distribution.Module("example.window", behavior: m => m.OnRegister = c => window = c).Load();
+        engine.MainContext.Start();
+
+        window.ForwardStopRequest();
+
+        Assert.True(engine.MainContext.IsStopRequested);
+    }
+
+    [Fact]
     public void Only_the_module_that_reserves_the_contexts_intercepts_stop_requests()
     {
         using Engine engine = _distribution.Module("example.other", behavior: m => m.OnRegister = c => c.InterceptStopRequests(() => { })).Load();

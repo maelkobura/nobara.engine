@@ -132,6 +132,13 @@ goes up by one at each tick unless the dimension is frozen, and which can
 jump forward. It knows no day or season. See [the nGame module
 sheet](../../src/nGame/README.md#game-time).
 
+### Display mode
+
+How the [window](#window) occupies the screen: windowed, borderless full
+screen, or exclusive full screen at a chosen [video mode](#video-mode). The
+player chooses it with the configuration keys of [nFrames](#nframes). See
+[its module sheet](../../src/nFrames/README.md#configuration).
+
 ### Distribution
 
 A game, as a set of modules declared in a project file and an engine file
@@ -396,6 +403,13 @@ The platform module that supplies the event bus of each context: typed events,
 priorities, cancellation, synchronous and deferred delivery, and removable
 handlers. See [its module sheet](../../src/nEvent/README.md).
 
+### nFrames
+
+The platform module of the window, on the client: the neutral API of the
+window, its display modes and events, the raw input events, and the
+registry of window backends. See [its module
+sheet](../../src/nFrames/README.md).
+
 ### nGame
 
 The platform module that owns the simulation tick and game time. It splits
@@ -466,6 +480,13 @@ such as a mod, can neither define nor override a resource in it.
 A free property prefixed by the short name of a module, such as
 `Motion.Weight`, which replaces the plain property for that module only.
 
+### Raw input event
+
+A key, mouse button, mouse movement, wheel movement, or typed text, as the
+window backend received it, before any interpretation. [nFrames](#nframes)
+hands the raw input events of each frame to the input module. See [its
+module sheet](../../src/nFrames/README.md#raw-input).
+
 ### Reload handler
 
 The code that the module that defines a resource type registers to apply
@@ -505,6 +526,12 @@ page](../../tools/Nobara.ResourceCompiler/README.md#plugins).
 A kind of resource, such as `Block`, defined by a message of a `.proto`
 schema marked with `(nobara.resource_type)`. See [the schema options
 reference](../reference/formats/proto-options.md).
+
+### Scancode
+
+The physical position of a key on the keyboard, whatever character the
+layout gives it. Bindings use scancodes; the name shown to the player follows
+the layout.
 
 ### Scheduled task
 
@@ -565,9 +592,10 @@ sheet](../../src/nContext/README.md#the-stack).
 
 ### Stop request
 
-A request to stop a context that comes from outside its modules: Ctrl+C, or
-the host of the engine. The module that intercepts stop requests receives it
-instead, and nContext hands it to the active state. See [the core
+A request to stop a context that comes from outside the game: Ctrl+C, the
+host of the engine, or the player closing the window, which a module
+relays. The module that intercepts stop requests receives it instead, and
+nContext hands it to the active state. See [the core
 page](../../src/Core/README.md#reserved-phases-and-levers).
 
 ### Synchronization point
@@ -598,6 +626,17 @@ Code that runs once per simulation tick, in a stage, registered with nGame
 under a qualified name, with its constraints and its declared accesses. All
 the code of the tick is made of tick systems. See [the nGame module
 sheet](../../src/nGame/README.md#tick-systems).
+
+### Video mode
+
+A resolution in pixels and a refresh rate that a monitor can show. Exclusive
+full screen uses one of the video modes of its monitor.
+
+### Window
+
+The surface of the operating system where the game shows its frames and
+receives input. [nFrames](#nframes) creates one window per client, through a
+[backend](#backend).
 
 ### Worker thread
 

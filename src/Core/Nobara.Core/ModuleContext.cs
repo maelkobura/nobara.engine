@@ -18,7 +18,8 @@ namespace Nobara.Core;
 /// </summary>
 /// <remarks>
 /// Call it on the loop thread of the context, except <see cref="Post(SendOrPostCallback, object?)"/>,
-/// <see cref="SynchronizationContext"/>, and <see cref="RequestStop"/>. The
+/// <see cref="SynchronizationContext"/>, <see cref="RequestStop"/>, and
+/// <see cref="ForwardStopRequest"/>. The
 /// lifecycle steps limit what is allowed: services are published and phases
 /// subscribed to during registration, and services are resolved from
 /// initialization on.
@@ -35,7 +36,7 @@ public sealed class ModuleContext
         Logger = logger;
         Loop = new ModuleLoop(context, context.Loop, runtime);
         SynchronizationContext = new ModuleSynchronizationContext(context.Loop, runtime);
-        Settings = new ModuleSettings(context.Engine.Settings, runtime, context.Side);
+        Settings = new ModuleSettings(context.Engine.Settings, runtime, context.Side, (callback, state) => context.Loop.Post(runtime, callback, state));
         Resources = new ModuleResources(context, context.Resources, runtime);
         ModuleConfig = context.Engine.DistributionData.ModuleConfigs.GetValueOrDefault(runtime.Info.Id);
         Jobs = new ModuleJobs(context.Engine.Jobs, runtime.Jobs);
@@ -152,9 +153,27 @@ public sealed class ModuleContext
     }
 
     /// <summary>
+    /// Hands the context a stop request that comes from outside the game, such
+    /// as the player closing the window, as Ctrl+C does: the module that
+    /// intercepts stop requests receives it (<see cref="InterceptStopRequests"/>),
+    /// and without one the context stops after the frame that runs. It can be
+    /// called from any thread.
+    /// </summary>
+    /// <remarks>
+    /// A module that only relays a request of the player calls this method; a
+    /// module that decides that the context stops calls <see cref="RequestStop"/>.
+    /// </remarks>
+    public void ForwardStopRequest()
+    {
+        Logger.Info($"Module '{Module.Id}' forwards a stop request to the {_context.Name} context.");
+        _context.RequestStop();
+    }
+
+    /// <summary>
     /// Receives the stop requests of the context instead of letting it stop:
-    /// Ctrl+C, the cancellation of <see cref="EngineContext.Run"/>, and
-    /// <see cref="EngineContext.RequestStop"/>. The handler runs on the loop
+    /// Ctrl+C, the cancellation of <see cref="EngineContext.Run"/>,
+    /// <see cref="EngineContext.RequestStop"/>, and
+    /// <see cref="ForwardStopRequest"/>. The handler runs on the loop
     /// thread at the start of the next frame, and the module stops the context
     /// with <see cref="RequestStop"/> when it decides to.
     /// </summary>

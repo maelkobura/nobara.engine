@@ -598,6 +598,7 @@ public sealed class EngineContext
 
             Services.Withdraw(module);
             Resources.Withdraw(module);
+            Engine.Settings.RemoveListeners(module);
             _loop.Changed();
             string reason = module == culprit ? "after an error" : $"because it requires '{culprit.Info.Id}'";
             module.Context.Logger.Warning($"Module '{module.Info.Id}' is disabled {reason}.");
@@ -641,6 +642,12 @@ public sealed class EngineContext
             Logger.Debug($"Stop: {module.Info.Id}.");
             Quietly(module, LifecycleStep.Stop, m => m.Instance?.Stop(m.Context));
             module.Started = false;
+        }
+
+        // The settings are shared by the process: changes no longer reach the modules of this context.
+        foreach (ModuleRuntime module in _modules)
+        {
+            Engine.Settings.RemoveListeners(module);
         }
 
         // Jobs are done before any module frees what they use.

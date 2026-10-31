@@ -227,6 +227,41 @@ public sealed class ConfigurationTests : IDisposable
     }
 
     [Fact]
+    public void Tells_the_subscribers_which_keys_changed_at_the_next_frame()
+    {
+        ModuleContext view = null!;
+        var seen = new List<string>();
+        var other = new List<string>();
+        SettingSubscription? subscription = null;
+        using Engine engine = View(m => m.OnInitialize = c =>
+            {
+                view = c;
+                subscription = c.Settings.Subscribe(key => seen.Add($"{key}={c.Settings.GetInt("view.radius")}"));
+            })
+            .Module("example.map", m => m.Requires("example.view"), m => m.OnInitialize = c => c.Settings.Subscribe(other.Add))
+            .Module("example.other", behavior: m => m.OnInitialize = c => c.Settings.Subscribe(key => throw new InvalidOperationException("not a dependency")))
+            .Load();
+        engine.MainContext.Start();
+
+        view.Settings.Set("view.radius", 300);
+        view.Settings.Set("view.radius", 300);
+        view.Settings.Reset("view.quality");
+        Assert.Empty(seen);
+
+        engine.MainContext.RunFrame();
+        Assert.Equal(["view.radius=300"], seen);
+        Assert.Equal(["view.radius"], other);
+
+        // A reset that changes the value is a change too; a removed handler receives nothing.
+        view.Settings.Reset("view.radius");
+        subscription!.Dispose();
+        engine.MainContext.RunFrame();
+        Assert.Equal(["view.radius=300"], seen);
+        Assert.Equal(["view.radius", "view.radius"], other);
+        Assert.False(subscription.IsActive);
+    }
+
+    [Fact]
     public void Hides_a_key_of_the_client_from_the_server()
     {
         Exception? error = null;
