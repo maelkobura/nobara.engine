@@ -593,8 +593,9 @@ sheet](../../src/nContext/README.md#the-stack).
 ### Stop request
 
 A request to stop a context that comes from outside the game: Ctrl+C, the
-host of the engine, or the player closing the window, which a module relays. The module that intercepts stop requests receives it
-instead, and nContext hands it to the active state. See [the core
+host of the engine, or the player closing the window, which a module
+relays. The module that intercepts stop requests receives it instead, and
+nContext hands it to the active state. See [the core
 page](../../src/Core/README.md#reserved-phases-and-levers).
 
 ### Synchronization point

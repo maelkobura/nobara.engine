@@ -29,6 +29,7 @@ internal sealed class WindowSystem : IWindowSystem, IWindowBackends, IWindowEven
     private bool _started;
     private int _backgroundFps;
     private TimeSpan _waited;
+    private bool _displayChanged;
 
     public WindowSystem(ModuleContext context)
     {
@@ -126,7 +127,8 @@ internal sealed class WindowSystem : IWindowSystem, IWindowBackends, IWindowEven
             case FramesSettings.FullscreenWidth:
             case FramesSettings.FullscreenHeight:
             case FramesSettings.FullscreenRefreshRate:
-                ApplyDisplay(notify: true);
+                // Several keys changed together apply once, at the start of the frame.
+                _displayChanged = true;
                 break;
         }
     }
@@ -142,6 +144,12 @@ internal sealed class WindowSystem : IWindowSystem, IWindowBackends, IWindowEven
         if (_backend is null)
         {
             return;
+        }
+
+        if (_displayChanged)
+        {
+            _displayChanged = false;
+            ApplyDisplay(notify: true);
         }
 
         // The work of the previous frame is its real time minus what this handler waited in it.

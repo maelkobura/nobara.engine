@@ -110,6 +110,9 @@ public sealed class WindowSystemTests : IDisposable
         game.Context.Settings.Set(FramesSettings.Monitor, 1);
         _harness.Frame(engine);
 
+        // Two keys changed together give one display.
+        Assert.Equal(2, _harness.Backend.Window!.Displays.Count);
+
         Assert.Equal(new DisplayRequest(WindowMode.Borderless, 1, default), _harness.Backend.Window!.Displays[^1]);
         Assert.Equal(WindowMode.Borderless, game.Windows.MainWindow.Mode);
         Assert.Equal(1, game.Windows.MainWindow.Monitor);
