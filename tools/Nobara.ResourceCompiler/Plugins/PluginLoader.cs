@@ -103,17 +103,18 @@ public sealed class PluginLoader : IDisposable
         // application. A probe folder may hold copies of them, such as the
         // folder of a self-contained game; loading such a copy here would give
         // the plugins types that differ from the compiler's, such as XElement.
-        private readonly HashSet<string> _host;
+        // Their paths, by name.
+        private readonly Dictionary<string, string> _host = new(StringComparer.OrdinalIgnoreCase);
 
         public PluginContext(IReadOnlyList<string> directories)
             : base("Nobara resource plugins", isCollectible: true)
         {
             _directories = directories;
             string platform = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string ?? string.Empty;
-            _host = platform.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                .Select(Path.GetFileNameWithoutExtension)
-                .OfType<string>()
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (string path in platform.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+            {
+                _host.TryAdd(Path.GetFileNameWithoutExtension(path), path);
+            }
         }
 
         public Assembly LoadFromPath(string path)
@@ -132,8 +133,9 @@ public sealed class PluginLoader : IDisposable
                 }
             }
 
-            // The default context resolves the assemblies of the host.
-            if (name.Name is not null && _host.Contains(name.Name))
+            // The default context resolves the assemblies of the host, unless
+            // the plugin needs a later version than the host has.
+            if (name.Name is not null && _host.TryGetValue(name.Name, out string? hostPath) && HostSatisfies(hostPath, name))
             {
                 return null;
             }
@@ -148,6 +150,23 @@ public sealed class PluginLoader : IDisposable
             }
 
             return null;
+        }
+
+        private static bool HostSatisfies(string hostPath, AssemblyName requested)
+        {
+            if (requested.Version is null)
+            {
+                return true;
+            }
+
+            try
+            {
+                return AssemblyName.GetAssemblyName(hostPath).Version is { } version && version >= requested.Version;
+            }
+            catch (Exception exception) when (exception is IOException or BadImageFormatException or UnauthorizedAccessException)
+            {
+                return false;
+            }
         }
     }
 }
