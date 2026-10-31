@@ -276,6 +276,68 @@ public sealed class HookTests : IDisposable
     }
 
     [Fact]
+    public void AStateOutsideTheRegistryLeavesTheNextBatchIntact()
+    {
+        using Engine engine = Start(p => p.Hooks.Subscribe(p.Context, p.Hooks.Breaking, p.Blocks.Get("block:example.blocks.stone"), new BatchRecorder(_calls, "stone")));
+        BlockType stone = Type("stone");
+        BlockBatch wrong = Batch(Break(1, stone), new BlockChange(default, uint.MaxValue, 0));
+
+        Assert.Throws<ArgumentException>(() => _probe.Hooks.Fire(_probe.Hooks.Breaking, wrong));
+        _probe.Hooks.Fire(_probe.Hooks.Breaking, Batch(Break(5, stone)));
+
+        Assert.Equal(["stone:5"], _calls);
+    }
+
+    [Fact]
+    public void ASubscriberCannotFireTheHookItRunsIn()
+    {
+        BlockBatch? nested = null;
+        Exception? error = null;
+        using Engine engine = Start(p =>
+        {
+            p.Hooks.Subscribe(p.Context, p.Hooks.Breaking, p.Blocks.Get("block:example.blocks.stone"), new BatchRecorder(_calls, "chain", _ =>
+            {
+                try
+                {
+                    p.Hooks.Fire(p.Hooks.Breaking, nested!);
+                }
+                catch (InvalidOperationException e)
+                {
+                    error = e;
+                }
+            }), priority: 5);
+            p.Hooks.Subscribe(p.Context, p.Hooks.Breaking, p.Blocks.Get("block:example.blocks.stone"), new BatchRecorder(_calls, "after"));
+        });
+        nested = Batch(Break(9, Type("stone")));
+
+        Assert.True(_probe.Hooks.Fire(_probe.Hooks.Breaking, Batch(Break(1, Type("stone")))));
+
+        Assert.Equal(["chain:1", "after:1"], _calls);
+        Assert.Contains("while it was being fired", error!.Message, StringComparison.Ordinal);
+        _probe.Hooks.Fire(_probe.Hooks.Breaking, nested);
+        Assert.Equal(["chain:1", "after:1", "chain:9", "after:9"], _calls);
+    }
+
+    [Fact]
+    public void FiringAReusedBatchAllocatesNothing()
+    {
+        using Engine engine = Start(p => p.Hooks.Subscribe(p.Context, p.Hooks.Breaking, p.Blocks.Get("block:example.blocks.lamp"), new BatchRecorder(_calls, "lamp")));
+        BlockBatch batch = Batch(Break(1, Type("stone")), Break(2, Type("torch")));
+        _probe.Hooks.Fire(_probe.Hooks.Breaking, batch);
+        uint stone = Type("stone").DefaultState;
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            _probe.Hooks.Fire(_probe.Hooks.Breaking, batch);
+            _probe.Hooks.HasSubscribers(_probe.Hooks.Breaking, stone);
+        }
+
+        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.Empty(_calls);
+    }
+
+    [Fact]
     public void HooksAreFiredOnceNBlocksHasStarted()
     {
         Exception? early = null;

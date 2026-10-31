@@ -87,6 +87,9 @@ public sealed class BlockBatchHook : BlockHookKind
     /// <summary>Gets whether a subscriber concerns every type.</summary>
     internal bool HasGlobal { get; private set; }
 
+    /// <summary>Gets or sets whether the hook is being fired: its subscribers share one bucket each.</summary>
+    internal bool IsFiring { get; set; }
+
     internal override bool Build(IReadOnlyList<HookEntry> sorted, BlockType[] types, ulong[] typeFlags)
     {
         BatchEntry[] entries = sorted.Cast<BatchEntry>().ToArray();

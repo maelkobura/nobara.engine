@@ -124,6 +124,7 @@ internal sealed class BlockHooks : IBlockHooks
     [HotPath]
     public bool HasSubscribers(BlockHookKind hook, uint state)
     {
+        RequireStarted();
         CheckKind(hook);
         ulong[] flags = _stateFlags;
         if (state >= (uint)flags.Length)
@@ -151,6 +152,30 @@ internal sealed class BlockHooks : IBlockHooks
             return true;
         }
 
+        // The buckets of the subscribers are shared by every firing of the hook.
+        if (hook.IsFiring)
+        {
+            throw new InvalidOperationException($"A subscriber fired {hook.Name} while it was being fired; changes it causes go in a new batch, fired after this one.");
+        }
+
+        hook.IsFiring = true;
+        try
+        {
+            return FireBatch(hook, batch, entries);
+        }
+        finally
+        {
+            hook.IsFiring = false;
+            for (int k = 0; k < entries.Length; k++)
+            {
+                entries[k].Bucket.Clear();
+            }
+        }
+    }
+
+    [HotPath]
+    private bool FireBatch(BlockBatchHook hook, BlockBatch batch, BatchEntry[] entries)
+    {
         // One pass: each block goes to the subscribers of its type.
         ulong[] flags = _stateFlags;
         int[] typeOfState = _registry.TypeOfState;
@@ -190,65 +215,55 @@ internal sealed class BlockHooks : IBlockHooks
             return true;
         }
 
-        try
+        for (int k = 0; k < entries.Length; k++)
         {
-            for (int k = 0; k < entries.Length; k++)
+            BatchEntry entry = entries[k];
+            List<int> bucket = entry.Bucket;
+            if (entry.IsGlobal)
             {
-                BatchEntry entry = entries[k];
-                List<int> bucket = entry.Bucket;
-                if (entry.IsGlobal)
-                {
-                    bucket.Clear();
-                    for (int i = 0; i < changes.Length; i++)
-                    {
-                        if (!batch.IsRemoved(i))
-                        {
-                            bucket.Add(i);
-                        }
-                    }
-                }
-                else
-                {
-                    // Earlier subscribers may have removed blocks.
-                    int kept = 0;
-                    for (int r = 0; r < bucket.Count; r++)
-                    {
-                        if (!batch.IsRemoved(bucket[r]))
-                        {
-                            bucket[kept++] = bucket[r];
-                        }
-                    }
-
-                    bucket.RemoveRange(kept, bucket.Count - kept);
-                }
-
-                if (bucket.Count == 0 || !entry.IsActive)
-                {
-                    bucket.Clear();
-                    continue;
-                }
-
-                try
-                {
-                    entry.Handler.Handle(new BlockBatchView(hook, batch, bucket));
-                }
-                catch (Exception exception) when (exception is not EngineStopException)
-                {
-                    entry.Module.ReportFault(exception);
-                }
-
                 bucket.Clear();
-                if (batch.IsCancelled)
+                for (int i = 0; i < changes.Length; i++)
                 {
-                    return false;
+                    if (!batch.IsRemoved(i))
+                    {
+                        bucket.Add(i);
+                    }
                 }
             }
-        }
-        finally
-        {
-            for (int k = 0; k < entries.Length; k++)
+            else
             {
-                entries[k].Bucket.Clear();
+                // Earlier subscribers may have removed blocks.
+                int kept = 0;
+                for (int r = 0; r < bucket.Count; r++)
+                {
+                    if (!batch.IsRemoved(bucket[r]))
+                    {
+                        bucket[kept++] = bucket[r];
+                    }
+                }
+
+                bucket.RemoveRange(kept, bucket.Count - kept);
+            }
+
+            if (bucket.Count == 0 || !entry.IsActive)
+            {
+                bucket.Clear();
+                continue;
+            }
+
+            try
+            {
+                entry.Handler.Handle(new BlockBatchView(hook, batch, bucket));
+            }
+            catch (Exception exception) when (exception is not EngineStopException)
+            {
+                entry.Module.ReportFault(exception);
+            }
+
+            bucket.Clear();
+            if (batch.IsCancelled)
+            {
+                return false;
             }
         }
 

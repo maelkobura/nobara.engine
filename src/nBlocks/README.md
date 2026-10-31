@@ -236,4 +236,7 @@ of the context.
   the short names of the modules.
 - A type added or removed, or a change of its states, needs a restart of the
   context.
-- Hooks are fired on the server only.
+- nBlocks does not restrict the side a hook is fired on; hooks for the
+  prediction of actions on the client are not provided.
+- A module that resolved free properties per state is not told when a reload
+  changes them.

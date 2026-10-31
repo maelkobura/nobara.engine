@@ -19,13 +19,6 @@ a specific third-party library or platform API, such as a graphics API. The
 base module selects a backend at run time. See [Technical
 variants](architecture.md#technical-variants).
 
-### Block
-
-A type of cell of a grid of voxels, defined by a `Block` resource and kept in
-the block registry of nBlocks, such as `block:example.blocks.lamp`. The type
-describes the block; the blocks placed in a world belong to the module that
-stores them. See [the `Block` reference](../reference/formats/block.md).
-
 ### Block hook
 
 What happens to blocks, such as a block being broken or used, that modules
@@ -37,10 +30,17 @@ sheet](../../src/nBlocks/README.md#block-hooks).
 ### Block state
 
 One combination of the values of the state properties of a type of block,
-such as `block:example.blocks.lamp[lit=true]`, numbered by an index that the
-same blocks give on every side. Not to be confused with a
-[state](#state) of the application. See [the nBlocks module
+such as `block:example.blocks.lamp[lit=true]`, numbered by an index that is
+the same in every context that loads the same blocks. Not to be confused
+with a [state](#state) of the application. See [the nBlocks module
 sheet](../../src/nBlocks/README.md#block-states).
+
+### Block type
+
+A type of cell of a grid of voxels, defined by a `Block` resource and kept in
+the block registry of nBlocks, such as `block:example.blocks.lamp`. The type
+describes the blocks; the blocks placed in a world belong to the module that
+stores them. See [the `Block` reference](../reference/formats/block.md).
 
 ### Build target
 

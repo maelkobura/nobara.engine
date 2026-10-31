@@ -32,7 +32,8 @@ namespace Nobara.Blocks;
 /// <para>
 /// A subscriber that throws is reported with <see cref="ModuleContext.ReportFault"/>
 /// on its module, and the next one runs. Call the service on the loop thread
-/// of the context; in this version, action hooks are fired on the server only.
+/// of the context. A subscriber of a batch hook does not fire the same hook:
+/// the changes it causes go in a new batch, fired after the current one.
 /// </para>
 /// </remarks>
 public interface IBlockHooks
@@ -85,6 +86,7 @@ public interface IBlockHooks
     /// <param name="handler">The subscriber.</param>
     /// <param name="priority">The priority; higher runs first.</param>
     /// <returns>The handle that removes the subscriber.</returns>
+    /// <exception cref="ArgumentException">The hook, the type, or the tag belongs to another context, or the hook is declared by a module that <paramref name="module"/> does not depend on.</exception>
     BlockHookHandle Subscribe(ModuleContext module, BlockBatchHook hook, BlockType type, IBlockBatchHandler handler, int priority = 0);
 
     /// <summary>Subscribes to a batch hook for the types of a tag; the tag is resolved again when it changes.</summary>
@@ -94,6 +96,7 @@ public interface IBlockHooks
     /// <param name="handler">The subscriber.</param>
     /// <param name="priority">The priority; higher runs first.</param>
     /// <returns>The handle that removes the subscriber.</returns>
+    /// <exception cref="ArgumentException">The hook, the type, or the tag belongs to another context, or the hook is declared by a module that <paramref name="module"/> does not depend on.</exception>
     BlockHookHandle Subscribe(ModuleContext module, BlockBatchHook hook, BlockTag tag, IBlockBatchHandler handler, int priority = 0);
 
     /// <summary>
@@ -106,7 +109,7 @@ public interface IBlockHooks
     /// <param name="handler">The subscriber.</param>
     /// <param name="priority">The priority; higher runs first.</param>
     /// <returns>The handle that removes the subscriber.</returns>
-    /// <exception cref="ArgumentException">The hook runs after the batch applied.</exception>
+    /// <exception cref="ArgumentException">The hook runs after the batch applied, or belongs to another context.</exception>
     BlockHookHandle SubscribeAll(ModuleContext module, BlockBatchHook hook, IBlockBatchHandler handler, int priority = 0);
 
     /// <summary>Subscribes to a unit hook for one type of block.</summary>
@@ -117,6 +120,7 @@ public interface IBlockHooks
     /// <param name="handler">The subscriber.</param>
     /// <param name="priority">The priority; higher runs first.</param>
     /// <returns>The handle that removes the subscriber.</returns>
+    /// <exception cref="ArgumentException">The hook, the type, or the tag belongs to another context, or the hook is declared by a module that <paramref name="module"/> does not depend on.</exception>
     BlockHookHandle Subscribe<TArgs>(ModuleContext module, BlockHook<TArgs> hook, BlockType type, IBlockHandler<TArgs> handler, int priority = 0)
         where TArgs : struct;
 
@@ -128,6 +132,7 @@ public interface IBlockHooks
     /// <param name="handler">The subscriber.</param>
     /// <param name="priority">The priority; higher runs first.</param>
     /// <returns>The handle that removes the subscriber.</returns>
+    /// <exception cref="ArgumentException">The hook, the type, or the tag belongs to another context, or the hook is declared by a module that <paramref name="module"/> does not depend on.</exception>
     BlockHookHandle Subscribe<TArgs>(ModuleContext module, BlockHook<TArgs> hook, BlockTag tag, IBlockHandler<TArgs> handler, int priority = 0)
         where TArgs : struct;
 
@@ -135,6 +140,9 @@ public interface IBlockHooks
     /// <param name="hook">The hook.</param>
     /// <param name="state">The state.</param>
     /// <returns><see langword="true"/> when a subscriber of the type of the state, or of every type, is in the tables.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The state is not in the registry.</exception>
+    /// <exception cref="ArgumentException">The hook belongs to another context.</exception>
+    /// <exception cref="InvalidOperationException">nBlocks has not started.</exception>
     [HotPath]
     bool HasSubscribers(BlockHookKind hook, uint state);
 
@@ -147,13 +155,14 @@ public interface IBlockHooks
     /// <param name="hook">The hook.</param>
     /// <param name="batch">The batch.</param>
     /// <returns><see langword="false"/> when the batch is cancelled.</returns>
+    /// <exception cref="ArgumentException">A block of the batch has a state that is not in the registry, or the hook belongs to another context.</exception>
     /// <remarks>
     /// The blocks are grouped by subscriber in one pass, then each subscriber
     /// is called once, with its view. A batch that touches no subscribed type
     /// calls nobody. Firing allocates nothing once the lists of the batch and
     /// of the subscribers have grown.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">nBlocks has not started.</exception>
+    /// <exception cref="InvalidOperationException">nBlocks has not started, or a subscriber fires the hook while it is being fired.</exception>
     [HotPath]
     bool Fire(BlockBatchHook hook, BlockBatch batch);
 
@@ -163,6 +172,8 @@ public interface IBlockHooks
     /// <param name="state">The state of the block, which chooses the subscribers.</param>
     /// <param name="args">The event.</param>
     /// <returns><see langword="true"/> when a subscriber of a consumable hook consumed the event.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The state is not in the registry.</exception>
+    /// <exception cref="ArgumentException">The hook belongs to another context.</exception>
     /// <exception cref="InvalidOperationException">nBlocks has not started.</exception>
     [HotPath]
     bool Fire<TArgs>(BlockHook<TArgs> hook, uint state, in TArgs args)

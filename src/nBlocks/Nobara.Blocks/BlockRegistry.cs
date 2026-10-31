@@ -462,6 +462,8 @@ internal sealed class BlockRegistry : IBlockRegistry
         return layout;
     }
 
+    // The air resource writes no opacity, so its layout has the default, opaque;
+    // Apply then gives the air its reserved opacity, transparent.
     private static void CheckAir(BlockLayout layout, List<BlockProblem> problems)
     {
         bool same = layout.StateCount == 1 && layout.Item is null && layout.Variants.Count == 0 && layout.Shape == BlockLayout.DefaultShape
