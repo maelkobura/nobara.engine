@@ -1,0 +1,41 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- The tests hand GLSL to shaderc through its bindings. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- Compiles the GLSL of the tests to SPIR-V; the engine compiles shaders at build time instead. -->
+    <PackageReference Include="Silk.NET.Shaderc" Version="2.23.0" />
+  </ItemGroup>
+
+  <!-- The resource compiler gives the tests the compiled manifest formats. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Graphics.OpenGL\Nobara.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\Nobara.Graphics\Nobara.Graphics.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames.SDL2\Nobara.Frames.SDL2.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames\Nobara.Frames.csproj" />
+    <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+</Project>

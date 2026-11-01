@@ -27,6 +27,12 @@
     <Project Path="src/nGame/Nobara.Game/Nobara.Game.csproj" />
     <Project Path="src/nGame/Nobara.Game.Tests/Nobara.Game.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nGraphics/">
+    <Project Path="src/nGraphics/Nobara.Graphics/Nobara.Graphics.csproj" />
+    <Project Path="src/nGraphics/Nobara.Graphics.OpenGL/Nobara.Graphics.OpenGL.csproj" />
+    <Project Path="src/nGraphics/Nobara.Graphics.OpenGL.Tests/Nobara.Graphics.OpenGL.Tests.csproj" />
+    <Project Path="src/nGraphics/Nobara.Graphics.Tests/Nobara.Graphics.Tests.csproj" />
+  </Folder>
   <Folder Name="/src/nInput/">
     <Project Path="src/nInput/Nobara.Input/Nobara.Input.csproj" />
     <Project Path="src/nInput/Nobara.Input.Build/Nobara.Input.Build.csproj" />

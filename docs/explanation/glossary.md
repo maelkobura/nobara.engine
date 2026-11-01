@@ -59,6 +59,14 @@ mob. It depends on platform modules and on other business modules. See
 A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid
 and references them from the grid's entity.
 
+### Command buffer
+
+A list of GPU commands recorded by a module, then submitted to the
+[graphics device](#graphics-device) in a frame: render passes, pipeline and
+resource bindings, draws, dispatches, barriers. The OpenGL backend replays it
+on the loop thread when it is submitted. See [the nGraphics module
+sheet](../../src/nGraphics/README.md#command-buffers).
+
 ### Component
 
 A piece of data attached to an entity in the entity component system.
@@ -218,6 +226,14 @@ page](../../src/Core/README.md#loop).
 One pass of the loop of a context: the synchronization point, the start of
 the frame, then each phase in order.
 
+### Frame in flight
+
+A frame that the GPU may still be running while the CPU records the next
+one. The [graphics device](#graphics-device) keeps up to two by default and
+waits, at the start of a frame, for the one that used the same slot, so the
+CPU never rewrites data the GPU still reads. See [the nGraphics module
+sheet](../../src/nGraphics/README.md#frames-in-flight).
+
 ### Free property
 
 A value of a resource that its own type does not declare, written in its
@@ -242,6 +258,14 @@ Something that happens to the whole application, such as a stop request,
 which the active state of the state stack decides about first. When the state
 does not handle it, its default action applies. See [the nContext module
 sheet](../../src/nContext/README.md#global-events).
+
+### Graphics device
+
+The object of nGraphics that talks to the GPU through a
+[backend](#backend): it creates GPU resources and pipelines, runs
+[command buffers](#command-buffer), and paces the
+[frames in flight](#frame-in-flight). See [the nGraphics module
+sheet](../../src/nGraphics/README.md).
 
 ### Grid
 
@@ -458,6 +482,12 @@ the simulation phase into stages, runs the tick systems in a deterministic
 order, keeps pause, time scale, tick rate, and dimension clocks, and runs the
 scheduler. See [its module sheet](../../src/nGame/README.md).
 
+### nGraphics
+
+The platform module of the [RHI](#rhi), on the client: the neutral API of the
+GPU, its capabilities, the [graphics device](#graphics-device), and the
+registry of graphics backends. See [its module sheet](../../src/nGraphics/README.md).
+
 ### nInput
 
 The platform module of input, on the client: the resource types
@@ -499,6 +529,14 @@ reference](../reference/formats/nof.md#overrides).
 A named part of the loop of a context, such as input, simulation, or
 rendering, declared by the distribution in `engine.nobara`. Modules subscribe
 handlers to the phases they need.
+
+### Pipeline state
+
+Everything fixed about a draw or a dispatch, gathered in one immutable
+object: the shaders, the vertex layout, the resource layouts, and the
+rasterizer, depth, and blend states. A pipeline is created once and bound by
+a [command buffer](#command-buffer). See [the nGraphics module
+sheet](../../src/nGraphics/README.md#pipelines-and-resource-sets).
 
 ### Platform module
 
@@ -576,6 +614,13 @@ A kind of resource, such as `Block`, defined by a message of a `.proto`
 schema marked with `(nobara.resource_type)`. See [the schema options
 reference](../reference/formats/proto-options.md).
 
+### RHI
+
+Rendering hardware interface: the layer that hides the graphics API behind a
+neutral API modeled on the explicit APIs (immutable pipelines, command
+buffers, bound resource sets). In Nobara it is [nGraphics](#ngraphics); see
+[the rendering layers](rendering-layers.md).
+
 ### Scancode
 
 The physical position of a key on the keyboard, whatever character the
@@ -608,6 +653,12 @@ page](../../src/Core/README.md#configuration-keys).
 ### Side
 
 Where a module runs: client, server, or both.
+
+### SPIR-V
+
+The binary format of the shaders that nGraphics loads. Shaders are written in
+GLSL and compiled to SPIR-V ahead of time; the OpenGL backend loads it
+through OpenGL 4.6. See [the nGraphics module sheet](../../src/nGraphics/README.md#shaders).
 
 ### Stage
 
@@ -646,6 +697,13 @@ host of the engine, or the player closing the window, which a module
 relays. The module that intercepts stop requests receives it instead, and
 nContext hands it to the active state. See [the core
 page](../../src/Core/README.md#reserved-phases-and-levers).
+
+### Swapchain
+
+The images shown in the window: the back buffer that a render pass draws to,
+presented at the end of each frame. The [graphics device](#graphics-device)
+creates it again when the window changes size or gets its surface back. See
+[the nGraphics module sheet](../../src/nGraphics/README.md#swapchain).
 
 ### Synchronization point
 
