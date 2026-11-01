@@ -271,7 +271,16 @@ public readonly struct ProfilerScope : IDisposable
         GC.GetTotalPauseDuration().Ticks - _gcPause);
 }
 
-/// <summary>The profiler as one module sees it: it creates the markers of the module in its context.</summary>
+/// <summary>
+/// The profiler as one module sees it: it creates the markers of the module
+/// in its context, and reads the profiler of the process, for a tool that
+/// shows the measures.
+/// </summary>
+/// <remarks>
+/// Every module may read the profiler, turn it on or off, and reset it: the
+/// measures change nothing in the game. Turning it on or resetting it applies
+/// to the whole process, whoever reads it.
+/// </remarks>
 public sealed class ModuleProfiler
 {
     private readonly Profiler _profiler;
@@ -285,8 +294,28 @@ public sealed class ModuleProfiler
         _module = module;
     }
 
-    /// <summary>Gets whether the profiler measures.</summary>
-    public bool Enabled => _profiler.Enabled;
+    /// <summary>
+    /// Gets or sets whether the profiler of the process measures. It can be
+    /// changed at any time, from any thread, and applies to every context.
+    /// </summary>
+    public bool Enabled
+    {
+        [HotPath]
+        get => _profiler.Enabled;
+        set => _profiler.Enabled = value;
+    }
+
+    /// <summary>Gets what the profiler of the process measured since the last reset, in every context.</summary>
+    /// <returns>The entries of the markers that ran at least once, ordered by context, kind, module, and name.</returns>
+    /// <remarks>It allocates the list and the entries: call it for a tool, not at every frame of a game.</remarks>
+    public IReadOnlyList<ProfileEntry> Snapshot() => _profiler.Snapshot();
+
+    /// <summary>Sets every measure of the process back to zero, in every context.</summary>
+    public void Reset() => _profiler.Reset();
+
+    /// <summary>Formats what the profiler of the process measured since the last reset as a text table.</summary>
+    /// <returns>The table, one line per entry.</returns>
+    public string FormatReport() => _profiler.FormatReport();
 
     /// <summary>Creates a marker for a scope of the module. Create it once, during registration or initialization.</summary>
     /// <param name="name">The name of the scope in reports, such as the name of a system.</param>

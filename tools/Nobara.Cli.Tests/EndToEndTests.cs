@@ -97,6 +97,20 @@ public sealed class EndToEndTests : IClassFixture<ReleaseBuild>
         Assert.Contains("library hash", server.Output, StringComparison.Ordinal);
         Assert.Contains("speed 3", server.Output, StringComparison.Ordinal);
         Assert.Contains("stopping after 5 ticks", server.Output, StringComparison.Ordinal);
+        Assert.Contains("profiler off", server.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Turns_on_the_profiler_with_a_launch_option()
+    {
+        string install = Path.Combine(Path.GetTempPath(), "nobara-cli-tests", "server-" + Guid.NewGuid().ToString("N"));
+        SampleGameCopy.Copy(Out("server"), install);
+
+        using RunningGame server = SampleGameCopy.Start(Path.Combine(install, "Sample GameServer.exe"), "--profile");
+        int exit = server.Exit(Timeout);
+
+        Assert.True(exit == 0, server.Output);
+        Assert.Contains("profiler on", server.Output, StringComparison.Ordinal);
     }
 
     [Fact]

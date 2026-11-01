@@ -335,6 +335,14 @@ profiler costs one test per measured scope. An enabled one allocates nothing.
 Measures include the scopes nested in them; a pause of the garbage collector
 counts for every scope it falls in.
 
+A module reads the profiler of the process through `context.Profiler`:
+`Enabled` turns it on and off, `Snapshot()`, `FormatReport()`, and `Reset()`
+work as on `Engine.Profiler`. Every module may do so, since the measures
+change nothing in the game; turning the profiler on or resetting it applies
+to the whole process. A debug tool such as [nDebug](../nDebug/README.md)
+shows the measures this way. The executable of a game turns the profiler on
+from start-up with the launch option `--profile`, in every build.
+
 ### Low-level foundations
 
 The core provides the low-level types that several modules use. Their

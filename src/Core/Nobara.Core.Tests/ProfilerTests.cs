@@ -126,6 +126,34 @@ public sealed class ProfilerTests : IDisposable
     }
 
     [Fact]
+    public void A_module_turns_on_reads_and_resets_the_profiler_of_the_process()
+    {
+        _distribution.Profiling = false;
+        ModuleContext? context = null;
+        using Engine engine = _distribution
+            .Module("example.tools", behavior: m => m.OnRegister = c => context = c)
+            .Module("example.time", behavior: m => m.OnRegister = c => c.Loop.Subscribe("Input", new PhaseHandler(_ => { })))
+            .Load();
+        RunFrames(engine, 2);
+        Assert.False(context!.Profiler.Enabled);
+        Assert.Empty(context.Profiler.Snapshot());
+
+        context.Profiler.Enabled = true;
+        Assert.True(engine.Profiler.Enabled);
+        _distribution.Clock.Advance(Tick30);
+        engine.MainContext.RunFrame();
+
+        // The module reads the measures of every module, not only its own.
+        Assert.Contains(context.Profiler.Snapshot(), e => e is { Module: "example.time", Kind: ProfileKind.Handler, Name: "Input", Calls: 1 });
+        Assert.Contains("example.time", context.Profiler.FormatReport(), StringComparison.Ordinal);
+
+        context.Profiler.Reset();
+        Assert.Empty(engine.Profiler.Snapshot());
+        context.Profiler.Enabled = false;
+        Assert.False(engine.Profiler.Enabled);
+    }
+
+    [Fact]
     public void A_frame_allocates_nothing_while_the_profiler_measures()
     {
         var handler = new PhaseHandler(_ => { });
