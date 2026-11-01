@@ -281,9 +281,9 @@ See [the analyzer reference](../reference/analyzers.md#hot-path-rules).
 
 ### Hot reload
 
-Reloading the `.nof` resources of modules while a development build runs:
-the changed module is compiled again and each context takes the result at
-its next frame. See [the hot reload page](../../tools/Nobara.HotReload/README.md).
+Reloading the resources of modules while a development build runs, from
+their `.nof` files and the files they reference: the changed module is
+compiled again and each context takes the result at its next frame. See [the hot reload page](../../tools/Nobara.HotReload/README.md).
 
 ### Input action
 
@@ -419,6 +419,25 @@ name, version, level, side, dependencies, conflicts, reservations, and
 configuration keys. A distribution manifest is compiled from the project
 file and the engine file of a distribution.
 
+### Material
+
+A resource of type `Material` that says how a surface is drawn: a
+[shader](#shader) and its [variant](#shader-variant), the textures and
+parameters it gives to the shader, and a render mode (opaque, cutout, or
+transparent). See [the `Material` reference](../reference/formats/material.md).
+
+### Material slot
+
+A part of a [mesh](#mesh) drawn with one material, named after the material
+of the glTF file. The `Mesh` resource gives a material to each slot. See [the
+`Mesh` reference](../reference/formats/mesh.md#material-slots).
+
+### Mesh
+
+A resource of type `Mesh` that wraps a glTF binary file: static triangles in
+one vertex buffer and one index buffer, split in [material
+slots](#material-slot). See [the `Mesh` reference](../reference/formats/mesh.md).
+
 ### Module
 
 A unit of the engine with a name, a version, a level, and declared
@@ -502,6 +521,13 @@ The platform module of the item registry: the resource type `Item`, the item
 types and their tags, the types of item components, and the usage service
 of items, with their handlers and prolonged uses. See [its module
 sheet](../../src/nItems/README.md).
+
+### nRenderer
+
+The platform module, on the client, that organizes the rendering of a frame
+on top of [nGraphics](#ngraphics). It defines the resource types `Shader`,
+`Material`, `Mesh`, and `Texture`, and creates their GPU objects. See [its
+module sheet](../../src/nRenderer/README.md).
 
 ### Nobara.Sdk
 
@@ -650,6 +676,20 @@ The file `config/settings.xml` in the data folders, where the core keeps the
 values of `user` configuration keys that the player chose. See [the core
 page](../../src/Core/README.md#configuration-keys).
 
+### Shader
+
+A resource of type `Shader`: GLSL sources, one per stage, compiled to
+[SPIR-V](#spir-v) when the module is built, with its variants and the
+textures, parameters, and buffers it reads. Distinct from the shader object
+of nGraphics, one stage of one variant on the GPU. See [the `Shader`
+reference](../reference/formats/shader.md).
+
+### Shader variant
+
+The sources of a [shader](#shader) compiled with more macros, such as
+`ALPHA_CUTOUT`; a [material](#material) chooses one by name. See [the
+`Shader` reference](../reference/formats/shader.md#variants).
+
 ### Side
 
 Where a module runs: client, server, or both.
@@ -726,6 +766,14 @@ several modules may add members. See [the `.nof` reference](../reference/formats
 The input layer that receives typed text, such as a chat field: while a
 layer has it, the keyboard reaches no layer below it and triggers no input
 action. See [the nInput module sheet](../../src/nInput/README.md#text-input).
+
+### Texture array
+
+A GPU texture made of layers of the same size, read by layer in the shader.
+nRenderer places each texture resource in the array of its size and
+settings, one layer per texture, instead of an atlas, so mip levels never
+blend two textures; a texture is located by its array and its layer. See
+[the `Texture` reference](../reference/formats/texture.md#texture-arrays).
 
 ### Tick
 

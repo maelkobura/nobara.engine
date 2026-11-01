@@ -115,6 +115,13 @@ public sealed class BlockPlugin : ResourcePlugin
 | `Derive` | Resources generated from a resource, such as the item of a block, compiled like written ones. |
 | `ProcessFile` | Changes a binary file referenced by a resource of the type before it is embedded. |
 
+`ProcessFile` receives a `FileContext`: the path and the bytes of the file,
+and `References`, the resources of the module that reference it, sorted by
+object identifier, with their compiled content (overrides are not listed).
+A plugin that compiles a file reports its errors at a line of it with
+`Error(code, message, line, column)`, so the diagnostic names the file and
+the line.
+
 `PluginLoader` loads plugin assemblies from memory, in an
 `AssemblyLoadContext` of their own that shares this library and
 `Google.Protobuf` with the compiler, so the files stay free to be rebuilt.
@@ -123,6 +130,11 @@ in the version the plugin needs or a later one, such as the .NET libraries,
 and otherwise from the folder of the plugin, then from the probe folders. A probe folder that holds a copy of the .NET
 libraries, such as the folder of a self-contained game, therefore gives the
 plugins the same types as the compiler.
+
+A native library that a plugin binds to, such as a compiler, is searched in
+the folders of the plugins, then in their `runtimes/<rid>/native/` folder,
+where NuGet copies it. The plugin loads it with
+`NativeLibrary.Load(name, typeof(SomePluginType).Assembly, null)`.
 
 ## Manifests and distributions
 

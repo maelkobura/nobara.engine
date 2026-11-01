@@ -1,0 +1,108 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Example/Render">
+  <Shader>
+    <Name>Lit</Name>
+    <Content>
+      <Vertex>Shaders/lit.vert</Vertex>
+      <Fragment>Shaders/lit.frag</Fragment>
+      <Variant name="Cutout">
+        <Define>ALPHA_CUTOUT</Define>
+      </Variant>
+      <Texture name="Albedo" binding="0" />
+      <Texture name="Normal" binding="1" optional="true" fallback="normal" />
+      <Parameters binding="1">
+        <Parameter name="Tint" type="vec4" default="1 1 1 1" />
+        <Parameter name="AlphaCutoff" type="float" default="0.5" />
+        <Parameter name="AlbedoLayer" type="layer" texture="Albedo" />
+        <Parameter name="NormalLayer" type="layer" texture="Normal" />
+      </Parameters>
+      <Uniform name="Camera" binding="0" />
+    </Content>
+  </Shader>
+
+  <Shader>
+    <Name>Unlit</Name>
+    <Content>
+      <Vertex>Shaders/lit.vert</Vertex>
+      <Fragment>Shaders/unlit.frag</Fragment>
+      <Texture name="Albedo" binding="0" />
+      <Parameters binding="1">
+        <Parameter name="AlbedoLayer" type="layer" texture="Albedo" />
+      </Parameters>
+      <Uniform name="Camera" binding="0" />
+    </Content>
+  </Shader>
+
+  <Texture>
+    <Name>Dirt</Name>
+    <Content>
+      <File>Textures/dirt.png</File>
+    </Content>
+  </Texture>
+
+  <Texture>
+    <Name>Leaves</Name>
+    <Content>
+      <File>Textures/leaves.png</File>
+    </Content>
+  </Texture>
+
+  <Texture>
+    <Name>Stone</Name>
+    <Content>
+      <File>Textures/stone.png</File>
+      <Filter>linear</Filter>
+    </Content>
+  </Texture>
+
+  <Texture>
+    <Name>StoneNormal</Name>
+    <Content>
+      <File>Textures/stone_normal.png</File>
+      <Filter>linear</Filter>
+      <ColorSpace>linear</ColorSpace>
+    </Content>
+  </Texture>
+
+  <Material>
+    <Name>Dirt</Name>
+    <Content>
+      <Shader>shader:example.render.unlit</Shader>
+      <Texture name="Albedo" texture="texture:example.render.dirt" />
+    </Content>
+  </Material>
+
+  <Material>
+    <Name>Leaves</Name>
+    <Content>
+      <Shader>shader:example.render.lit</Shader>
+      <Variant>Cutout</Variant>
+      <Mode>cutout</Mode>
+      <Texture name="Albedo" texture="texture:example.render.leaves" />
+      <Parameter name="AlphaCutoff" value="0.25" />
+    </Content>
+  </Material>
+
+  <Material>
+    <Name>Stone</Name>
+    <Content>
+      <Shader>shader:example.render.lit</Shader>
+      <Texture name="Albedo" texture="texture:example.render.stone" />
+      <Texture name="Normal" texture="texture:example.render.stonenormal" />
+      <Parameter name="Tint" value="0.9 0.9 1 1" />
+    </Content>
+  </Material>
+
+  <Mesh>
+    <Name>Crate</Name>
+    <Content>
+      <File>Meshes/crate.glb</File>
+      <Material slot="Wood" material="material:example.render.dirt" />
+      <Material slot="Leaves" material="material:example.render.leaves" />
+    </Content>
+  </Mesh>
+</Nobara>

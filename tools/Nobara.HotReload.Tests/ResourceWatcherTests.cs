@@ -27,16 +27,20 @@ public sealed class ResourceWatcherTests : IDisposable
     private readonly F.ModuleManifest _manifest = new() { Format = 1, Id = ModuleId, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
     private readonly List<ResourceReload> _reloads = [];
     private int _power;
+    private string _manual = string.Empty;
 
     public ResourceWatcherTests()
     {
         Directory.CreateDirectory(Resources);
+        File.WriteAllText(ManualFile, "Plug it in.");
         Write(42);
     }
 
     private string Resources => Path.Combine(_root, "Resources");
 
     private string GadgetFile => Path.Combine(Resources, "gadgets.nof");
+
+    private string ManualFile => Path.Combine(Resources, "manual.txt");
 
     public void Dispose()
     {
@@ -52,7 +56,7 @@ public sealed class ResourceWatcherTests : IDisposable
 
     private void Write(int power, string extra = "") => File.WriteAllText(GadgetFile, $"""
         <Nobara version="1.0.0" namespace="Example/Gadgets">
-          <Gadget><Name>Lamp</Name><Content><Power>{power}</Power></Content></Gadget>
+          <Gadget><Name>Lamp</Name><Content><Power>{power}</Power><Manual>manual.txt</Manual></Content></Gadget>
           {extra}
         </Nobara>
         """);
@@ -70,7 +74,7 @@ public sealed class ResourceWatcherTests : IDisposable
     {
         var distribution = new F.DistributionManifest { Format = 1, Id = "example", Name = "Example", Version = "0.1.0", ErrorPolicy = new F.ErrorPolicy { DefaultPolicy = F.Policy.Stop } };
         distribution.Modules.Add(new F.DistributionModule { Id = ModuleId, Version = "1.0.0" });
-        var data = new Dictionary<string, byte[]> { ["nobara/resources.pb"] = bundle.ToByteArray(), ["nobara/schemas.pb"] = _schemas };
+        var data = new Dictionary<string, byte[]> { ["nobara/resources.pb"] = bundle.ToByteArray(), ["nobara/schemas.pb"] = _schemas, ["nobara/files/manual.txt"] = File.ReadAllBytes(ManualFile) };
         var source = new MemorySource(_manifest.ToByteArray(), () => new GadgetModule(this), data);
         return Engine.Load(new EngineOptions
         {
@@ -119,6 +123,32 @@ public sealed class ResourceWatcherTests : IDisposable
 
         Assert.Equal(7, _power);
         Assert.Equal(["gadget:example.gadgets.lamp"], Assert.Single(_reloads).Changed.Select(r => r.ObjectId));
+    }
+
+    [Fact]
+    public void Reloads_a_changed_binary_file_with_the_resources_that_reference_it()
+    {
+        F.ResourceBundle installed = CompileNow();
+        using Engine engine = Load(installed);
+        using ResourceWatcher watcher = Watch(engine, installed);
+        engine.MainContext.Start();
+        watcher.Start();
+        Assert.Equal("Plug it in.", _manual);
+
+        File.WriteAllText(ManualFile, "Unplug it first.");
+        WaitForLog("with 1 binary files");
+        engine.MainContext.RunFrame();
+
+        Assert.Equal("Unplug it first.", _manual);
+        Assert.Equal(["gadget:example.gadgets.lamp"], Assert.Single(_reloads).Changed.Select(r => r.ObjectId));
+
+        // A change of the .nof alone hands no binary file again.
+        Write(8);
+        Assert.True(watcher.Compile(ModuleId));
+        engine.MainContext.RunFrame();
+        Assert.Equal(8, _power);
+        Assert.Equal("Unplug it first.", _manual);
+        Assert.Contains(_log.Entries, e => e.Message.Contains("with 0 binary files", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -213,7 +243,13 @@ public sealed class ResourceWatcherTests : IDisposable
 
         public void Initialize(ModuleContext context) => Read(context);
 
-        private void Read(ModuleContext context) => test._power = context.Resources.Get<Gadget>("gadget:example.gadgets.lamp").Power;
+        private void Read(ModuleContext context)
+        {
+            Gadget lamp = context.Resources.Get<Gadget>("gadget:example.gadgets.lamp");
+            test._power = lamp.Power;
+            using var reader = new StreamReader(context.Resources.OpenFile(context.Resources.Find("gadget:example.gadgets.lamp")!, lamp.Manual));
+            test._manual = reader.ReadToEnd();
+        }
     }
 
     private sealed class MemorySource(byte[] manifest, Func<IModule> factory, Dictionary<string, byte[]> data) : IModuleSource

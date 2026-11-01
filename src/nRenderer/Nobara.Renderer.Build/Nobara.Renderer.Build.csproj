@@ -1,0 +1,38 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Nobara.Sdk/1.0.0">
+
+  <!--
+    The resource plugin of the types Shader, Material, Mesh, and Texture,
+    loaded by the resource compiler when a module that depends on
+    nobara.renderer is built. It compiles GLSL to SPIR-V with shaderc. It is
+    never shipped with a game, nor is shaderc.
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <!-- The bindings of shaderc take pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The compiler loads the plugin from its folder: shaderc, managed and native, is copied next to it. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Renderer\Nobara.Renderer.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nobara.Renderer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Private: a module that depends on nobara.renderer, and its game, never receive shaderc. -->
+    <PackageReference Include="Silk.NET.Shaderc" Version="2.23.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

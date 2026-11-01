@@ -15,4 +15,5 @@ message Gadget {
   option (nobara.resource_type) = "gadget";
 
   int32 power = 1;
+  string manual = 2 [(nobara.file) = true];
 }

@@ -43,6 +43,11 @@
     <Project Path="src/nItems/Nobara.Items.Build/Nobara.Items.Build.csproj" />
     <Project Path="src/nItems/Nobara.Items.Tests/Nobara.Items.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nRenderer/">
+    <Project Path="src/nRenderer/Nobara.Renderer/Nobara.Renderer.csproj" />
+    <Project Path="src/nRenderer/Nobara.Renderer.Build/Nobara.Renderer.Build.csproj" />
+    <Project Path="src/nRenderer/Nobara.Renderer.Tests/Nobara.Renderer.Tests.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Nobara.Analyzers/Nobara.Analyzers.csproj" />
     <Project Path="tools/Nobara.Analyzers.Tests/Nobara.Analyzers.Tests.csproj" />

@@ -173,13 +173,14 @@ public abstract class SchemaConverter
 /// <summary>A binary file given to a plugin.</summary>
 public sealed class FileContext
 {
-    private readonly Action<string, string, bool> _report;
+    private readonly Action<string, string, int, int, bool> _report;
 
-    internal FileContext(string path, byte[] content, string referencedBy, Action<string, string, bool> report)
+    internal FileContext(string path, byte[] content, string referencedBy, IReadOnlyList<FileReference> references, Action<string, string, int, int, bool> report)
     {
         Path = path;
         Content = content;
         ReferencedBy = referencedBy;
+        References = references;
         _report = report;
     }
 
@@ -189,16 +190,55 @@ public sealed class FileContext
     /// <summary>Gets the content of the file.</summary>
     public byte[] Content { get; }
 
-    /// <summary>Gets the object identifier of a resource that references the file.</summary>
+    /// <summary>Gets the object identifier of a resource that references the file: the first of <see cref="References"/> when there is one.</summary>
     public string ReferencedBy { get; }
+
+    /// <summary>
+    /// Gets the resources of the module that reference the file, sorted by
+    /// object identifier, with their compiled content. Overrides are not
+    /// listed: their content is not a whole resource.
+    /// </summary>
+    public IReadOnlyList<FileReference> References { get; }
 
     /// <summary>Reports an error, which fails the compilation.</summary>
     /// <param name="code">A code of the plugin.</param>
     /// <param name="message">The message.</param>
-    public void Error(string code, string message) => _report(code, message, true);
+    public void Error(string code, string message) => _report(code, message, 0, 0, true);
+
+    /// <summary>Reports an error at a position of the file, which fails the compilation.</summary>
+    /// <param name="code">A code of the plugin.</param>
+    /// <param name="message">The message.</param>
+    /// <param name="line">The line, from 1, or 0 when unknown.</param>
+    /// <param name="column">The column, from 1, or 0 when unknown.</param>
+    public void Error(string code, string message, int line, int column = 0) => _report(code, message, line, column, true);
 
     /// <summary>Reports a warning.</summary>
     /// <param name="code">A code of the plugin.</param>
     /// <param name="message">The message.</param>
-    public void Warning(string code, string message) => _report(code, message, false);
+    public void Warning(string code, string message) => _report(code, message, 0, 0, false);
+
+    /// <summary>Reports a warning at a position of the file.</summary>
+    /// <param name="code">A code of the plugin.</param>
+    /// <param name="message">The message.</param>
+    /// <param name="line">The line, from 1, or 0 when unknown.</param>
+    /// <param name="column">The column, from 1, or 0 when unknown.</param>
+    public void Warning(string code, string message, int line, int column = 0) => _report(code, message, line, column, false);
+}
+
+/// <summary>A resource that references a binary file given to a plugin.</summary>
+/// <param name="ObjectId">The object identifier: <c>shader:example.shaders.lit</c>.</param>
+/// <param name="Element">The XML element of its type: <c>Shader</c>.</param>
+/// <param name="ContentBytes">The compiled content of the resource.</param>
+public sealed record FileReference(string ObjectId, string Element, ReadOnlyMemory<byte> ContentBytes)
+{
+    /// <summary>Decodes the compiled content with a class generated from the schema.</summary>
+    /// <typeparam name="T">The generated class of the resource type.</typeparam>
+    /// <param name="parser">The parser of the class, such as <c>Shader.Parser</c>.</param>
+    /// <returns>The content.</returns>
+    public T Parse<T>(MessageParser<T> parser)
+        where T : IMessage<T>
+    {
+        ArgumentNullException.ThrowIfNull(parser);
+        return parser.ParseFrom(ContentBytes.Span);
+    }
 }

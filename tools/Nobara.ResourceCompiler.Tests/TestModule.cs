@@ -175,8 +175,22 @@ internal sealed class TestPlugin : ResourcePlugin
         }
     }
 
-    public override byte[] ProcessFile(FileContext context) =>
-        context.Path.EndsWith(".txt", StringComparison.Ordinal) ? System.Text.Encoding.UTF8.GetBytes(System.Text.Encoding.UTF8.GetString(context.Content).ToUpperInvariant()) : context.Content;
+    /// <summary>Gets the resources that referenced each processed file, by path.</summary>
+    public Dictionary<string, IReadOnlyList<FileReference>> References { get; } = [];
+
+    public override byte[] ProcessFile(FileContext context)
+    {
+        References[context.Path] = context.References;
+        string text = System.Text.Encoding.UTF8.GetString(context.Content);
+        string[] lines = text.Split('\n');
+        int error = Array.FindIndex(lines, l => l.StartsWith("#error", StringComparison.Ordinal));
+        if (error >= 0)
+        {
+            context.Error("TEST002", lines[error], error + 1, 1);
+        }
+
+        return context.Path.EndsWith(".txt", StringComparison.Ordinal) ? System.Text.Encoding.UTF8.GetBytes(text.ToUpperInvariant()) : context.Content;
+    }
 
     private sealed class WidgetConverter : SchemaConverter
     {

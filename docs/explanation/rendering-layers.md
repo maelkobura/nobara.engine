@@ -7,7 +7,7 @@ This page explains how rendering is split between three layers, and why.
 | Layer | Question it answers | Module |
 | --- | --- | --- |
 | Rendering hardware interface ([RHI](glossary.md#rhi)) | How do we talk to the GPU? | [nGraphics](../../src/nGraphics/README.md) and its backends |
-| Renderer | How is a frame organized? | nRenderer (not written yet) |
+| Renderer | How is a frame organized? | [nRenderer](../../src/nRenderer/README.md) (its resources so far) |
 | Pipeline | What does the frame look like? | a render pipeline module (not written yet) |
 
 The window is a fourth module, [nFrames](../../src/nFrames/README.md): it
