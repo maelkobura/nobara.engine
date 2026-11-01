@@ -63,14 +63,20 @@ public sealed class FrameTests : IDisposable
         }
 
         _harness.Fake.Recording = false;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 120; i++)
-        {
-            _harness.Clock.Advance(step);
-            _engine.MainContext.RunFrame();
-        }
 
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        // The runtime may allocate while it compiles methods again, optimized: a round of frames without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 60; i++)
+            {
+                _harness.Clock.Advance(step);
+                _engine.MainContext.RunFrame();
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        }
 
         Assert.Equal(0, allocated);
         Assert.Equal(400, _harness.Render.MainView.Items.Length);

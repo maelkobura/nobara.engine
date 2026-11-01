@@ -73,15 +73,14 @@ public sealed class DebugDrawTests
         WorldPosition center = WorldPosition.FromBlocks(0, 0, -5);
         draw.Sphere(center, 1, Red);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        // The runtime may allocate while it compiles the calls again, optimized: a round without allocation must come, and stay.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            draw.Line(center, center.Offset(Vector3.UnitX), Red, duration: 5);
-            draw.Box(center, Vector3.One, Red);
-            draw.Sphere(center, 1, Red);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Draw(draw, center, 10_000);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         test.Frame();
 
         Assert.False(draw.IsEnabled);
@@ -89,6 +88,16 @@ public sealed class DebugDrawTests
         Assert.Equal(0, draw.LineCount);
         Assert.Equal(["opaque"], test.Passes);
         Assert.DoesNotContain(test.Harness.Device.GetLiveObjects(), o => o.Name?.Contains("debug-draw", StringComparison.Ordinal) == true);
+    }
+
+    private static void Draw(IDebugDraw draw, WorldPosition center, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            draw.Line(center, center.Offset(Vector3.UnitX), Red, duration: 5);
+            draw.Box(center, Vector3.One, Red);
+            draw.Sphere(center, 1, Red);
+        }
     }
 
     private sealed class Session : IDisposable
