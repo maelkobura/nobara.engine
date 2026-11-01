@@ -177,8 +177,9 @@ warning and need a restart.
 
 - Client only: a dedicated server runs without nRenderer.
 - Use the service and the objects on the loop thread of the client context.
-- The GPU objects are created at the start and on hot reload; reading the
-  service allocates nothing beyond the lookup of an identifier.
+- The GPU objects are created at the start and on hot reload. Looking up an
+  object by resource identifier allocates (the identifier is compared
+  without regard to case): resolve objects at load, not in hot paths.
 - nRenderer keeps no static state; the native library of shaderc is never
   loaded by the game.
 

@@ -522,6 +522,13 @@ types and their tags, the types of item components, and the usage service
 of items, with their handlers and prolonged uses. See [its module
 sheet](../../src/nItems/README.md).
 
+### nRenderer
+
+The platform module, on the client, that organizes the rendering of a frame
+on top of [nGraphics](#ngraphics). It defines the resource types `Shader`,
+`Material`, `Mesh`, and `Texture`, and creates their GPU objects. See [its
+module sheet](../../src/nRenderer/README.md).
+
 ### Nobara.Sdk
 
 The MSBuild SDK that reads the manifest of a module and generates its version
