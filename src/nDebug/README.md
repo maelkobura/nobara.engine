@@ -226,8 +226,9 @@ value, the scope, and the default of each key, and edits the keys of scope
 bounds, a number, a list of values, or a text field. A change applies at once
 through the notifications of the core, which the modules of the key receive at
 the next frame, and the settings file of the player is saved, so the value
-holds at the next start. `Reset` gives a key its default back. A value out of
-bounds is refused with a message.
+holds at the next start. `Reset` gives a key its default back. The editors
+keep a value within the bounds of its key; the window shows the message of a
+change that the core refuses.
 
 ## Events
 
@@ -267,7 +268,7 @@ nDebug provides two resources:
   must not draw Dear ImGui on two threads at once.
 - nDebug draws only through nRenderer and nGraphics: it never calls OpenGL.
 - A frame that shows nothing costs a test per window, and allocates nothing.
-  A frame that shows windows allocates what their content and Dear ImGui.NET
+  A frame that shows windows allocates what their content and ImGui.NET
   allocate.
 - nDebug writes nothing to the working folder: no `imgui.ini`, no log.
 
@@ -290,3 +291,6 @@ nDebug provides two resources:
 - nFrames, nInput, nGraphics, and nRenderer have no debug window: they cannot
   depend on nDebug, which depends on them.
 - Keyboard and gamepad navigation of Dear ImGui are off.
+- While a text field of Dear ImGui is active, F1 does not close the tools:
+  no keyboard action triggers during text input.
+- A bounded key of type `float` is edited by a slider in single precision.
