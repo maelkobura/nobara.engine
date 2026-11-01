@@ -284,7 +284,11 @@ public sealed class ResourceCompiler
         foreach (string path in bundle.Files)
         {
             string source = Path.Combine(_resources, path.Replace('/', Path.DirectorySeparatorChar));
-            Resource? owner = bundle.Resources.FirstOrDefault(r => r.References.Contains("file:" + path));
+            List<Resource> owners = bundle.Resources
+                .Where(r => r.Override is null && r.References.Contains("file:" + path))
+                .OrderBy(r => r.ObjectId, StringComparer.Ordinal)
+                .ToList();
+            Resource? owner = owners.FirstOrDefault() ?? bundle.Resources.FirstOrDefault(r => r.References.Contains("file:" + path));
             IReadOnlyList<ResourcePlugin> plugins = owner is null ? [] : _plugins.For(owner.Element);
             if (plugins.Count == 0)
             {
@@ -295,15 +299,19 @@ public sealed class ResourceCompiler
             byte[] content = File.ReadAllBytes(source);
             foreach (ResourcePlugin plugin in plugins)
             {
-                var context = new FileContext(path, content, owner!.ObjectId, (code, message, isError) =>
+                List<FileReference> references = owners
+                    .Where(r => string.Equals(r.Element, owner!.Element, StringComparison.Ordinal))
+                    .Select(r => new FileReference(r.ObjectId, r.Element, r.Content.Memory))
+                    .ToList();
+                var context = new FileContext(path, content, owner!.ObjectId, references, (code, message, line, column, isError) =>
                 {
                     if (isError)
                     {
-                        diagnostics.Error(code, message, new Location(source, 0, 0));
+                        diagnostics.Error(code, message, new Location(source, line, column));
                     }
                     else
                     {
-                        diagnostics.Warning(code, message, new Location(source, 0, 0));
+                        diagnostics.Warning(code, message, new Location(source, line, column));
                     }
                 });
                 try

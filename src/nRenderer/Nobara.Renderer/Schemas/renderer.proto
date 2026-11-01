@@ -1,0 +1,176 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource types Shader, Material, Mesh, and Texture. Their identifiers
+// are derived from the namespace and the name, such as
+// shader:example.shaders.lit.
+syntax = "proto3";
+
+package nobara.renderer;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Renderer.Schemas";
+
+// A shader: GLSL sources, one per stage, compiled to SPIR-V when the module
+// is built, with its variants and the resources it reads.
+message Shader {
+  option (nobara.resource_type) = "shader";
+
+  // The GLSL source of the vertex stage, relative to Resources/.
+  string vertex = 1 [(nobara.file) = true];
+
+  // The GLSL source of the fragment stage.
+  string fragment = 2 [(nobara.file) = true];
+
+  // The GLSL source of a compute shader, alone.
+  string compute = 3 [(nobara.file) = true];
+
+  // Variants: the same sources compiled with more macros.
+  repeated ShaderVariant variant = 4;
+
+  // Textures that a material gives, by name.
+  repeated ShaderTexture texture = 5;
+
+  // The uniform block of the parameters that a material gives.
+  ShaderParameters parameters = 6;
+
+  // Uniform buffers that the pipeline gives, by name.
+  repeated ShaderBuffer uniform = 7;
+
+  // Storage buffers that the pipeline gives, by name.
+  repeated ShaderBuffer storage = 8;
+}
+
+// A variant of a shader.
+message ShaderVariant {
+  // The name that a material uses: Cutout.
+  string name = 1 [(nobara.required) = true];
+
+  // The macros of the variant: NAME or NAME=VALUE.
+  repeated string define = 2;
+}
+
+// A texture that a shader samples, as a sampler2DArray.
+message ShaderTexture {
+  // The name that a material uses: Albedo.
+  string name = 1 [(nobara.required) = true];
+
+  // The binding of the sampler in the GLSL source.
+  uint32 binding = 2 [(nobara.max) = 31];
+
+  // Whether a material may leave it out.
+  bool optional = 3;
+
+  // What is bound when a material leaves it out: white, black, or normal.
+  string fallback = 4;
+}
+
+// The uniform block of the parameters of a material, in std140 layout.
+message ShaderParameters {
+  // The binding of the uniform block in the GLSL source.
+  uint32 binding = 1 [(nobara.max) = 31];
+
+  // The members of the block, in the order of the GLSL source.
+  repeated ShaderParameter parameter = 2 [(nobara.required) = true];
+}
+
+// A member of the uniform block of the parameters.
+message ShaderParameter {
+  // The name that a material uses: Tint.
+  string name = 1 [(nobara.required) = true];
+
+  // float, vec2, vec3, vec4, int, or layer.
+  string type = 2 [(nobara.required) = true];
+
+  // The value when a material does not give it: numbers separated by spaces.
+  string default = 3;
+
+  // For a layer: the texture whose layer the renderer writes.
+  string texture = 4;
+}
+
+// A buffer that the pipeline binds.
+message ShaderBuffer {
+  // The name that the pipeline uses: Camera.
+  string name = 1 [(nobara.required) = true];
+
+  // The binding in the GLSL source.
+  uint32 binding = 2 [(nobara.max) = 31];
+}
+
+// A material: a shader, its textures, its parameters, and its render mode.
+message Material {
+  option (nobara.resource_type) = "material";
+
+  // The shader.
+  string shader = 1 [(nobara.ref) = "shader", (nobara.required) = true];
+
+  // The variant of the shader; the shader as written when absent.
+  string variant = 2;
+
+  // opaque, cutout, or transparent; opaque when absent.
+  string mode = 3;
+
+  // The textures, by the names the shader declares.
+  repeated MaterialTexture texture = 4;
+
+  // The parameters, by the names the shader declares.
+  repeated MaterialParameter parameter = 5;
+}
+
+// A texture of a material.
+message MaterialTexture {
+  // The name of a texture of the shader.
+  string name = 1 [(nobara.required) = true];
+
+  // The texture.
+  string texture = 2 [(nobara.ref) = "texture", (nobara.required) = true];
+}
+
+// A parameter of a material.
+message MaterialParameter {
+  // The name of a parameter of the shader.
+  string name = 1 [(nobara.required) = true];
+
+  // Numbers separated by spaces, as many as the type of the parameter has.
+  string value = 2 [(nobara.required) = true];
+}
+
+// A mesh: a glTF binary file (.glb), and the materials of its parts.
+message Mesh {
+  option (nobara.resource_type) = "mesh";
+
+  // The .glb file, relative to Resources/.
+  string file = 1 [(nobara.file) = true, (nobara.required) = true];
+
+  // The material of each slot of the file.
+  repeated MeshMaterial material = 2;
+}
+
+// The material of a slot of a mesh.
+message MeshMaterial {
+  // The slot: the name of a material of the file.
+  string slot = 1 [(nobara.required) = true];
+
+  // The material.
+  string material = 2 [(nobara.ref) = "material", (nobara.required) = true];
+}
+
+// A texture: a PNG file, placed in the texture array of its size.
+message Texture {
+  option (nobara.resource_type) = "texture";
+
+  // The .png file, relative to Resources/.
+  string file = 1 [(nobara.file) = true, (nobara.required) = true];
+
+  // nearest or linear; nearest when absent.
+  string filter = 2;
+
+  // The number of mip levels; 0 or absent for the full chain, 1 for none.
+  uint32 mip_levels = 3 [(nobara.max) = 16];
+
+  // srgb or linear; srgb when absent. Data such as normals is linear.
+  string color_space = 4;
+}

@@ -99,7 +99,7 @@ public sealed class EngineOptions
     /// Gets whether the engine runs in development mode: it runs checks that
     /// cost time, in this version the accesses that jobs declare
     /// (<see cref="JobData.CheckRead"/>, <see cref="JobData.CheckWrite"/>), and
-    /// accepts reloaded resources (<see cref="Engine.ReloadResources"/>).
+    /// accepts reloaded resources (<see cref="Engine.ReloadResources(string, ReadOnlyMemory{byte})"/>).
     /// </summary>
     public bool DevelopmentMode { get; init; }
 
@@ -153,6 +153,8 @@ public sealed class Engine : IDisposable
     // point, and the catalogs built since start-up.
     private readonly Lock _reloadGate = new();
     private readonly Dictionary<string, byte[]> _reloadedBundles = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, byte[]>> _pendingFiles = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, byte[]>> _reloadedFiles = new(StringComparer.Ordinal);
     private readonly Dictionary<string, byte[]> _pendingBundles = new(StringComparer.Ordinal);
     private readonly List<ResourceGeneration> _generations = [];
     private IReadOnlyList<CatalogModule> _catalogModules = [];
@@ -364,11 +366,33 @@ public sealed class Engine : IDisposable
     /// cannot be used together are refused with an error in the logs, and the
     /// previous ones stay.
     /// </para>
-    /// <para>Schemas, binary files, and code are not reloaded.</para>
+    /// <para>Schemas, binary files, and code are not reloaded; the overload with files reloads binary files too.</para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">The engine does not run in development mode.</exception>
     /// <exception cref="ArgumentException">No loaded module has this identifier.</exception>
-    public void ReloadResources(string moduleId, ReadOnlyMemory<byte> resources)
+    public void ReloadResources(string moduleId, ReadOnlyMemory<byte> resources) => ReloadResources(moduleId, resources, null);
+
+    /// <summary>
+    /// Replaces the compiled resources of a loaded module and some of its
+    /// binary files while the game runs, in development mode.
+    /// </summary>
+    /// <param name="moduleId">The identifier of a loaded module.</param>
+    /// <param name="resources">The new <c>nobara/resources.pb</c> of the module: a compiled resource bundle.</param>
+    /// <param name="files">
+    /// The binary files of the module that changed, by path relative to its
+    /// resources folder (<c>Textures/dirt.png</c>), as the compiler embeds them;
+    /// or <see langword="null"/>. From the same synchronization point on,
+    /// <see cref="ModuleResources.OpenFile"/> reads them instead of the files
+    /// of the assembly. A file given once stays replaced by later reloads.
+    /// </param>
+    /// <remarks>
+    /// The resources that reference a changed file have a new content hash, so
+    /// they are handed to the module that defines them as changed. Schemas and
+    /// code are not reloaded.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The engine does not run in development mode.</exception>
+    /// <exception cref="ArgumentException">No loaded module has this identifier.</exception>
+    public void ReloadResources(string moduleId, ReadOnlyMemory<byte> resources, IReadOnlyDictionary<string, ReadOnlyMemory<byte>>? files)
     {
         ArgumentNullException.ThrowIfNull(moduleId);
         if (!DevelopmentMode)
@@ -384,6 +408,20 @@ public sealed class Engine : IDisposable
         lock (_reloadGate)
         {
             _pendingBundles[moduleId] = resources.ToArray();
+            if (files is { Count: > 0 })
+            {
+                if (!_pendingFiles.TryGetValue(moduleId, out Dictionary<string, byte[]>? pending))
+                {
+                    pending = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+                    _pendingFiles[moduleId] = pending;
+                }
+
+                foreach ((string path, ReadOnlyMemory<byte> content) in files)
+                {
+                    pending[path] = content.ToArray();
+                }
+            }
+
             _reloadPending = true;
         }
     }
@@ -410,6 +448,25 @@ public sealed class Engine : IDisposable
         }
         _logs.Flush();
         _fileLog?.Dispose();
+    }
+
+    // A module whose resources or binary files were reloaded reads them from memory, the rest from its assembly.
+    private static CatalogModule Reloaded(CatalogModule module, Dictionary<string, byte[]> bundles, Dictionary<string, Dictionary<string, byte[]>> files)
+    {
+        byte[]? bundle = bundles.GetValueOrDefault(module.Info.Id);
+        Dictionary<string, byte[]>? moduleFiles = files.GetValueOrDefault(module.Info.Id);
+        if (bundle is null && moduleFiles is null)
+        {
+            return module;
+        }
+
+        return module with
+        {
+            Open = name =>
+                bundle is not null && name == ResourceCatalog.ResourcesResource ? new MemoryStream(bundle, writable: false)
+                : moduleFiles is not null && moduleFiles.TryGetValue(name, out byte[]? file) ? new MemoryStream(file, writable: false)
+                : module.Open(name),
+        };
     }
 
     internal Logger CreateLogger(string context, string source, PhaseTracker? phase) => new(_logs, context, source, phase);
@@ -447,14 +504,30 @@ public sealed class Engine : IDisposable
             bundles[id] = bundle;
         }
 
+        var files = new Dictionary<string, Dictionary<string, byte[]>>(StringComparer.Ordinal);
+        foreach ((string id, Dictionary<string, byte[]> reloadedFiles) in _reloadedFiles)
+        {
+            files[id] = new Dictionary<string, byte[]>(reloadedFiles, StringComparer.Ordinal);
+        }
+
+        foreach ((string id, Dictionary<string, byte[]> pending) in _pendingFiles)
+        {
+            if (!files.TryGetValue(id, out Dictionary<string, byte[]>? moduleFiles))
+            {
+                moduleFiles = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+                files[id] = moduleFiles;
+            }
+
+            foreach ((string path, byte[] content) in pending)
+            {
+                moduleFiles[ResourceCatalog.FilesPrefix + path] = content;
+            }
+        }
+
         string[] reloaded = _pendingBundles.Keys.Order(StringComparer.Ordinal).ToArray();
         _pendingBundles.Clear();
 
-        CatalogModule[] modules = _catalogModules
-            .Select(m => bundles.TryGetValue(m.Info.Id, out byte[]? bundle)
-                ? m with { Open = name => name == ResourceCatalog.ResourcesResource ? new MemoryStream(bundle, writable: false) : m.Open(name) }
-                : m)
-            .ToArray();
+        CatalogModule[] modules = _catalogModules.Select(m => Reloaded(m, bundles, files)).ToArray();
 
         ResourceCatalog catalog;
         try
@@ -463,14 +536,22 @@ public sealed class Engine : IDisposable
         }
         catch (ResourceLoadException exception)
         {
+            // The files wait for the next bundle: the watcher hands a file once.
             Logger.Error($"The resources of {string.Join(", ", reloaded)} were not reloaded: {exception.Message}");
             return;
         }
+
+        _pendingFiles.Clear();
 
         List<TypeChange> changes = ResourceDiff.Compare(Resources, catalog);
         foreach (string id in reloaded)
         {
             _reloadedBundles[id] = bundles[id];
+        }
+
+        foreach ((string id, Dictionary<string, byte[]> moduleFiles) in files)
+        {
+            _reloadedFiles[id] = moduleFiles;
         }
 
         _generations.Add(new ResourceGeneration(_generations.Count + 1, catalog, changes, reloaded));

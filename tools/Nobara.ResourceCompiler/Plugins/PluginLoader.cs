@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using Google.Protobuf;
 
@@ -150,6 +151,32 @@ public sealed class PluginLoader : IDisposable
             }
 
             return null;
+        }
+
+        // A native library of a plugin, such as a compiler it binds to, is
+        // searched next to the plugins, then in runtimes/<rid>/native/ as NuGet
+        // copies it. A plugin loads it with NativeLibrary.Load(name, assembly, null).
+        protected override nint LoadUnmanagedDll(string unmanagedDllName)
+        {
+            string file = OperatingSystem.IsWindows()
+                ? (unmanagedDllName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? unmanagedDllName : unmanagedDllName + ".dll")
+                : unmanagedDllName;
+            string[] candidates = OperatingSystem.IsWindows() ? [file] : [file, "lib" + file + ".so", "lib" + file + ".dylib", file + ".so"];
+            foreach (string directory in _directories)
+            {
+                foreach (string candidate in candidates)
+                {
+                    foreach (string path in new[] { Path.Combine(directory, candidate), Path.Combine(directory, "runtimes", RuntimeInformation.RuntimeIdentifier, "native", candidate) })
+                    {
+                        if (File.Exists(path))
+                        {
+                            return LoadUnmanagedDllFromPath(path);
+                        }
+                    }
+                }
+            }
+
+            return 0;
         }
 
         private static bool HostSatisfies(string hostPath, AssemblyName requested)

@@ -9,8 +9,9 @@ Early development: the build tools, the [core](src/Core/README.md), and the
 first platform modules, [nEvent](src/nEvent/README.md),
 [nGame](src/nGame/README.md), [nContext](src/nContext/README.md),
 [nItems](src/nItems/README.md), [nBlocks](src/nBlocks/README.md),
-[nFrames](src/nFrames/README.md), [nInput](src/nInput/README.md), and
-[nGraphics](src/nGraphics/README.md), exist;
+[nFrames](src/nFrames/README.md), [nInput](src/nInput/README.md),
+[nGraphics](src/nGraphics/README.md), and the resources of
+[nRenderer](src/nRenderer/README.md), exist;
 there is no release yet. Start with [the architecture
 overview](docs/explanation/architecture.md).
 

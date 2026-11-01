@@ -98,7 +98,7 @@ public sealed class ModuleResources
     /// <remarks>
     /// A change of a type without a handler is not applied by its module: the
     /// core logs it as a warning. Reloads happen only when a development tool
-    /// calls <see cref="Engine.ReloadResources"/>; a release build never does.
+    /// calls <see cref="Engine.ReloadResources(string, ReadOnlyMemory{byte})"/>; a release build never does.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// The step is not <see cref="LifecycleStep.Registration"/>, no schema

@@ -1,0 +1,30 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// What the build embeds in place of a GLSL source: its SPIR-V, once per set
+// of macros that the shaders that use the source ask for. Not a resource
+// type.
+syntax = "proto3";
+
+package nobara.renderer;
+
+option csharp_namespace = "Nobara.Renderer.Schemas";
+
+// The SPIR-V of one GLSL source.
+message CompiledStage {
+  // vertex, fragment, or compute.
+  string stage = 1;
+
+  // One module per set of macros.
+  repeated CompiledVariant variant = 2;
+}
+
+// The SPIR-V of a source compiled with one set of macros.
+message CompiledVariant {
+  // The macros, sorted and joined by line breaks; empty for none.
+  string defines = 1;
+
+  // The SPIR-V module, entry point main.
+  bytes spirv = 2;
+}

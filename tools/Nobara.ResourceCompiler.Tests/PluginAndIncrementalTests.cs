@@ -76,6 +76,39 @@ public sealed class PluginAndIncrementalTests : IDisposable
     }
 
     [Fact]
+    public void Gives_a_plugin_the_resources_that_reference_a_binary_file()
+    {
+        var plugin = new TestPlugin();
+        _module.Plugins.Add(plugin);
+        _module.Write("Textures/notes.txt", "hello");
+        _module.Write("textures.nof", NofText("Example/Textures", """
+            <Texture><Name>Second</Name><Content><File>Textures/notes.txt</File></Content></Texture>
+            <Texture><Name>First</Name><Content><File>Textures/notes.txt</File></Content></Texture>
+            """));
+
+        Expect.Success(_module.Compile());
+
+        IReadOnlyList<FileReference> references = plugin.References["Textures/notes.txt"];
+        Assert.Equal(["texture:example.textures.first", "texture:example.textures.second"], references.Select(r => r.ObjectId));
+        Assert.All(references, r => Assert.Equal("Texture", r.Element));
+        Assert.Equal("Textures/notes.txt", references[0].Parse(Texture.Parser).File);
+    }
+
+    [Fact]
+    public void Reports_the_errors_of_a_plugin_at_a_line_of_a_binary_file()
+    {
+        _module.Plugins.Add(new TestPlugin());
+        _module.Write("Textures/notes.txt", "first\nsecond\n#error here\n");
+        _module.Write("textures.nof", NofText("Example/Textures", "<Texture><Name>Notes</Name><Content><File>Textures/notes.txt</File></Content></Texture>"));
+
+        Diagnostic error = Expect.Error(_module.Compile(), "TEST002");
+
+        Assert.EndsWith("notes.txt", error.File, StringComparison.Ordinal);
+        Assert.Equal(3, error.Line);
+        Assert.Equal(1, error.Column);
+    }
+
+    [Fact]
     public void Converts_an_old_schema_version_with_the_converter_of_a_plugin()
     {
         _module.Plugins.Add(new TestPlugin());

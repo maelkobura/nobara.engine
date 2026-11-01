@@ -1,0 +1,21 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.renderer</Id>
+  <ShortName>Renderer</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>client</Side>
+
+  <Dependencies>
+    <Module id="nobara.graphics" version="^1.0" />
+  </Dependencies>
+
+  <Libraries>
+    <Package id="StbImageSharp" version="2.30.16" />
+    <Package id="SharpGLTF.Core" version="1.0.7" />
+  </Libraries>
+</NobaraModule>

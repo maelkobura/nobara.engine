@@ -18,9 +18,10 @@ namespace Nobara.HotReload;
 public sealed record WatchedModule(string Id, string ResourcesDirectory, IReadOnlyList<string> Plugins);
 
 /// <summary>
-/// Watches the <c>.nof</c> files of modules, compiles the resources of a
-/// module again when one changes, and hands them to the engine with
-/// <see cref="Engine.ReloadResources"/>.
+/// Watches the resources folders of modules, compiles the resources of a
+/// module again when one of its files changes (a <c>.nof</c> file, or a
+/// file that a resource references, such as a texture or the source of a
+/// shader), and hands them to the engine with <see cref="Engine.ReloadResources(string, ReadOnlyMemory{byte}, IReadOnlyDictionary{string, ReadOnlyMemory{byte}}?)"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,6 +29,11 @@ public sealed record WatchedModule(string Id, string ResourcesDirectory, IReadOn
 /// assembly, the resources of its dependencies (reloaded ones included), and
 /// the plugins of its dependencies. Errors are logged with their file, line,
 /// and column; the engine keeps the previous resources.
+/// </para>
+/// <para>
+/// The binary files are handed with the resources when their compiled bytes
+/// differ from those the watcher handed last; the first compilation of a
+/// module hands them all.
 /// </para>
 /// <para>Compilations run on the thread pool, one at a time.</para>
 /// </remarks>
@@ -37,6 +43,7 @@ public sealed class ResourceWatcher : IDisposable
     private readonly Dictionary<string, WatchedModule> _modules;
     private readonly Func<string, CompiledModule?> _readModule;
     private readonly Dictionary<string, ResourceBundle> _reloaded = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<string, byte[]>> _sentFiles = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Timer> _timers = new(StringComparer.Ordinal);
     private readonly List<FileSystemWatcher> _watchers = [];
     private readonly Lock _gate = new();
@@ -74,7 +81,7 @@ public sealed class ResourceWatcher : IDisposable
                 continue;
             }
 
-            var watcher = new FileSystemWatcher(module.ResourcesDirectory, "*.nof")
+            var watcher = new FileSystemWatcher(module.ResourcesDirectory, "*")
             {
                 IncludeSubdirectories = true,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.DirectoryName,
@@ -220,14 +227,55 @@ public sealed class ResourceWatcher : IDisposable
             return false;
         }
 
-        if (result.Files.Any(f => f.Content is not null))
+        Dictionary<string, ReadOnlyMemory<byte>>? changed = ChangedFiles(module.Id, result.Files);
+        if (changed is null)
         {
-            _engine.Logger.Warning($"Hot reload: binary files of '{module.Id}' are not reloaded; the game keeps those of the assembly.");
+            return false;
         }
 
         _reloaded[module.Id] = compiled;
-        _engine.ReloadResources(module.Id, compiled.ToByteArray());
-        _engine.Logger.Info($"Hot reload: compiled {result.CompiledFiles.Count + result.ReusedFiles.Count} files of '{module.Id}'; the game takes them at its next frame.");
+        _engine.ReloadResources(module.Id, compiled.ToByteArray(), changed);
+        _engine.Logger.Info($"Hot reload: compiled {result.CompiledFiles.Count + result.ReusedFiles.Count} files of '{module.Id}', with {changed.Count} binary files; the game takes them at its next frame.");
         return true;
+    }
+
+    // The binary files whose compiled bytes changed since the last reload of the module, or null when one cannot be read.
+    private Dictionary<string, ReadOnlyMemory<byte>>? ChangedFiles(string moduleId, IReadOnlyList<EmbeddedFile> embedded)
+    {
+        if (!_sentFiles.TryGetValue(moduleId, out Dictionary<string, byte[]>? sent))
+        {
+            sent = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            _sentFiles[moduleId] = sent;
+        }
+
+        var changed = new Dictionary<string, ReadOnlyMemory<byte>>(StringComparer.Ordinal);
+        var hashes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (EmbeddedFile file in embedded)
+        {
+            byte[] content;
+            try
+            {
+                content = file.Content ?? File.ReadAllBytes(file.SourcePath);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                _engine.Logger.Error($"Hot reload: the file '{file.SourcePath}' of '{moduleId}' cannot be read: {exception.Message}; the game keeps the previous resources.");
+                return null;
+            }
+
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(content);
+            hashes[file.Path] = hash;
+            if (!sent.TryGetValue(file.Path, out byte[]? previous) || !previous.AsSpan().SequenceEqual(hash))
+            {
+                changed[file.Path] = content;
+            }
+        }
+
+        foreach ((string path, byte[] hash) in hashes)
+        {
+            sent[path] = hash;
+        }
+
+        return changed;
     }
 }

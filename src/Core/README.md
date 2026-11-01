@@ -541,8 +541,11 @@ distribution are not concerned.
 In development mode (`EngineOptions.DevelopmentMode`), a development tool
 replaces the compiled resources of a loaded module with
 `Engine.ReloadResources`, from any thread. The development builds of the
-command-line tool do it when a `.nof` file changes (see [the hot reload
-page](../../tools/Nobara.HotReload/README.md)).
+command-line tool do it when a `.nof` file, or a file it references,
+changes (see [the hot reload page](../../tools/Nobara.HotReload/README.md)).
+The overload that takes files also replaces binary files of the module, by
+path relative to its resources folder: from the same synchronization point
+on, `ModuleResources.OpenFile` reads them instead of those of the assembly.
 
 At the synchronization point of its next frame, each context takes the new
 resources: the core reads them with those of the other modules, applies the
@@ -732,8 +735,8 @@ It provides no resource type.
 - The core checks the files of `lib/` that the distribution records; a
   native library that a managed library of `lib/` loads itself is checked
   only when the build recorded it.
-- A reload replaces the resources of whole modules: schemas, binary files,
-  and code are not reloaded. A context that a reload finds in the middle of a
+- A reload replaces the resources of whole modules: schemas and code are not
+  reloaded, and binary files only when the tool gives them. A context that a reload finds in the middle of a
   frame takes it at its next frame; contexts created later start from the
   reloaded resources.
 - An exception is charged to a module from the stack trace. A method that the

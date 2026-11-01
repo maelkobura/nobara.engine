@@ -1,0 +1,51 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- The plugin keeps shaderc to itself; the tests run the plugin in their own process. -->
+    <PackageReference Include="Silk.NET.Shaderc" Version="2.23.0" />
+  </ItemGroup>
+
+  <!--
+    The tests compile the resources of Resources/ with the resource compiler
+    and the plugin of nRenderer, then load them with the real modules nFrames,
+    nGraphics, and nRenderer, on a fake graphics backend, or on the OpenGL
+    backend for the tests of the category GPU.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Renderer\Nobara.Renderer.csproj" />
+    <ProjectReference Include="..\Nobara.Renderer.Build\Nobara.Renderer.Build.csproj" />
+    <ProjectReference Include="..\..\nGraphics\Nobara.Graphics\Nobara.Graphics.csproj" />
+    <ProjectReference Include="..\..\nGraphics\Nobara.Graphics.OpenGL\Nobara.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames\Nobara.Frames.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames.SDL2\Nobara.Frames.SDL2.csproj" />
+    <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.HotReload\Nobara.HotReload.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Resources\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
