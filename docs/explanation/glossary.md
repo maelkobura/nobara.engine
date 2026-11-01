@@ -121,6 +121,13 @@ turn each loaded resource of the type into an object of the module. The core
 decodes each resource once per process. See [the core
 page](../../src/Core/README.md#loading-resources).
 
+### Depth prepass
+
+A pass that draws the depth of the opaque geometry before any color, so that
+the next pass shades each pixel once, for the nearest surface only.
+[UNGP](#ungp) runs one, which can be turned off. See [the render
+pipelines](render-pipelines.md#why-a-depth-prepass).
+
 ### Deferred event
 
 An event that a module queues instead of emitting at once. The event bus hands
@@ -661,6 +668,13 @@ depend on one. [UNGP](#ungp) is the pipeline of the engine. Not to be
 confused with a [pipeline state](#pipeline-state). See [the nRenderer module
 sheet](../../src/nRenderer/README.md#pipelines) and [the render
 pipelines](render-pipelines.md).
+
+### Render resolution
+
+The size in pixels at which a [render pipeline](#render-pipeline) draws the
+scene of a [view](#view): a fraction of its viewport, the render scale. The
+pipeline scales the image to the viewport at the end of the frame. See [the
+render pipelines](render-pipelines.md#why-the-render-resolution-is-apart-from-the-window).
 
 ### Render world
 

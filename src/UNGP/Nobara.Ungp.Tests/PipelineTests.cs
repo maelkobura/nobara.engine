@@ -190,6 +190,8 @@ public sealed class PipelineTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Ungp.Exposure = float.PositiveInfinity);
         Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Ungp.RenderScale = 0.05f);
         Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Ungp.RenderScale = 5);
+        Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Ungp.SkyColor = new ColorF(-1, 0, 0, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _harness.Ungp.SkyColor = new ColorF(float.NaN, 0, 0, 1));
     }
 
     [Fact]

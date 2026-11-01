@@ -27,6 +27,7 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
     private bool _depthPrepass = true;
     private bool _skyEnabled = true;
     private bool _tonemapping = true;
+    private ColorF _skyColor;
     private float _exposure = 1;
     private float _renderScale = 1;
 
@@ -68,7 +69,19 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
         set => SetPass(ref _tonemapping, value);
     }
 
-    public ColorF SkyColor { get; set; }
+    public ColorF SkyColor
+    {
+        get => _skyColor;
+        set
+        {
+            if (!(value.R >= 0 && value.G >= 0 && value.B >= 0 && float.IsFinite(value.R) && float.IsFinite(value.G) && float.IsFinite(value.B)))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), $"A sky color has finite components that are not negative; got {value}.");
+            }
+
+            _skyColor = value;
+        }
+    }
 
     public float Exposure
     {

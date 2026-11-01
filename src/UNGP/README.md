@@ -97,7 +97,8 @@ clipping: the highlight compression of the Khronos PBR Neutral tone mapper.
 A texture shown at full brightness keeps its color, and a value above 1
 stays visible instead of being cut. The pass then writes the colors in sRGB:
 it encodes them itself when the target stores 8-bit values without doing
-it, as the screen does, and lets a target in `Rgba8UnormSrgb` encode them.
+it, as the screen does, and lets a target in `Rgba8UnormSrgb` encode them. A target in a floating-point
+format receives linear values.
 
 ### Standard shader and default material
 
@@ -218,8 +219,8 @@ frame.
 - Transparent materials are not drawn: each one is reported once with a
   warning, and its objects are left out.
 - The sky is one color: no sun, moon, clouds, or gradient.
-- No culling on the GPU or the CPU: every visible object is drawn, by the
-  prepass and by the opaque pass.
+- No culling on the GPU or the CPU: every object of the view is drawn, by
+  the prepass and by the opaque pass, even outside the field of view.
 - The depth prepass writes no normals.
 - No light clusters, shadows, fog, bloom, or color grading; their places in
   the order of the passes are kept, before the opaque pass for the first

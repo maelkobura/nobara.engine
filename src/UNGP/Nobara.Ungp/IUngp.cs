@@ -39,7 +39,8 @@ public interface IUngp
     /// <summary>Gets or sets whether the colors are tonemapped from HDR to the target. On by default; off, they are clamped to 1.</summary>
     bool Tonemapping { get; set; }
 
-    /// <summary>Gets or sets the color of the sky, linear, set by the key <see cref="UngpSettings.SkyColor"/>; its alpha is ignored.</summary>
+    /// <summary>Gets or sets the color of the sky, linear, set by the key <see cref="UngpSettings.SkyColor"/>; its alpha is ignored. Values above 1 are HDR, and tonemapped.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">A component of the color is negative or not finite.</exception>
     ColorF SkyColor { get; set; }
 
     /// <summary>Gets or sets the factor applied to the HDR colors before tonemapping or clamping, set by the key <see cref="UngpSettings.Exposure"/>; 1 keeps them.</summary>
