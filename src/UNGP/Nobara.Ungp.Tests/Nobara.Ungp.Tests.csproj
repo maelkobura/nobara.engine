@@ -1,0 +1,46 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Silk.NET.Shaderc" Version="2.23.0" />
+  </ItemGroup>
+
+  <!--
+    The tests write the resources of a test game, compile them with the
+    resource compiler and the plugin of nRenderer, then load them with the
+    real modules nFrames, nGraphics, nRenderer, and UNGP, on a fake graphics
+    backend, or on the OpenGL backend for the tests of the category GPU.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Ungp\Nobara.Ungp.csproj" />
+    <ProjectReference Include="..\..\nRenderer\Nobara.Renderer\Nobara.Renderer.csproj" />
+    <ProjectReference Include="..\..\nRenderer\Nobara.Renderer.Build\Nobara.Renderer.Build.csproj" />
+    <ProjectReference Include="..\..\nGraphics\Nobara.Graphics\Nobara.Graphics.csproj" />
+    <ProjectReference Include="..\..\nGraphics\Nobara.Graphics.OpenGL\Nobara.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames\Nobara.Frames.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames.SDL2\Nobara.Frames.SDL2.csproj" />
+    <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -8,7 +8,7 @@ This page explains how rendering is split between three layers, and why.
 | --- | --- | --- |
 | Rendering hardware interface ([RHI](glossary.md#rhi)) | How do we talk to the GPU? | [nGraphics](../../src/nGraphics/README.md) and its backends |
 | Renderer | How is a frame organized? | [nRenderer](../../src/nRenderer/README.md) |
-| Pipeline | What does the frame look like? | a render pipeline module (not written yet) |
+| Pipeline | What does the frame look like? | a render pipeline module, such as [UNGP](../../src/UNGP/README.md) |
 
 The window is a fourth module, [nFrames](../../src/nFrames/README.md): it
 creates the window and hands its surface to the graphics backend, but knows
@@ -59,4 +59,5 @@ then be replaced without touching them: it declares the passes of a render
 graph, and the other modules add theirs at its insertion points. The
 renderer, in turn, only sees the neutral API of nGraphics, so a backend can
 be replaced without touching the renderer. How the renderer organizes a
-frame is explained in [the frames of the renderer](render-frames.md).
+frame is explained in [the frames of the renderer](render-frames.md), and
+what a pipeline decides in [the render pipelines](render-pipelines.md).
