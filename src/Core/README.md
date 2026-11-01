@@ -332,6 +332,14 @@ using (_growth.Begin())
 `Engine.Profiler.Snapshot()` returns the measures since the last `Reset()`, as
 `ProfileEntry` records; `FormatReport()` formats them as a table. A disabled
 profiler costs one test per measured scope. An enabled one allocates nothing.
+
+A module reads the profiler of the process through `context.Profiler`:
+`Enabled` turns it on and off, `Snapshot()`, `FormatReport()`, and `Reset()`
+work as on `Engine.Profiler`. Every module may do so, since the measures
+change nothing in the game; turning the profiler on or resetting it applies
+to the whole process. A debug tool such as [nDebug](../nDebug/README.md)
+shows the measures this way. The executable of a game turns the profiler on
+from start-up with the launch option `--profile`, in every build.
 Measures include the scopes nested in them; a pause of the garbage collector
 counts for every scope it falls in.
 

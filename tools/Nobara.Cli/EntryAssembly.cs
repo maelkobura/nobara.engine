@@ -102,14 +102,16 @@ internal static class EntryAssembly
         internal static class EntryPoint
         {
             private const string HotReloadOption = "--hot-reload";
+            private const string ProfileOption = "--profile";
 
             public static int Run(Side side, string[] args)
             {
+                bool profiling = Array.IndexOf(args, ProfileOption) >= 0;
         #if NOBARA_DEVELOPMENT
                 if (Array.IndexOf(args, HotReloadOption) >= 0)
                 {
                     using var hotReload = new Nobara.HotReload.HotReloadHost(typeof(EntryPoint).Assembly);
-                    return Engine.Run(new EngineOptions { Side = side, DevelopmentMode = true, OnLoaded = hotReload.Attach });
+                    return Engine.Run(new EngineOptions { Side = side, DevelopmentMode = true, Profiling = profiling, OnLoaded = hotReload.Attach });
                 }
         #else
                 if (Array.IndexOf(args, HotReloadOption) >= 0)
@@ -119,7 +121,7 @@ internal static class EntryAssembly
                 }
         #endif
 
-                return Engine.Run(new EngineOptions { Side = side });
+                return Engine.Run(new EngineOptions { Side = side, Profiling = profiling });
             }
         }
 
