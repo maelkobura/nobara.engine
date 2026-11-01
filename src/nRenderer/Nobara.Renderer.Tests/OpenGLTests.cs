@@ -11,6 +11,7 @@ namespace Nobara.Renderer.Tests;
 
 /// <summary>The resources uploaded to a real GPU, through nGraphics.OpenGL. Needs an OpenGL 4.6 driver that loads SPIR-V.</summary>
 [Trait("Category", "GPU")]
+[Collection(nameof(GpuCollection))]
 public sealed class OpenGLTests : IDisposable
 {
     private readonly RendererHarness _harness = new(gpu: true) { DevelopmentMode = true };

@@ -11,3 +11,4 @@
 *.ico binary
 *.dll binary
 *.exe binary
+*.spv binary

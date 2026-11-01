@@ -72,6 +72,14 @@ public sealed class ModuleContext
     /// <summary>Gets the identity of the game.</summary>
     public DistributionInfo Distribution => _context.Engine.Distribution;
 
+    /// <summary>
+    /// Gets whether the engine runs in development mode
+    /// (<see cref="EngineOptions.DevelopmentMode"/>), so that a module turns on
+    /// tools that cost time, such as debug drawing. The value does not change
+    /// while the engine runs.
+    /// </summary>
+    public bool DevelopmentMode => _context.Engine.DevelopmentMode;
+
     /// <summary>Gets the loop of the context: its phases, and the subscriptions and levers of the module.</summary>
     public ModuleLoop Loop { get; }
 

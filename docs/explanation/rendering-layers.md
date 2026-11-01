@@ -7,7 +7,7 @@ This page explains how rendering is split between three layers, and why.
 | Layer | Question it answers | Module |
 | --- | --- | --- |
 | Rendering hardware interface ([RHI](glossary.md#rhi)) | How do we talk to the GPU? | [nGraphics](../../src/nGraphics/README.md) and its backends |
-| Renderer | How is a frame organized? | [nRenderer](../../src/nRenderer/README.md) (its resources so far) |
+| Renderer | How is a frame organized? | [nRenderer](../../src/nRenderer/README.md) |
 | Pipeline | What does the frame look like? | a render pipeline module (not written yet) |
 
 The window is a fourth module, [nFrames](../../src/nFrames/README.md): it
@@ -55,6 +55,8 @@ frame.
 
 Modules that draw, such as the meshing of voxels, the user interface, or
 debug drawing, depend on the renderer, never on a pipeline. A pipeline can
-then be replaced without touching them. The renderer, in turn, only sees the
-neutral API of nGraphics, so a backend can be replaced without touching the
-renderer.
+then be replaced without touching them: it declares the passes of a render
+graph, and the other modules add theirs at its insertion points. The
+renderer, in turn, only sees the neutral API of nGraphics, so a backend can
+be replaced without touching the renderer. How the renderer organizes a
+frame is explained in [the frames of the renderer](render-frames.md).

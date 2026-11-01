@@ -73,7 +73,7 @@ public sealed class ReloadTests : IDisposable
         Assert.Equal(1, leaves.Version);
         Assert.NotSame(set, leaves.ResourceSet);
         Assert.Same(lit.MaterialLayout, leaves.ResourceSet!.Layout);
-        Assert.False(_harness.Log.Entries.Any(e => e.Level >= LogLevel.Warning && !e.Message.Contains("the loop catches up", StringComparison.Ordinal)), Logs());
+        Assert.False(_harness.Log.Entries.Any(e => e.Level >= LogLevel.Warning && !e.Message.Contains("the loop catches up", StringComparison.Ordinal) && !e.Message.StartsWith("No render pipeline", StringComparison.Ordinal)), Logs());
     }
 
     [Fact]

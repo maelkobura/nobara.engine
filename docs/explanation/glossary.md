@@ -107,6 +107,13 @@ A file that the core writes to the logs folder before a context stops on an
 error. It names the module, the lifecycle step, and the exception. See [the
 core](../../src/Core/README.md#error-policies).
 
+### Debug drawing
+
+Lines, boxes, and spheres that any module draws in the world for a time, to
+see what its code does: chunk borders, colliders, paths. On in [development
+mode](#development-mode) only. See [the nRenderer module
+sheet](../../src/nRenderer/README.md#debug-drawing).
+
 ### Decoder
 
 The code that the module owning a resource type registers with the core to
@@ -130,7 +137,8 @@ debug configuration, no ReadyToRun, no archive. Its executable accepts
 
 A way to run the engine with checks that cost time, chosen when the engine
 starts (`EngineOptions.DevelopmentMode`). In this version it checks the data
-that jobs and tick systems declare, and it accepts reloaded resources. See
+that jobs and tick systems declare, it accepts reloaded resources, and it
+turns on [debug drawing](#debug-drawing). See
 [the core page](../../src/Core/README.md#declared-accesses).
 
 ### Dimension clock
@@ -214,6 +222,12 @@ their modules, then in the order they subscribed.
 A module that adds something to a parent module (a feature, a backend, a
 transport, or a client-only part). It has the same level as its parent and
 depends on it. See [Extensions](architecture.md#extensions).
+
+### Extractor
+
+Code of a module that copies what it draws to the [render
+world](#render-world) at every frame, before the frame is drawn: only what
+changed since its previous call. See [the frames of the renderer](render-frames.md#why-a-render-world-filled-by-extraction).
 
 ### Fixed phase
 
@@ -325,6 +339,13 @@ What reads the input actions of a layer at the fixed tick: each sample
 gathers what happened since the previous one, so that no press is lost
 between two ticks and the movements of the mouse add up. See [the nInput
 module sheet](../../src/nInput/README.md#reading-actions).
+
+### Insertion point
+
+A named place of a [render graph](#render-graph), declared by the [render
+pipeline](#render-pipeline), where other modules add [render
+passes](#render-pass): after the opaque geometry, before post-processing, or
+the user interface. See [the nRenderer module sheet](../../src/nRenderer/README.md#insertion-points).
 
 ### Installed game
 
@@ -525,7 +546,9 @@ sheet](../../src/nItems/README.md).
 ### nRenderer
 
 The platform module, on the client, that organizes the rendering of a frame
-on top of [nGraphics](#ngraphics). It defines the resource types `Shader`,
+on top of [nGraphics](#ngraphics): the [render world](#render-world), the
+[render graph](#render-graph) of a [view](#view), and [debug
+drawing](#debug-drawing). It also defines the resource types `Shader`,
 `Material`, `Mesh`, and `Texture`, and creates their GPU objects. See [its
 module sheet](../../src/nRenderer/README.md).
 
@@ -606,6 +629,36 @@ The code that the module that defines a resource type registers to apply
 reloaded resources of that type, or to refuse what needs a restart. See [the
 core page](../../src/Core/README.md#reloading-resources).
 
+### Render graph
+
+The [render passes](#render-pass) of a frame and the resources they read and
+write, declared by a [render pipeline](#render-pipeline) for a
+[view](#view). nRenderer removes the passes whose result nothing uses,
+creates the [transient resources](#transient-resource), and inserts barriers.
+See [the frames of the renderer](render-frames.md#why-a-render-graph).
+
+### Render pass
+
+One step of a [render graph](#render-graph): a raster pass, which draws to
+the attachments it declares, or a compute pass. For a raster pass, nRenderer
+begins and ends the render pass of the [command buffer](#command-buffer)
+around its draws. See [the nRenderer module sheet](../../src/nRenderer/README.md#render-graph).
+
+### Render pipeline
+
+The code that decides what a frame looks like: it declares the [render
+passes](#render-pass) of the [render graph](#render-graph) of a
+[view](#view). A module registers it with nRenderer; modules that draw never
+depend on one. Not to be confused with a [pipeline state](#pipeline-state).
+See [the nRenderer module sheet](../../src/nRenderer/README.md#pipelines).
+
+### Render world
+
+The copy of the scene that nRenderer draws from: objects made of a mesh,
+materials, and a transform, kept from frame to frame and changed by
+[extractors](#extractor). It keeps the last two states of each object to
+interpolate between ticks. See [the nRenderer module sheet](../../src/nRenderer/README.md#render-world-and-extraction).
+
 ### Required dependency
 
 A dependency without which a module cannot load. A missing required
@@ -639,6 +692,12 @@ page](../../tools/Nobara.ResourceCompiler/README.md#plugins).
 A kind of resource, such as `Block`, defined by a message of a `.proto`
 schema marked with `(nobara.resource_type)`. See [the schema options
 reference](../reference/formats/proto-options.md).
+
+### Reversed depth
+
+A depth buffer where the near plane has depth 1 and the far plane depth 0.
+With floating-point depth, it keeps precision over long distances. See [the
+frames of the renderer](render-frames.md#why-positions-are-relative-to-the-camera).
 
 ### RHI
 
@@ -788,10 +847,24 @@ under a qualified name, with its constraints and its declared accesses. All
 the code of the tick is made of tick systems. See [the nGame module
 sheet](../../src/nGame/README.md#tick-systems).
 
+### Transient resource
+
+A texture or a buffer of a [render graph](#render-graph) that lives during
+one frame only. The graph creates it, and shares one GPU object between
+transient resources that no pass uses at the same time. See [the nRenderer
+module sheet](../../src/nRenderer/README.md#render-graph).
+
 ### Video mode
 
 A resolution in pixels and a refresh rate that a monitor can show. Exclusive
 full screen uses one of the video modes of its monitor.
+
+### View
+
+What nRenderer draws a frame of: a camera, a target (the screen or a
+texture), a viewport in that target, and the [render
+pipeline](#render-pipeline) that draws it. See [the nRenderer module
+sheet](../../src/nRenderer/README.md#views-and-cameras).
 
 ### Window
 
@@ -804,3 +877,9 @@ receives input. [nFrames](#nframes) creates one window per client, through a
 A thread of the pool that the core creates for the job system, shared by
 every context of a process. There is about one per processor, minus the loop
 thread.
+
+### World position
+
+A position with the same precision everywhere in the world: whole chunk
+coordinates on 32 bits and a position in the chunk, in blocks, in single
+precision. See [the nRenderer module sheet](../../src/nRenderer/README.md#positions).

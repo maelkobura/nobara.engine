@@ -45,7 +45,7 @@ manifests, resources, and schemas.
 | `EngineContext.RunFrame()`, `EngineContext.Run()`, `EngineContext.RequestStop()` | Run one frame of the loop, run frames until a stop is requested, and request that stop. |
 | `IModule` | The code of a module, instantiated once per context. Each lifecycle step is a method that does nothing by default. |
 | `[assembly: ModuleEntry(typeof(...))]` | Names the class that implements `IModule` in the assembly of a module. |
-| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `ForwardStopRequest`, `InterceptStopRequests`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), its logger, the identity of the game, its initial states, and its modules (`Distribution`), the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
+| `ModuleContext` | What a module receives at each step: `Publish`, `Resolve`, `TryResolve`, `IsModuleActive`, `AddEmergencyHook`, `VerifyStates`, `Post`, `SynchronizationContext`, `RequestStop`, `ForwardStopRequest`, `InterceptStopRequests`, `GetContextControl`, `ReportFault`, its rank in the load order (`LoadOrder`), whether the engine runs in development mode (`DevelopmentMode`), its logger, the identity of the game, its initial states, and its modules (`Distribution`), the loop, its settings, its resources, its module configuration, its jobs, its profiler, and the data folders. |
 | `ModuleSettings`, `SettingSubscription` | `context.Settings`: the configuration keys of the module and of its dependencies, typed reads, the values the player chooses, the changes of values, and the settings file. |
 | `ModuleResources`, `ResourceData`, `ResourceTag`, `FreeProperty` | `context.Resources`: decoders, decoded objects, loaded resources, tags, free properties, and binary files. |
 | `ModuleContext.ModuleConfig`, `GenericElement` | The `<ModuleConfig>` block of `engine.nobara` that targets the module, in the generic representation. |
@@ -642,7 +642,9 @@ None.
 `EngineOptions.MinimumLogLevel`, `LogToConsole`, and `LogToFile` set the
 logging of the process; `TimeProvider`, `FramePacing`, and `MaxFrameTime` set
 the loop; `WorkerCount` sets the number of worker threads; `DevelopmentMode`
-turns on development mode, its checks and the reloading of resources;
+turns on development mode, its checks and the reloading of resources, and
+modules read it with `ModuleContext.DevelopmentMode` to turn on their own
+development tools;
 `Profiling` turns on the profiler at start-up; `OnLoaded` runs code once the
 engine is loaded.
 

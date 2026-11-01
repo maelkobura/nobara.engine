@@ -15,4 +15,15 @@
     <InternalsVisibleTo Include="Nobara.Renderer.Tests" />
   </ItemGroup>
 
+  <!--
+    The shaders of nRenderer itself (debug drawing). The plugin of nRenderer
+    cannot compile the resources of nRenderer, which it depends on, so the
+    SPIR-V compiled from the GLSL sources of Shaders/ is kept next to them; a
+    test compiles the sources again and checks that they match.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders\*.spv" LogicalName="nobara.renderer.shaders.%(Filename)%(Extension)" />
+    <None Include="Shaders\*.vert;Shaders\*.frag" />
+  </ItemGroup>
+
 </Project>

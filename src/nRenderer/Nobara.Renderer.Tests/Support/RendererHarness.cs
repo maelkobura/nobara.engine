@@ -64,6 +64,14 @@ internal sealed class RendererHarness : IDisposable
     /// <summary>Gets the resources of the game.</summary>
     public IRenderResources Resources => Probe.Context.Resolve<IRenderResources>();
 
+    public IRenderer Render => Probe.Context.Resolve<IRenderer>();
+
+    public IDebugDraw DebugDraw => Probe.Context.Resolve<IDebugDraw>();
+
+    public ModuleContext Context => Probe.Context;
+
+    public ManualClock Clock { get; } = new();
+
     /// <summary>Gets the device.</summary>
     public GraphicsDevice Device => Probe.Context.Resolve<IGraphicsSystem>().Device;
 
@@ -167,6 +175,7 @@ internal sealed class RendererHarness : IDisposable
             ModuleSource = new Source(this),
             Paths = EnginePaths.At(Root),
             FramePacing = FramePacing.Free,
+            TimeProvider = Clock,
             DevelopmentMode = DevelopmentMode,
             LogToConsole = false,
             LogToFile = false,
@@ -297,6 +306,18 @@ internal sealed class RendererHarness : IDisposable
 }
 
 /// <summary>The game module: it keeps its context.</summary>
+/// <summary>A clock that moves only when the test advances it.</summary>
+internal sealed class ManualClock : TimeProvider
+{
+    private long _ticks;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override long GetTimestamp() => Interlocked.Read(ref _ticks);
+
+    public void Advance(TimeSpan time) => Interlocked.Add(ref _ticks, time.Ticks);
+}
+
 internal sealed class Probe : IModule
 {
     public ModuleContext Context { get; private set; } = null!;

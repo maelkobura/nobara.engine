@@ -85,7 +85,8 @@ internal sealed class FakeDevice : GraphicsDevice
             first.Texture.Height >> first.MipLevel,
             description.Colors.Select(c => c.Texture.Format).ToArray(),
             description.Depth?.Texture.Format ?? PixelFormat.None,
-            swapchain: false);
+            swapchain: false,
+            description.Name);
     }
 
     protected override void WriteBufferCore(GpuMemoryBlock block, long offset, ReadOnlySpan<byte> data) => data.CopyTo(Contents[block].AsSpan((int)offset));
@@ -103,6 +104,8 @@ internal sealed class FakeDevice : GraphicsDevice
 
     protected override void ReadTextureCore(Texture texture, in TextureRegion region, Span<byte> destination) => destination.Clear();
 
+    public List<string> Trace { get; } = [];
+
     protected override void ExecuteCore(CommandBuffer commands)
     {
         foreach (Command command in commands.Commands)
@@ -110,6 +113,27 @@ internal sealed class FakeDevice : GraphicsDevice
             if (Recording)
             {
                 Executed.Add(command.Kind);
+                switch (command.Kind)
+                {
+                    case CommandKind.PushDebugGroup:
+                        Trace.Add($"pass {commands.GetObject<string>(command.Object)}");
+                        break;
+                    case CommandKind.Barrier:
+                        Trace.Add($"barrier {(BarrierScope)command.A}");
+                        break;
+                    case CommandKind.BeginRenderPass:
+                        Framebuffer framebuffer = commands.GetObject<Framebuffer>(command.Object);
+                        RenderPassDescription pass = commands.GetRenderPass(command.A);
+                        Trace.Add($"begin {framebuffer.Name ?? "framebuffer"} {framebuffer.Width}x{framebuffer.Height} {pass.ColorLoad} {pass.DepthLoad}");
+                        break;
+                    case CommandKind.SetViewport:
+                        Viewport viewport = command.GetViewport();
+                        Trace.Add($"viewport {viewport.X} {viewport.Y} {viewport.Width} {viewport.Height}");
+                        break;
+                    case CommandKind.Draw or CommandKind.DrawIndexed:
+                        Trace.Add($"draw {command.A}");
+                        break;
+                }
             }
 
             if (command.Kind == CommandKind.UpdateBuffer)
@@ -247,8 +271,8 @@ internal sealed class FakeFramebuffer : Framebuffer
 {
     private readonly FakeDevice _device;
 
-    public FakeFramebuffer(FakeDevice device, int width, int height, PixelFormat[] colors, PixelFormat depth, bool swapchain)
-        : base(device, swapchain ? "swapchain" : null, width, height, colors, depth, swapchain)
+    public FakeFramebuffer(FakeDevice device, int width, int height, PixelFormat[] colors, PixelFormat depth, bool swapchain, string? name = null)
+        : base(device, swapchain ? "swapchain" : name, width, height, colors, depth, swapchain)
     {
         _device = device;
         if (!swapchain)
