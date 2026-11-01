@@ -415,33 +415,46 @@ internal sealed class RenderGraphCompiler(GraphicsDevice device)
     }
 
     // A barrier before a pass makes visible what earlier passes wrote as storage, for the way this pass uses it.
+    // Each resource remembers the scopes already made visible since its last storage write, whatever the order of the declarations of a pass.
     private static BarrierScope[] Barriers(GraphResource[] resources, List<GraphPass> running)
     {
         var barriers = new BarrierScope[running.Count];
-        bool[] pending = new bool[resources.Length];
+        bool[] written = new bool[resources.Length];
+        var covered = new BarrierScope[resources.Length];
         for (int p = 0; p < running.Count; p++)
         {
             foreach (Access access in running[p].Accesses)
             {
-                if (pending[access.Resource])
+                if (!written[access.Resource])
                 {
-                    barriers[p] |= access.Kind switch
-                    {
-                        AccessKind.Sampled => BarrierScope.Texture,
-                        AccessKind.StorageTexture => BarrierScope.StorageTexture,
-                        AccessKind.ColorAttachment or AccessKind.DepthAttachment => BarrierScope.RenderTarget,
-                        AccessKind.Vertex or AccessKind.Index => BarrierScope.VertexInput,
-                        AccessKind.Uniform => BarrierScope.Uniform,
-                        AccessKind.StorageBuffer => BarrierScope.StorageBuffer,
-                        AccessKind.Indirect => BarrierScope.Indirect,
-                        _ => BarrierScope.Transfer,
-                    };
+                    continue;
+                }
+
+                BarrierScope scope = access.Kind switch
+                {
+                    AccessKind.Sampled => BarrierScope.Texture,
+                    AccessKind.StorageTexture => BarrierScope.StorageTexture,
+                    AccessKind.ColorAttachment or AccessKind.DepthAttachment => BarrierScope.RenderTarget,
+                    AccessKind.Vertex or AccessKind.Index => BarrierScope.VertexInput,
+                    AccessKind.Uniform => BarrierScope.Uniform,
+                    AccessKind.StorageBuffer => BarrierScope.StorageBuffer,
+                    AccessKind.Indirect => BarrierScope.Indirect,
+                    _ => BarrierScope.Transfer,
+                };
+                if ((covered[access.Resource] & scope) == 0)
+                {
+                    barriers[p] |= scope;
+                    covered[access.Resource] |= scope;
                 }
             }
 
             foreach (Access access in running[p].Accesses)
             {
-                pending[access.Resource] = access.Write && access.Kind is AccessKind.StorageTexture or AccessKind.StorageBuffer;
+                if (access.Write && access.Kind is AccessKind.StorageTexture or AccessKind.StorageBuffer)
+                {
+                    written[access.Resource] = true;
+                    covered[access.Resource] = BarrierScope.None;
+                }
             }
         }
 

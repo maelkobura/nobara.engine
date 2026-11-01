@@ -32,6 +32,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
     private readonly List<Entry<IRenderPipeline>> _pipelines = [];
     private readonly List<Insertion> _insertions = [];
     private readonly HashSet<string> _warnings = [];
+    private string? _unknownPipeline;
     private Entry<IRenderExtractor>[] _extractorArray = [];
     private Matrix4x4[] _matrices = new Matrix4x4[64];
     private GraphicsDevice? _device;
@@ -295,7 +296,12 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
                 }
             }
 
-            Warn("pipeline:" + name, $"{_view} names the render pipeline '{name}', which no module registers; nRenderer uses '{_pipelines[0].Value.Name}'.");
+            // The message is built once per name, not at every frame.
+            if (!ReferenceEquals(_unknownPipeline, name))
+            {
+                _unknownPipeline = name;
+                Warn("pipeline:" + name, $"{_view} names the render pipeline '{name}', which no module registers; nRenderer uses '{_pipelines[0].Value.Name}'.");
+            }
         }
 
         return _pipelines[0];

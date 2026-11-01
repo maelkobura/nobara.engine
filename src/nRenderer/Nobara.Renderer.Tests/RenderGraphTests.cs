@@ -124,6 +124,41 @@ public sealed class RenderGraphTests : IDisposable
     }
 
     [Fact]
+    public void AStorageWriteNeedsABarrierWhateverTheOrderOfTheDeclarations()
+    {
+        Pipeline(graph =>
+        {
+            RenderGraphTexture field = graph.CreateTexture("field", new RenderGraphTextureDescription(PixelFormat.R32Float));
+            graph.AddComputePass("seed", new RecordingPass()).WriteStorage(field);
+            graph.AddComputePass("spread", new RecordingPass()).WriteStorage(field).ReadStorage(field);
+            graph.AddRasterPass("show", new RecordingPass()).Read(field).Color(graph.Target);
+        });
+
+        Frame();
+
+        Assert.Equal(["barrier StorageTexture", "barrier Texture"], Trace.Where(t => t.StartsWith("barrier", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public void EachUseOfAStorageWriteGetsItsOwnBarrierOnce()
+    {
+        Pipeline(graph =>
+        {
+            RenderGraphBuffer points = graph.CreateBuffer("points", 4096);
+            RenderGraphTexture first = graph.CreateTexture("first", Color);
+            RenderGraphTexture second = graph.CreateTexture("second", Color);
+            graph.AddComputePass("generate", new RecordingPass()).Write(points);
+            graph.AddRasterPass("count", new RecordingPass()).Read(points, RenderBufferAccess.Uniform).Color(first, LoadAction.Clear);
+            graph.AddRasterPass("draw", new RecordingPass()).Read(points, RenderBufferAccess.Vertex).Read(first).Color(second, LoadAction.Clear);
+            graph.AddRasterPass("again", new RecordingPass()).Read(points, RenderBufferAccess.Vertex).Read(second).Color(graph.Target);
+        });
+
+        Frame();
+
+        Assert.Equal(["barrier Uniform", "barrier VertexInput"], Trace.Where(t => t.StartsWith("barrier", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void InsertedPassesRunAtTheirPointInTheOrderOfTheirRank()
     {
         using var pipeline = new TestPipeline(_harness.Device);

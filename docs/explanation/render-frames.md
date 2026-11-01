@@ -40,7 +40,8 @@ and the frame is drawn from that copy only.
 The world keeps its objects from one frame to the next, so an
 [extractor](glossary.md#extractor) copies only what changed: the objects that
 appeared, moved, or disappeared. A large static scene costs nothing to
-extract once it is in the world.
+extract once it is in the world; its transforms seen from the camera are
+still computed at every frame, since the camera moves.
 
 ## Why objects are interpolated between ticks
 

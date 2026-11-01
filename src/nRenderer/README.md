@@ -257,7 +257,9 @@ declares each point once, with `InsertionPoint`:
 
 An insertion at a point that the pipeline does not declare is not drawn, and
 a warning says so once. An exception of an insertion while the graph is
-built is charged to its module, and its passes are left out.
+built is charged under the error policy, and its passes are left out; as
+everywhere, the core charges an exception to the module whose code is
+closest to where it was thrown.
 
 ### Debug drawing
 
@@ -409,7 +411,11 @@ warning and need a restart.
 - One view: nothing draws a second view, split screen, or a view to a
   texture with its own rate. The render scale is the only form of render
   resolution.
-- No culling and no sorting: every visible object is an item of the view.
+- No culling and no sorting: every visible object is an item of the view,
+  and its transform seen from the camera is computed at every frame.
+- From 256 objects on, the transforms are computed by jobs. When the machine
+  is busy, the first wait of the loop thread for a job may allocate once in
+  the job system of the core.
 - No dedicated render thread: everything runs on the loop thread of the
   client context.
 - When several ticks run in one frame, a moved object is interpolated from
