@@ -30,3 +30,6 @@ player is described in [the core page](../../src/Core/README.md#configuration-ke
 | `input.invertY` | user | [nInput](../../src/nInput/README.md#configuration) |
 | `input.mouseSensitivity` | user | [nInput](../../src/nInput/README.md#configuration) |
 | `items.defaultMaxStack` | distribution | [nItems](../../src/nItems/README.md#configuration) |
+| `ungp.exposure` | distribution | [UNGP](../../src/UNGP/README.md#configuration) |
+| `ungp.renderScale` | user | [UNGP](../../src/UNGP/README.md#configuration) |
+| `ungp.skyColor` | distribution | [UNGP](../../src/UNGP/README.md#configuration) |

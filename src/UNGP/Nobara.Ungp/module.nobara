@@ -1,0 +1,23 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.ungp</Id>
+  <ShortName>Ungp</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>client</Side>
+
+  <Dependencies>
+    <Module id="nobara.renderer" version="^1.0" />
+    <Module id="nobara.graphics" version="^1.0" />
+  </Dependencies>
+
+  <Settings>
+    <Setting key="ungp.renderScale" scope="user" type="float" min="0.25" max="2" default="1" side="client" />
+    <Setting key="ungp.skyColor" scope="distribution" type="string" default="#87CEEB" side="client" />
+    <Setting key="ungp.exposure" scope="distribution" type="float" min="0.0625" max="16" default="1" side="client" />
+  </Settings>
+</NobaraModule>

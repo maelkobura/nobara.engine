@@ -121,6 +121,13 @@ turn each loaded resource of the type into an object of the module. The core
 decodes each resource once per process. See [the core
 page](../../src/Core/README.md#loading-resources).
 
+### Depth prepass
+
+A pass that draws the depth of the opaque geometry before any color, so that
+the next pass shades each pixel once, for the nearest surface only.
+[UNGP](#ungp) runs one, which can be turned off. See [the render
+pipelines](render-pipelines.md#why-a-depth-prepass).
+
 ### Deferred event
 
 An event that a module queues instead of emitting at once. The event bus hands
@@ -285,6 +292,14 @@ sheet](../../src/nGraphics/README.md).
 
 A set of voxels organized in chunks, such as a world dimension. A grid is an
 entity. The word *grid* is used for every voxel grid, terrain included.
+
+### HDR
+
+High dynamic range: colors stored as linear floating-point values that may
+exceed 1, so that very bright light keeps its difference from bright light.
+[UNGP](#ungp) draws the scene in HDR, then converts it to the colors of the
+screen by [tonemapping](#tonemapping). See [the render
+pipelines](render-pipelines.md#why-the-scene-is-drawn-in-hdr).
 
 ### Hot path
 
@@ -649,8 +664,17 @@ around its draws. See [the nRenderer module sheet](../../src/nRenderer/README.md
 The code that decides what a frame looks like: it declares the [render
 passes](#render-pass) of the [render graph](#render-graph) of a
 [view](#view). A module registers it with nRenderer; modules that draw never
-depend on one. Not to be confused with a [pipeline state](#pipeline-state).
-See [the nRenderer module sheet](../../src/nRenderer/README.md#pipelines).
+depend on one. [UNGP](#ungp) is the pipeline of the engine. Not to be
+confused with a [pipeline state](#pipeline-state). See [the nRenderer module
+sheet](../../src/nRenderer/README.md#pipelines) and [the render
+pipelines](render-pipelines.md).
+
+### Render resolution
+
+The size in pixels at which a [render pipeline](#render-pipeline) draws the
+scene of a [view](#view): a fraction of its viewport, the render scale. The
+pipeline scales the image to the viewport at the end of the frame. See [the
+render pipelines](render-pipelines.md#why-the-render-resolution-is-apart-from-the-window).
 
 ### Render world
 
@@ -847,12 +871,27 @@ under a qualified name, with its constraints and its declared accesses. All
 the code of the tick is made of tick systems. See [the nGame module
 sheet](../../src/nGame/README.md#tick-systems).
 
+### Tonemapping
+
+The conversion of the [HDR](#hdr) colors of a scene to the range of the
+target, at the end of a frame. The tonemapper of [UNGP](#ungp) keeps
+ordinary colors and compresses bright ones toward white without cutting
+them. See [the render pipelines](render-pipelines.md#why-this-tonemapping).
+
 ### Transient resource
 
 A texture or a buffer of a [render graph](#render-graph) that lives during
 one frame only. The graph creates it, and shares one GPU object between
 transient resources that no pass uses at the same time. See [the nRenderer
 module sheet](../../src/nRenderer/README.md#render-graph).
+
+### UNGP
+
+The Universal Nobara Graphics Pipeline: the [render
+pipeline](#render-pipeline) of the engine, meant to run everywhere. It draws
+the scene in [HDR](#hdr) at a render resolution apart from the window, with
+passes that can be turned off. See [the UNGP module
+sheet](../../src/UNGP/README.md).
 
 ### Video mode
 

@@ -239,7 +239,8 @@ the culled ones, and the transient resources of the last build.
 A pipeline module registers its pipeline with `IRenderer.RegisterPipeline`.
 Its `RequiredFeatures` are checked when it is registered, or when nRenderer
 starts for a pipeline registered before. Two pipelines cannot have the same
-name. Modules that draw depend on nRenderer, never on a pipeline.
+name. Modules that draw depend on nRenderer, never on a pipeline. The engine
+provides one pipeline, [UNGP](../UNGP/README.md).
 
 ### Insertion points
 

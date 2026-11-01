@@ -1,0 +1,56 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Nobara/Ungp">
+  <!-- Meshes at full brightness, textured or of one color; the variant Cutout discards the texels under the cutoff. -->
+  <Shader>
+    <Name>Standard</Name>
+    <Content>
+      <Vertex>Shaders/standard.vert</Vertex>
+      <Fragment>Shaders/standard.frag</Fragment>
+      <Variant name="Cutout">
+        <Define>UNGP_CUTOUT</Define>
+      </Variant>
+      <Texture name="Albedo" binding="0" optional="true" fallback="white" />
+      <Parameters binding="1">
+        <Parameter name="Color" type="vec4" default="1 1 1 1" />
+        <Parameter name="AlphaCutoff" type="float" default="0.5" />
+        <Parameter name="AlbedoLayer" type="layer" texture="Albedo" />
+      </Parameters>
+      <Uniform name="View" binding="0" />
+    </Content>
+  </Shader>
+
+  <!-- The plain sky, drawn where no geometry is. -->
+  <Shader>
+    <Name>Sky</Name>
+    <Content>
+      <Vertex>Shaders/fullscreen.vert</Vertex>
+      <Fragment>Shaders/sky.frag</Fragment>
+      <Uniform name="Sky" binding="0" />
+    </Content>
+  </Shader>
+
+  <!-- From the HDR scene to the target: tonemapping, or a plain clamp with the variant Clamp. -->
+  <Shader>
+    <Name>Tonemap</Name>
+    <Content>
+      <Vertex>Shaders/fullscreen.vert</Vertex>
+      <Fragment>Shaders/tonemap.frag</Fragment>
+      <Variant name="Clamp">
+        <Define>UNGP_CLAMP</Define>
+      </Variant>
+      <Uniform name="Output" binding="0" />
+    </Content>
+  </Shader>
+
+  <!-- The base material: white, opaque. -->
+  <Material>
+    <Name>Default</Name>
+    <Content>
+      <Shader>shader:nobara.ungp.standard</Shader>
+    </Content>
+  </Material>
+</Nobara>
