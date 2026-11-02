@@ -126,6 +126,22 @@ public sealed class OptionalDependencyAnalyzerTests
     }
 
     [Fact]
+    public void Allows_a_private_nested_type_to_implement_an_optional_interface()
+    {
+        // Only the isolation class creates its private nested types: their interfaces load then.
+        Verify("""
+            [UsesOptionalDependency("nobara.lighting")]
+            internal sealed class LightingBridge : System.IDisposable
+            {
+                private readonly Source _source = new();
+                public void Dispose() { }
+                private sealed class Source : ILightSource { public int Emit() => 0; }
+                internal sealed class {|NOB402:Shared|} : ILightSource { public int Emit() => 0; }
+            }
+            """);
+    }
+
+    [Fact]
     public void Reports_an_isolation_class_that_names_an_unknown_dependency()
     {
         Verify("""

@@ -412,7 +412,9 @@ dependency: its base class, its interfaces, and the signatures of its members
 that are not private (field and property types, return and parameter types)
 do not mention them. The same applies to the types nested in it that are not
 private. Code outside the class would otherwise load those types when it
-calls the class.
+calls the class. A private nested type may derive from a type of the
+dependency or implement its interfaces: only the isolation class creates it,
+so the runtime loads those types only when the class runs.
 
 **Example.**
 

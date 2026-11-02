@@ -77,19 +77,19 @@ public sealed class OptionalDependencyTests : IDisposable
 
     /// <summary>The debug code of the crops: the only class that names the types of nDebug and of Dear ImGui.</summary>
     [UsesOptionalDependency(DebugModule.ModuleId)]
-    private sealed class CropsDebug : IDebugWindow, IDisposable
+    private sealed class CropsDebug : IDisposable
     {
         private readonly DebugWindow _window;
-        private readonly Func<int> _count;
 
-        public CropsDebug(ModuleContext context, Func<int> count)
-        {
-            _count = count;
-            _window = context.Resolve<IDebugUi>().AddWindow(context, new DebugWindowOptions { Title = "Crops" }, this);
-        }
-
-        public void Draw(DebugWindow window) => ImGui.Text($"Crops growing: {_count()}");
+        public CropsDebug(ModuleContext context, Func<int> count) =>
+            _window = context.Resolve<IDebugUi>().AddWindow(context, new DebugWindowOptions { Title = "Crops" }, new Content(count));
 
         public void Dispose() => _window.Dispose();
+
+        // The content implements the interface of nDebug; only the isolation class creates it.
+        private sealed class Content(Func<int> count) : IDebugWindow
+        {
+            public void Draw(DebugWindow window) => ImGui.Text($"Crops growing: {count()}");
+        }
     }
 }
