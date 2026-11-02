@@ -17,6 +17,7 @@ internal sealed class StateStack : IStateStack
     private const string Prefix = "state:";
 
     private readonly ModuleContext _context;
+    private readonly WorldSessions _sessions;
     private readonly Dictionary<string, Registration> _registered = new(StringComparer.Ordinal);
     private readonly List<Entry> _stack = [];
     private readonly List<string> _ids = [];
@@ -27,9 +28,10 @@ internal sealed class StateStack : IStateStack
     private bool _started;
     private bool _stopping;
 
-    public StateStack(ModuleContext context)
+    public StateStack(ModuleContext context, WorldSessions sessions)
     {
         _context = context;
+        _sessions = sessions;
     }
 
     public string? InitialState { get; private set; }
@@ -61,7 +63,7 @@ internal sealed class StateStack : IStateStack
             throw new ArgumentException($"State '{id}' is already registered by module '{existing.Owner.Module.Id}'.", nameof(id));
         }
 
-        _registered.Add(id, new Registration(id, module, create, options?.KeepStatesBelowRunning ?? false));
+        _registered.Add(id, new Registration(id, module, create, options?.KeepStatesBelowRunning ?? false, options?.RequiresSession ?? false));
     }
 
     public bool IsRegistered(string id)
@@ -87,6 +89,7 @@ internal sealed class StateStack : IStateStack
     public void Push(string id)
     {
         Registration registration = Find(id, "push");
+        RequireSession(registration, "be pushed");
         if (_projected.Contains(id))
         {
             throw new InvalidOperationException($"State '{id}' cannot be pushed: it is already in the stack ({Describe(_projected)}).");
@@ -111,6 +114,7 @@ internal sealed class StateStack : IStateStack
     public void Replace(string id)
     {
         Registration registration = Find(id, "replace the active state with");
+        RequireSession(registration, "replace the active state");
         if (_projected.Count == 0)
         {
             throw new InvalidOperationException($"State '{id}' cannot replace the active state: the stack is empty once the transitions already requested apply. Push it instead.");
@@ -187,6 +191,8 @@ internal sealed class StateStack : IStateStack
             return;
         }
 
+        _sessions.RunFrameStart();
+
         for (int i = 0; i < _stack.Count; i++)
         {
             Entry entry = _stack[i];
@@ -212,6 +218,14 @@ internal sealed class StateStack : IStateStack
         for (int count = _events.Count; count > 0; count--)
         {
             GlobalEvent e = _events.Dequeue();
+
+            // A stop request ends the world session first; the active state
+            // then decides, out of the world.
+            if (e is StopRequested)
+            {
+                _sessions.EndForStop();
+            }
+
             bool handled = false;
             if (_stack.Count > 0 && _stack[^1] is { } active && IsActive(active))
             {
@@ -251,6 +265,7 @@ internal sealed class StateStack : IStateStack
         _applying.Clear();
         if (_stack.Count == 0 && _pending.Count == 0)
         {
+            _sessions.EndForStop();
             _stopping = true;
             _context.Logger.Info("The state stack is empty: the context stops.");
             _context.RequestStop();
@@ -381,6 +396,15 @@ internal sealed class StateStack : IStateStack
         return new Entry(registration, state);
     }
 
+    private void RequireSession(Registration registration, string action)
+    {
+        if (registration.RequiresSession && !_sessions.IsActiveOnceRequestsApply)
+        {
+            throw new InvalidOperationException(
+                $"State '{registration.Id}' cannot {action}: it requires a world session, and none is active. Start one with IWorldSessions.Start, and request the state once the session is active.");
+        }
+    }
+
     private Registration Find(string id, string action)
     {
         ArgumentNullException.ThrowIfNull(id);
@@ -418,7 +442,7 @@ internal sealed class StateStack : IStateStack
 
     private readonly record struct Request(RequestKind Kind, Entry? Added);
 
-    private sealed record Registration(string Id, ModuleContext Owner, Func<ApplicationState> Create, bool KeepStatesBelowRunning);
+    private sealed record Registration(string Id, ModuleContext Owner, Func<ApplicationState> Create, bool KeepStatesBelowRunning, bool RequiresSession);
 
     private sealed class Entry(Registration registration, ApplicationState state)
     {

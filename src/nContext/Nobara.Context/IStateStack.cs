@@ -66,7 +66,10 @@ public interface IStateStack
     /// <summary>Requests a state to be pushed on top of the stack, such as a pause menu over the game.</summary>
     /// <param name="id">The identifier of a registered state.</param>
     /// <exception cref="ArgumentException">No module registers the state in this context.</exception>
-    /// <exception cref="InvalidOperationException">The state is in the stack once the transitions already requested apply.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The state is in the stack once the transitions already requested apply,
+    /// or it requires a world session and no session is active.
+    /// </exception>
     void Push(string id);
 
     /// <summary>Requests the active state to be popped.</summary>
@@ -77,8 +80,9 @@ public interface IStateStack
     /// <param name="id">The identifier of a registered state.</param>
     /// <exception cref="ArgumentException">No module registers the state in this context.</exception>
     /// <exception cref="InvalidOperationException">
-    /// The stack is empty once the transitions already requested apply, or
-    /// the state is in it below the active state.
+    /// The stack is empty once the transitions already requested apply, the
+    /// state is in it below the active state, or it requires a world session
+    /// and no session is active.
     /// </exception>
     void Replace(string id);
 
@@ -107,4 +111,17 @@ public sealed class StateOptions
     /// Otherwise they are suspended.
     /// </summary>
     public bool KeepStatesBelowRunning { get; init; }
+
+    /// <summary>
+    /// Gets whether the state requires a world session, such as the game:
+    /// pushing it or replacing the active state with it throws unless a
+    /// session is active and no end of it is requested
+    /// (<see cref="IWorldSessions"/>).
+    /// </summary>
+    /// <remarks>
+    /// The check applies when the state enters. A session that ends while the
+    /// state is in the stack, such as on a stop request, leaves it there: the
+    /// state then leads the application elsewhere.
+    /// </remarks>
+    public bool RequiresSession { get; init; }
 }
