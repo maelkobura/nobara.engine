@@ -91,8 +91,9 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
         if (Show(request) is string error)
         {
             // A refused display may have left full screen already: go back to the previous one.
-            RestoreDisplay(previous);
-            return error;
+            return RestoreDisplay(previous) is string restoreError
+                ? $"{error}; the previous display could not be restored either: {restoreError}"
+                : error;
         }
 
         Api.ShowWindow(Handle);
@@ -185,21 +186,22 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
         return new Display(fullscreen, x, y, mode);
     }
 
-    private void RestoreDisplay(in Display display)
+    private string? RestoreDisplay(in Display display)
     {
         Sdl sdl = Api;
-        sdl.SetWindowFullscreen(Handle, 0);
-        sdl.SetWindowPosition(Handle, display.X, display.Y);
-        if (display.Fullscreen == (uint)WindowFlags.Fullscreen)
+        if (sdl.SetWindowFullscreen(Handle, 0) < 0)
         {
-            DisplayMode mode = display.Mode;
-            sdl.SetWindowDisplayMode(Handle, &mode);
+            return _backend.Error();
         }
 
-        if (display.Fullscreen != 0)
+        sdl.SetWindowPosition(Handle, display.X, display.Y);
+        DisplayMode mode = display.Mode;
+        if (display.Fullscreen == (uint)WindowFlags.Fullscreen && sdl.SetWindowDisplayMode(Handle, &mode) < 0)
         {
-            sdl.SetWindowFullscreen(Handle, display.Fullscreen);
+            return _backend.Error();
         }
+
+        return display.Fullscreen != 0 && sdl.SetWindowFullscreen(Handle, display.Fullscreen) < 0 ? _backend.Error() : null;
     }
 
     private string? Show(in DisplayRequest request)
@@ -227,12 +229,12 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
 
                 break;
             case WindowMode.Exclusive:
-                // Without this check, SDL would silently fall back to another video mode.
+                // SDL picks the nearest mode at least as large; without this check, it would silently fall back to another one when none is.
                 var wanted = new DisplayMode { W = request.Exclusive.Width, H = request.Exclusive.Height, RefreshRate = (int)Math.Round(request.Exclusive.RefreshRate) };
                 DisplayMode mode;
                 if (sdl.GetClosestDisplayMode(request.Monitor, &wanted, &mode) is null)
                 {
-                    return $"monitor {request.Monitor} has no video mode of {wanted.W}x{wanted.H} or larger";
+                    return $"monitor {request.Monitor} has no video mode of {wanted.W}x{wanted.H} or larger at {wanted.RefreshRate} Hz";
                 }
 
                 if (sdl.SetWindowDisplayMode(Handle, &mode) < 0 || sdl.SetWindowFullscreen(Handle, (uint)WindowFlags.Fullscreen) < 0)
