@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 
 namespace Nobara.Renderer;
 
@@ -20,7 +21,7 @@ public readonly record struct RenderObjectId(int Index, int Generation)
 /// <summary>Describes a new object of the render world: a mesh, drawn with the materials of its slots or with one material, at a transform.</summary>
 /// <param name="Mesh">The mesh.</param>
 /// <param name="Transform">The transform.</param>
-public readonly record struct RenderObjectDescription(RenderMesh Mesh, RenderTransform Transform)
+public readonly record struct RenderObjectDescription(RenderMesh Mesh, WorldTransform Transform)
 {
     /// <summary>Gets the material of every part of the mesh, or <see langword="null"/> for the materials of its slots.</summary>
     public RenderMaterial? Material { get; init; }
@@ -135,7 +136,7 @@ public sealed class RenderWorld
     /// <exception cref="InvalidOperationException">The world is not being extracted.</exception>
     /// <exception cref="ArgumentException">The object does not exist.</exception>
     [HotPath]
-    public void Move(RenderObjectId id, in RenderTransform transform)
+    public void Move(RenderObjectId id, in WorldTransform transform)
     {
         ref ObjectSlot slot = ref Get(id);
         if (!Interpolates)
@@ -158,7 +159,7 @@ public sealed class RenderWorld
     /// <exception cref="InvalidOperationException">The world is not being extracted.</exception>
     /// <exception cref="ArgumentException">The object does not exist.</exception>
     [HotPath]
-    public void Teleport(RenderObjectId id, in RenderTransform transform)
+    public void Teleport(RenderObjectId id, in WorldTransform transform)
     {
         ref ObjectSlot slot = ref Get(id);
         slot.Previous = transform;
@@ -215,7 +216,7 @@ public sealed class RenderWorld
     /// <returns>The transform.</returns>
     /// <exception cref="ArgumentException">The object does not exist.</exception>
     [HotPath]
-    public RenderTransform GetTransform(RenderObjectId id)
+    public WorldTransform GetTransform(RenderObjectId id)
     {
         CheckExists(id);
         return _slots[id.Index].Current;
@@ -267,8 +268,8 @@ public sealed class RenderWorld
         public bool Visible;
         public RenderMesh? Mesh;
         public RenderMaterial? Material;
-        public RenderTransform Previous;
-        public RenderTransform Current;
+        public WorldTransform Previous;
+        public WorldTransform Current;
 
         // The tick of the last call to Move, or MaxValue: the object is not interpolated.
         public ulong MovedTick;

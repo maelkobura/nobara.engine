@@ -3,9 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Numerics;
-using Nobara.Core;
 
-namespace Nobara.Renderer;
+namespace Nobara.Core.Mathematics;
 
 /// <summary>
 /// A position in the world with the same precision everywhere: whole chunk
@@ -13,12 +12,19 @@ namespace Nobara.Renderer;
 /// in blocks.
 /// </summary>
 /// <remarks>
+/// <para>
 /// A chunk is a cube of <see cref="ChunkSize"/> blocks. The local position is
 /// kept from 0 (included) to <see cref="ChunkSize"/> (excluded) on each axis:
-/// the constructor moves the whole part to the chunk coordinates. The
-/// renderer never sends such a position to the GPU: it subtracts the position
-/// of the camera first (<see cref="RelativeTo"/>), so the GPU only sees small
-/// coordinates.
+/// the constructor moves the whole part to the chunk coordinates.
+/// </para>
+/// <para>
+/// The engine shares this type between the modules that place things in the
+/// world, such as entities and rendering, so that none of them depends on
+/// another for it. Computations between two positions go through
+/// <see cref="RelativeTo"/>, which stays exact near the origin it is given:
+/// the renderer, for example, subtracts the position of the camera before
+/// anything reaches the GPU.
+/// </para>
 /// </remarks>
 public readonly struct WorldPosition : IEquatable<WorldPosition>
 {

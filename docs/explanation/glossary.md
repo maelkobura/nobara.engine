@@ -5,6 +5,13 @@ has one meaning; the documentation does not use a second word for it.
 
 ## Terms
 
+### Archetype
+
+The set of components that some entities of a world have in common. Entities
+are stored by archetype, in blocks of unmanaged memory with one column per
+component; an entity that gains or loses a component moves to another
+archetype. See [the nEntity module sheet](../../src/nEntity/README.md#entities-and-archetypes).
+
 ### Auxiliary project
 
 A project that belongs to a module without being a module: it has no manifest
@@ -54,6 +61,13 @@ A module that implements a feature of a game, such as a world generator or a
 mob. It depends on platform modules and on other business modules. See
 [Architecture](architecture.md#overview).
 
+### Change version
+
+A counter of an [entity world](#entity-world) that a write to a tracked
+component records, per entity and per block, so that a reader finds what
+changed since its last read. See [the nEntity module
+sheet](../../src/nEntity/README.md#change-detection).
+
 ### Chunk
 
 A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid
@@ -69,7 +83,9 @@ sheet](../../src/nGraphics/README.md#command-buffers).
 
 ### Component
 
-A piece of data attached to an entity in the entity component system.
+A piece of data attached to an [entity](#entity): an unmanaged struct,
+registered under a qualified name that starts with the identifier of its
+module. See [the nEntity module sheet](../../src/nEntity/README.md#components).
 
 ### Configuration key
 
@@ -188,12 +204,34 @@ as an emergency save of the world.
 ### Entity
 
 An object of the game world in the entity component system, identified by
-the components attached to it. A grid of voxels is an entity.
+the components attached to it and by an `EntityId` in its
+[entity world](#entity-world). A grid of voxels is an entity.
+
+### Entity command buffer
+
+Structural changes to an [entity world](#entity-world), such as creating
+entities or adding components, recorded while an
+[entity system](#entity-system) runs and applied once it returns. See [the
+nEntity module sheet](../../src/nEntity/README.md#structural-changes-during-a-system).
 
 ### Entity component system
 
 The architecture that represents the game world as entities, components, and
-systems. It is provided by a platform module.
+systems. It is provided by the platform module [nEntity](#nentity).
+
+### Entity system
+
+A [system](#system) registered with nEntity. nEntity registers it with nGame
+as one [tick system](#tick-system) that runs it once per
+[entity world](#entity-world), in the order of the dimensions, skipping
+frozen ones. See [the nEntity module sheet](../../src/nEntity/README.md#entity-systems).
+
+### Entity world
+
+The entities of one dimension, with their components: an ECS world. Each
+dimension has its own, created and destroyed by the module that owns the
+dimensions during a [world session](#world-session). See [the nEntity module
+sheet](../../src/nEntity/README.md#worlds).
 
 ### Entry assembly
 
@@ -545,6 +583,13 @@ highest priority, with the [debug windows](#debug-window) of the modules, the
 window of the [profiler](#profiler), and the window of the settings. See [its
 module sheet](../../src/nDebug/README.md).
 
+### nEntity
+
+The platform module of the entity component system: one
+[entity world](#entity-world) per dimension, component types,
+[entity systems](#entity-system), change detection, and the hierarchy of
+entities. See [its module sheet](../../src/nEntity/README.md).
+
 ### nEvent
 
 The platform module that supplies the event bus of each context: typed events,
@@ -615,6 +660,13 @@ the target is active, it loads before the dependent module.
 A resource marked `override="true"` that changes the resource with the same
 identifier, with simple fields and queries. See [the `.nof`
 reference](../reference/formats/nof.md#overrides).
+
+### Parent link
+
+The component of a child entity that names its parent, its depth in the
+hierarchy, and what happens to it when the parent is destroyed. The child is
+placed relative to its parent, and its world transform follows. See [the
+nEntity module sheet](../../src/nEntity/README.md#hierarchy).
 
 ### Phase
 
@@ -867,7 +919,8 @@ it.
 ### System
 
 Logic that runs on entities with certain components during a tick. Every
-system of the entity component system is a tick system.
+system of the entity component system is an [entity system](#entity-system),
+and so a tick system.
 
 ### Tag
 
@@ -951,7 +1004,9 @@ thread.
 
 A position with the same precision everywhere in the world: whole chunk
 coordinates on 32 bits and a position in the chunk, in blocks, in single
-precision. See [the nRenderer module sheet](../../src/nRenderer/README.md#positions).
+precision. The core provides it, with the [world transform](#world-transform),
+to every module that places things in the world. See [the core module
+sheet](../../src/Core/README.md#low-level-foundations).
 
 ### World session
 
@@ -966,3 +1021,9 @@ A count of the objects tied to a world that a module holds, such as chunks
 or entities, which nContext reads in development mode once a world session
 ended: a value other than 0 is an error of the module. See [the nContext
 module sheet](../../src/nContext/README.md#world-state-left-behind).
+
+### World transform
+
+A [world position](#world-position), a rotation, and a scale: where
+something is in the world. The core provides it to the modules that place
+things in the world, such as entities and rendering.

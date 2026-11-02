@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Graphics;
 using Nobara.Renderer.Tests.Support;
 
@@ -50,7 +51,7 @@ public sealed class OpenGLFrameTests : IDisposable
         render.RegisterPipeline(_harness.Context, _pipeline);
         render.MainView.SetTarget(_color, _depth);
         // The crate spans 0.5 to 1.5 blocks up: one block down, it is centered in the view.
-        render.AddExtractor(_harness.Context, new TestExtractor { Next = e => e.World.Create(new RenderObjectDescription(crate, RenderTransform.At(WorldPosition.FromBlocks(0, -1, -3)))) });
+        render.AddExtractor(_harness.Context, new TestExtractor { Next = e => e.World.Create(new RenderObjectDescription(crate, WorldTransform.At(WorldPosition.FromBlocks(0, -1, -3)))) });
 
         // The user interface draws a small crate in the top-right corner, straight in clip space.
         Matrix4x4 corner = Matrix4x4.CreateScale(0.3f) * Matrix4x4.CreateTranslation(0.7f, 0.7f, 0.5f);

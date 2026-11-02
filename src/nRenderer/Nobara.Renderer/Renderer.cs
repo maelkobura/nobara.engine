@@ -6,6 +6,7 @@ using System.Numerics;
 using Nobara.Core;
 using Nobara.Core.Jobs;
 using Nobara.Core.Loop;
+using Nobara.Core.Mathematics;
 using Nobara.Graphics;
 
 namespace Nobara.Renderer;
@@ -516,7 +517,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
                 return;
             }
 
-            RenderTransform transform = interpolates && slot.MovedTick == tick ? RenderTransform.Interpolate(slot.Previous, slot.Current, alpha) : slot.Current;
+            WorldTransform transform = interpolates && slot.MovedTick == tick ? WorldTransform.Interpolate(slot.Previous, slot.Current, alpha) : slot.Current;
             matrices[index] = transform.ToMatrix(origin);
         }
     }

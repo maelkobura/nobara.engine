@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Frames;
 using Nobara.Graphics;
 using Nobara.Renderer.Tests.Support;

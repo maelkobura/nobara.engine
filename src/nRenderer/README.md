@@ -61,7 +61,7 @@ other module sees the types of these libraries.
 | `IRenderer` | The service of the frames, resolved with `context.Resolve<IRenderer>()`: the render world, the view, and the registration of extractors, pipelines, and insertions. |
 | `RenderWorld`, `RenderObjectId`, `RenderObjectDescription`, `RenderItem` | The objects of the render world, and the parts of the visible objects that a view draws. |
 | `IRenderExtractor`, `RenderExtraction` | The code of a module that copies its changes to the render world at every frame. |
-| `WorldPosition`, `RenderTransform`, `Camera` | Positions with the same precision everywhere, transforms, and a camera with reversed depth. |
+| `Camera` | A camera with reversed depth. Positions and transforms are the `WorldPosition` and `WorldTransform` of the core, in `Nobara.Core.Mathematics`. |
 | `RenderView`, `ViewRect` | The view: camera, target, viewport, pipeline, and render resolution, with the matrices and items of the frame. |
 | `IRenderPipeline`, `RenderGraphBuilder`, `RenderPassBuilder` | A render pipeline and the declaration of its render graph. |
 | `RenderGraphTexture`, `RenderGraphBuffer`, `RenderGraphTextureDescription`, `RenderTextureSize`, `RenderBufferAccess` | The resources of a render graph and how passes use them. |
@@ -157,12 +157,14 @@ rather than the tick, such as a free camera driven by the mouse.
 
 ### Positions
 
-A `WorldPosition` has whole chunk coordinates on 32 bits and a position in
-the chunk, in blocks, in single precision; a chunk is 32 blocks along each
-edge. Its precision is the same everywhere in the world. nRenderer never
-sends such a position to the GPU: it subtracts the position of the camera on
-the CPU, in double precision, so the matrices of the frame only hold offsets
-from the camera (`RenderTransform.ToMatrix`, `WorldPosition.RelativeTo`).
+Objects and cameras are placed with the `WorldPosition` and `WorldTransform`
+of the core, which the other modules that place things in the world share. A
+`WorldPosition` has whole chunk coordinates on 32 bits and a position in the
+chunk, in blocks, in single precision; a chunk is 32 blocks along each edge.
+Its precision is the same everywhere in the world. nRenderer never sends such
+a position to the GPU: it subtracts the position of the camera on the CPU, in
+double precision, so the matrices of the frame only hold offsets from the
+camera (`WorldTransform.ToMatrix`, `WorldPosition.RelativeTo`).
 
 ### Views and cameras
 

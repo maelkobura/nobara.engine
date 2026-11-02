@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Graphics;
 using Nobara.Renderer;
 using Nobara.Ungp.Tests.Support;
@@ -236,7 +237,7 @@ public sealed class PipelineTests : IDisposable
         {
             for (int i = 0; i < ids.Length; i++)
             {
-                RenderTransform transform = RenderTransform.At(WorldPosition.FromBlocks(i % 20, frame % 7, -10 - (i / 20)));
+                WorldTransform transform = WorldTransform.At(WorldPosition.FromBlocks(i % 20, frame % 7, -10 - (i / 20)));
                 if (!ids[i].IsValid)
                 {
                     ids[i] = e.World.Create(squares[i % squares.Length] with { Transform = transform });
