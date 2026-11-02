@@ -147,6 +147,10 @@ public interface IBackendWindow : IDisposable
     void SetTitle(string title);
 
     /// <summary>Shows the window in a mode, on a monitor, and shows it if it is hidden.</summary>
+    /// <remarks>
+    /// When the operating system refuses the display, the window goes back to
+    /// the one it had; a window that was still hidden is shown windowed.
+    /// </remarks>
     /// <param name="request">The mode, the monitor, and the video mode for exclusive full screen.</param>
     /// <returns><see langword="null"/> when applied, or the reason the operating system refused.</returns>
     string? ApplyDisplay(in DisplayRequest request);

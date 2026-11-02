@@ -87,39 +87,22 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
 
     public string? ApplyDisplay(in DisplayRequest request)
     {
-        Sdl sdl = Api;
-        bool wasFullscreen = (Flags & WindowFlags.Fullscreen) != 0;
-        if (wasFullscreen && sdl.SetWindowFullscreen(Handle, 0) < 0)
+        Display previous = CaptureDisplay();
+        if (Show(request) is string error)
         {
-            return _backend.Error();
+            // A refused display may have left full screen already: go back to the previous one.
+            string? restoreError = RestoreDisplay(previous);
+
+            // The first display has no previous one: the window is shown windowed.
+            if (previous.Hidden)
+            {
+                Api.ShowWindow(Handle);
+            }
+
+            return restoreError is null ? error : $"{error}; the previous display could not be restored either: {restoreError}";
         }
 
-        // A full screen window covers the monitor that holds it: move it there first.
-        if (wasFullscreen || request.Mode != WindowMode.Windowed || Monitor != request.Monitor)
-        {
-            sdl.SetWindowPosition(Handle, CenteredOnDisplay | request.Monitor, CenteredOnDisplay | request.Monitor);
-        }
-
-        switch (request.Mode)
-        {
-            case WindowMode.Borderless:
-                if (sdl.SetWindowFullscreen(Handle, (uint)WindowFlags.FullscreenDesktop) < 0)
-                {
-                    return _backend.Error();
-                }
-
-                break;
-            case WindowMode.Exclusive:
-                var mode = new DisplayMode { W = request.Exclusive.Width, H = request.Exclusive.Height, RefreshRate = (int)Math.Round(request.Exclusive.RefreshRate) };
-                if (sdl.SetWindowDisplayMode(Handle, &mode) < 0 || sdl.SetWindowFullscreen(Handle, (uint)WindowFlags.Fullscreen) < 0)
-                {
-                    return _backend.Error();
-                }
-
-                break;
-        }
-
-        sdl.ShowWindow(Handle);
+        Api.ShowWindow(Handle);
         return null;
     }
 
@@ -195,6 +178,82 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
         _backend.WindowDestroyed(this);
     }
 
+    private Display CaptureDisplay()
+    {
+        uint fullscreen = (uint)Flags & (uint)WindowFlags.FullscreenDesktop;
+        int x, y;
+        Api.GetWindowPosition(Handle, &x, &y);
+        DisplayMode mode = default;
+        if (fullscreen == (uint)WindowFlags.Fullscreen)
+        {
+            Api.GetWindowDisplayMode(Handle, &mode);
+        }
+
+        return new Display(fullscreen, x, y, mode, (Flags & WindowFlags.Hidden) != 0);
+    }
+
+    private string? RestoreDisplay(in Display display)
+    {
+        Sdl sdl = Api;
+        if (sdl.SetWindowFullscreen(Handle, 0) < 0)
+        {
+            return _backend.Error();
+        }
+
+        sdl.SetWindowPosition(Handle, display.X, display.Y);
+        DisplayMode mode = display.Mode;
+        if (display.Fullscreen == (uint)WindowFlags.Fullscreen && sdl.SetWindowDisplayMode(Handle, &mode) < 0)
+        {
+            return _backend.Error();
+        }
+
+        return display.Fullscreen != 0 && sdl.SetWindowFullscreen(Handle, display.Fullscreen) < 0 ? _backend.Error() : null;
+    }
+
+    private string? Show(in DisplayRequest request)
+    {
+        Sdl sdl = Api;
+        bool wasFullscreen = (Flags & WindowFlags.Fullscreen) != 0;
+        if (wasFullscreen && sdl.SetWindowFullscreen(Handle, 0) < 0)
+        {
+            return _backend.Error();
+        }
+
+        // A full screen window covers the monitor that holds it: move it there first.
+        if (wasFullscreen || request.Mode != WindowMode.Windowed || Monitor != request.Monitor)
+        {
+            sdl.SetWindowPosition(Handle, CenteredOnDisplay | request.Monitor, CenteredOnDisplay | request.Monitor);
+        }
+
+        switch (request.Mode)
+        {
+            case WindowMode.Borderless:
+                if (sdl.SetWindowFullscreen(Handle, (uint)WindowFlags.FullscreenDesktop) < 0)
+                {
+                    return _backend.Error();
+                }
+
+                break;
+            case WindowMode.Exclusive:
+                // SDL picks the nearest mode at least as large; without this check, it would silently fall back to another one when none is.
+                var wanted = new DisplayMode { W = request.Exclusive.Width, H = request.Exclusive.Height, RefreshRate = (int)Math.Round(request.Exclusive.RefreshRate) };
+                DisplayMode mode;
+                if (sdl.GetClosestDisplayMode(request.Monitor, &wanted, &mode) is null)
+                {
+                    return $"monitor {request.Monitor} has no video mode of {wanted.W}x{wanted.H} or larger at {wanted.RefreshRate} Hz";
+                }
+
+                if (sdl.SetWindowDisplayMode(Handle, &mode) < 0 || sdl.SetWindowFullscreen(Handle, (uint)WindowFlags.Fullscreen) < 0)
+                {
+                    return _backend.Error();
+                }
+
+                break;
+        }
+
+        return null;
+    }
+
     private static SystemCursor SystemCursor(CursorShape shape) => shape switch
     {
         CursorShape.Text => Silk.NET.SDL.SystemCursor.SystemCursorIbeam,
@@ -209,6 +268,9 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
         CursorShape.NotAllowed => Silk.NET.SDL.SystemCursor.SystemCursorNo,
         _ => Silk.NET.SDL.SystemCursor.SystemCursorArrow,
     };
+
+    /// <summary>What the window shows: its full screen flags, its position, its exclusive video mode, and whether it is hidden.</summary>
+    private readonly record struct Display(uint Fullscreen, int X, int Y, DisplayMode Mode, bool Hidden);
 }
 
 /// <summary>An OpenGL context created by SDL2 on the window.</summary>

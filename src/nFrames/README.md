@@ -214,7 +214,8 @@ Listened to: none.
 The display keys apply when the window is created and again at the start of
 the frame that follows a change, without a restart. When the operating
 system refuses a display, the window keeps the previous one and a warning
-is logged.
+is logged; when it refuses the first display, at start-up, the window opens
+windowed.
 
 ## Resources
 
