@@ -23,7 +23,7 @@ namespace Nobara.Context;
 /// waits for, and free it in <c>SessionEnded</c>. The events of a session come
 /// in this order: <c>SessionStarting</c>, <c>SessionStarted</c> once every
 /// task completed, <c>SessionEnding</c>, <c>SessionEnded</c>. A session
-/// cancelled while it starts skips <c>SessionStarted</c>. Handlers run in the
+/// canceled while it starts skips <c>SessionStarted</c>. Handlers run in the
 /// load order of their modules for the start, and in the reverse order for
 /// the end.
 /// </para>
@@ -130,7 +130,7 @@ public sealed class WorldSession
     /// <summary>Gets why the session ends, or <see langword="null"/> until it does.</summary>
     public SessionEndReason? EndReason { get; internal set; }
 
-    /// <summary>Gets why the session was cancelled while it started, or <see langword="null"/>.</summary>
+    /// <summary>Gets why the session was canceled while it started, or <see langword="null"/>.</summary>
     public SessionFailure? Failure { get; internal set; }
 
     // Whether the SessionStarting handlers ran.

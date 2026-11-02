@@ -58,7 +58,7 @@ public enum LoadingTaskState
     /// <summary>The task failed, which cancels the session.</summary>
     Failed,
 
-    /// <summary>The session was cancelled or ended before the task finished.</summary>
+    /// <summary>The session was canceled or ended before the task finished.</summary>
     Canceled,
 }
 
@@ -68,7 +68,7 @@ public enum LoadingTaskState
 /// <param name="TaskCount">The number of tasks.</param>
 public readonly record struct LoadingProgress(double Fraction, int CompletedTasks, int TaskCount);
 
-/// <summary>Why a world session was cancelled while it started.</summary>
+/// <summary>Why a world session was canceled while it started.</summary>
 /// <param name="Task">The name of the loading task that failed.</param>
 /// <param name="Module">The identifier of the module that registered the task.</param>
 /// <param name="Reason">The reason, as the task gave it, to show to the player.</param>

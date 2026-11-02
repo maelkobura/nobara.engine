@@ -35,7 +35,7 @@ public sealed class LoadingTasks
     /// <summary>Gets the tasks, in the order they were added.</summary>
     public IReadOnlyList<LoadingTask> Tasks => _tasks;
 
-    /// <summary>Gets a token cancelled when the session is cancelled or ends before the tasks finish.</summary>
+    /// <summary>Gets a token canceled when the session is canceled or ends before the tasks finish.</summary>
     public CancellationToken Cancellation { get; }
 
     /// <summary>Gets whether every task finished its work.</summary>
@@ -286,8 +286,9 @@ public sealed class LoadingTask
     }
 
     /// <summary>
-    /// Fails the task, which cancels the session at the start of the next
-    /// frame. Does nothing once the task finished. Call it on the loop thread.
+    /// Fails the task, which cancels the session once nContext follows the
+    /// tasks: at the start of the next frame, or at once from a
+    /// <c>SessionStarting</c> handler. Does nothing once the task finished. Call it on the loop thread.
     /// </summary>
     /// <param name="reason">Why the task failed, to show to the player.</param>
     /// <param name="exception">The exception that failed the task, or <see langword="null"/>.</param>

@@ -127,7 +127,7 @@ internal sealed class WorldSessions : IWorldSessions
     {
         if (_current is { } session)
         {
-            _context.Logger.Info($"The context stops during world session {session.Number}, which does not end.");
+            _context.Logger.Warning($"The context stops during world session {session.Number}, which does not end.");
         }
     }
 
@@ -145,7 +145,7 @@ internal sealed class WorldSessions : IWorldSessions
         if (loading.FirstFailed() is { } failed)
         {
             _context.Logger.Error(
-                $"Loading task '{failed.Name}' of module '{failed.Module}' failed: {failed.FailureReason} World session {session.Number} is cancelled.",
+                $"Loading task '{failed.Name}' of module '{failed.Module}' failed: {failed.FailureReason} World session {session.Number} is canceled.",
                 failed.Exception);
             EndNow(SessionEndReason.Failed, new SessionFailure(failed.Name, failed.Module, failed.FailureReason!, failed.Exception));
             return;

@@ -256,7 +256,7 @@ The events of a session come in this order:
 | `SessionEnding` | The frame after `End`, a failed task, or a stop. | Save, disconnect cleanly. |
 | `SessionEnded` | Right after `SessionEnding`. | Free their state tied to the world, and wait for their background jobs that use it. |
 
-A session cancelled while it starts skips `SessionStarted`. Handlers run in
+A session canceled while it starts skips `SessionStarted`. Handlers run in
 the load order of their modules for `SessionStarting` and `SessionStarted`,
 and in the reverse order for `SessionEnding` and `SessionEnded`, so a module
 frees its world after the modules that depend on it. Each subscription
@@ -305,9 +305,12 @@ frame. `Report` can be called from any thread; `Complete` and `Fail` are
 called on the loop thread.
 
 A task fails when the module calls `Fail` with a reason, when the `Task` of
-`AddAsync` throws, or when `completed` throws. At the start of the next
-frame, the session is cancelled: the other tasks are canceled, the token
-`LoadingTasks.Cancellation` is cancelled, the `SessionEnding` and
+`AddAsync` throws, when `completed` throws, or when the module of the task
+is disabled. nContext follows the tasks right after the `SessionStarting`
+handlers, then at the start of each frame: a task that fails or completes
+at once is seen in the frame where the session starts, so a session without
+tasks is active in that frame. Once a task failed, the session is canceled: the other tasks are canceled, the token
+`LoadingTasks.Cancellation` is canceled, the `SessionEnding` and
 `SessionEnded` handlers run, and `WorldSession.Failure` names the task, its
 module, and the reason, which the state that started the session shows on
 its way to a disconnected screen. A failed task is logged as an error; it
@@ -364,7 +367,8 @@ module are no longer called, and its states stay in the stack.
 ## Events
 
 None. nContext uses no event bus: the stop request reaches the active state as
-a global event.
+a global event, and the events of world sessions go to the handlers
+subscribed through `IWorldSessions`.
 
 ## Configuration
 
@@ -397,7 +401,7 @@ None.
 - There is no change of dimension. Loading tasks carry a scope
   (`LoadingScope`), and only the scope of the world is used.
 - A loading task of `AddAsync` that still runs when its session is
-  cancelled is not awaited: its cancellation token is cancelled, and nContext
+  canceled is not awaited: its cancellation token is canceled, and nContext
   ignores what the task does afterwards.
 - The world state check runs once the `SessionEnded` handlers ran, not
   later: a counter that a background job lowers afterwards is reported.
