@@ -18,6 +18,8 @@ public sealed class OptionalDependencyAnalyzerTests
             public struct LightLevel { public int Value; }
 
             public interface ILightSource { int Emit(); }
+
+            public abstract class LightEffect { }
         }
         """;
 
@@ -121,6 +123,25 @@ public sealed class OptionalDependencyAnalyzerTests
                 public int Level(int x) => Hidden.Level(x);
                 public sealed class Handle { public LightLevel {|NOB402:Level|}; }
                 private sealed class Inner { public LightLevel Level; }
+            }
+            """);
+    }
+
+    [Fact]
+    public void Allows_a_private_nested_type_to_implement_an_optional_interface()
+    {
+        // Only the isolation class creates its private nested types: their interfaces load then.
+        Verify("""
+            [UsesOptionalDependency("nobara.lighting")]
+            internal sealed class LightingBridge : System.IDisposable
+            {
+                private readonly Source _source = new();
+                public void Dispose() { }
+                private sealed class Source : ILightSource { public int Emit() => 0; }
+                private sealed class Glow : LightEffect { }
+                internal sealed class {|NOB402:Shared|} : ILightSource { public int Emit() => 0; }
+                // A struct is loaded with the class whose field holds it.
+                private struct {|NOB402:Pulse|} : ILightSource { public int Emit() => 0; }
             }
             """);
     }

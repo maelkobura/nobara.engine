@@ -114,7 +114,10 @@ debug code in an isolation class that it calls only when nDebug is active:
 2. Write the debug code in a class marked
    `[UsesOptionalDependency("nobara.debug")]`. Only this class names the types
    of nDebug and of Dear ImGui, and its members that other classes call do not
-   expose them.
+   expose them. The content of the window, which implements `IDebugWindow`, is
+   a private class nested in it. The isolation class itself implements no
+   interface of nDebug: the code that creates it is compiled even when nDebug
+   is absent, and the runtime would then load the interfaces of the class.
 3. Create the class only once `context.IsModuleActive("nobara.debug")` is
    true, and dispose its window when the module stops.
 
@@ -130,25 +133,25 @@ public void Start(ModuleContext context)
 public void Stop(ModuleContext context) => _debug?.Dispose();
 
 [UsesOptionalDependency("nobara.debug")]
-internal sealed class CropsDebug : IDebugWindow, IDisposable
+internal sealed class CropsDebug : IDisposable
 {
-    private readonly CropField _crops;
     private readonly DebugWindow _window;
 
-    public CropsDebug(ModuleContext context, CropField crops)
-    {
-        _crops = crops;
-        _window = context.Resolve<IDebugUi>().AddWindow(context, new DebugWindowOptions { Title = "Crops" }, this);
-    }
-
-    public void Draw(DebugWindow window) => ImGui.Text($"Crops growing: {_crops.Count}");
+    public CropsDebug(ModuleContext context, CropField crops) =>
+        _window = context.Resolve<IDebugUi>().AddWindow(context, new DebugWindowOptions { Title = "Crops" }, new Content(crops));
 
     public void Dispose() => _window.Dispose();
+
+    private sealed class Content(CropField crops) : IDebugWindow
+    {
+        public void Draw(DebugWindow window) => ImGui.Text($"Crops growing: {crops.Count}");
+    }
 }
 ```
 
 Without nDebug in the distribution, the module loads and runs: `CropsDebug`
-is never loaded, so neither are the assemblies of nDebug and of Dear ImGui.
+and `Content` are never loaded, so neither are the assemblies of nDebug and
+of Dear ImGui.
 The [engine analyzers](../../docs/reference/analyzers.md#optional-dependency-rules)
 check the isolation class.
 
