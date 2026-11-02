@@ -114,6 +114,13 @@ files of the modules built from projects when they change. See [the hot reload
 page](../../tools/Nobara.HotReload/README.md). A release executable refuses
 `--hot-reload`.
 
+### Launch options
+
+| Option | Builds | Effect |
+| --- | --- | --- |
+| `--hot-reload` | Development | Runs the engine in development mode and reloads the `.nof` files that change. |
+| `--profile` | All | Turns on the [profiler](../../src/Core/README.md#profiler) from start-up. |
+
 ## `nobara package [target]`
 
 Packs the installed game of one target, or of every target, into

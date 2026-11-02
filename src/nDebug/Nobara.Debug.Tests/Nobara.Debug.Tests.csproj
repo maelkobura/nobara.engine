@@ -1,0 +1,46 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <!--
+    The tests run the real modules nFrames, nInput, nGraphics, nRenderer, and
+    nDebug, with test modules whose input actions the tests compile, on fake
+    window and graphics backends that replay scripted input, or on SDL2 and
+    OpenGL for the tests of the category GPU.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Debug\Nobara.Debug.csproj" />
+    <ProjectReference Include="..\..\nInput\Nobara.Input\Nobara.Input.csproj" />
+    <ProjectReference Include="..\..\nInput\Nobara.Input.Build\Nobara.Input.Build.csproj" />
+    <ProjectReference Include="..\..\nRenderer\Nobara.Renderer\Nobara.Renderer.csproj" />
+    <ProjectReference Include="..\..\nGraphics\Nobara.Graphics\Nobara.Graphics.csproj" />
+    <ProjectReference Include="..\..\nGraphics\Nobara.Graphics.OpenGL\Nobara.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames\Nobara.Frames.csproj" />
+    <ProjectReference Include="..\..\nFrames\Nobara.Frames.SDL2\Nobara.Frames.SDL2.csproj" />
+    <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+</Project>

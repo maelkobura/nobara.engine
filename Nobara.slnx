@@ -17,6 +17,10 @@
     <Project Path="src/nContext/Nobara.Context/Nobara.Context.csproj" />
     <Project Path="src/nContext/Nobara.Context.Tests/Nobara.Context.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nDebug/">
+    <Project Path="src/nDebug/Nobara.Debug/Nobara.Debug.csproj" />
+    <Project Path="src/nDebug/Nobara.Debug.Tests/Nobara.Debug.Tests.csproj" />
+  </Folder>
   <Folder Name="/src/nEvent/">
     <Project Path="src/nEvent/Nobara.Event/Nobara.Event.csproj" />
     <Project Path="src/nEvent/Nobara.Event.Tests/Nobara.Event.Tests.csproj" />

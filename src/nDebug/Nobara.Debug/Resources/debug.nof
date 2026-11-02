@@ -1,0 +1,30 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Nobara/Debug">
+  <!--
+    The draw lists of Dear ImGui: 2D vertices with a color, textured by the
+    font atlas, which the pass binds at sampled texture binding 0.
+  -->
+  <Shader>
+    <Name>Imgui</Name>
+    <Content>
+      <Vertex>Shaders/imgui.vert</Vertex>
+      <Fragment>Shaders/imgui.frag</Fragment>
+      <Uniform name="Frame" binding="0" />
+    </Content>
+  </Shader>
+
+  <!-- Opens and closes the debug tools. -->
+  <InputAction>
+    <Name>Toggle</Name>
+    <Content>
+      <Value>Button</Value>
+      <Bindings>
+        <Key>Key.F1</Key>
+      </Bindings>
+    </Content>
+  </InputAction>
+</Nobara>

@@ -114,6 +114,19 @@ see what its code does: chunk borders, colliders, paths. On in [development
 mode](#development-mode) only. See [the nRenderer module
 sheet](../../src/nRenderer/README.md#debug-drawing).
 
+### Debug tools
+
+The windows of [nDebug](#ndebug) for the developer, such as the profiler and
+the settings, with their menu bar. F1 opens and closes them; the key
+`debug.tools` of the distribution decides whether they are available. See
+[the nDebug module sheet](../../src/nDebug/README.md#tools-and-screens).
+
+### Debug window
+
+A window of [nDebug](#ndebug) that a module registers and draws with Dear
+ImGui: a [debug tool](#debug-tools), or a screen of the game such as a menu.
+See [the nDebug module sheet](../../src/nDebug/README.md#debug-windows).
+
 ### Decoder
 
 The code that the module owning a resource type registers with the core to
@@ -517,6 +530,14 @@ state stack of each context, applies the transitions at the start of a frame,
 and hands stop requests to the active state. See [its module
 sheet](../../src/nContext/README.md).
 
+### nDebug
+
+The platform module of the debug user interface, on the client: Dear ImGui
+drawn by [nRenderer](#nrenderer) over the frame, fed by the input layer of
+highest priority, with the [debug windows](#debug-window) of the modules, the
+window of the [profiler](#profiler), and the window of the settings. See [its
+module sheet](../../src/nDebug/README.md).
+
 ### nEvent
 
 The platform module that supplies the event bus of each context: typed events,
@@ -612,7 +633,9 @@ business module.
 
 The part of the core that measures, for each context, module, phase, and
 job, the time spent, the managed memory allocated, and the pauses of the
-garbage collector. See [the core page](../../src/Core/README.md#profiler).
+garbage collector. Any module may read it, turn it on, and reset it; the
+executable of a game turns it on with `--profile`. See [the core
+page](../../src/Core/README.md#profiler).
 
 ### Prolonged use
 
