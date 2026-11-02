@@ -104,6 +104,24 @@ public sealed unsafe class Sdl2WindowTests : IDisposable
         Assert.True(engine.MainContext.IsStopRequested);
     }
 
+    [Fact]
+    public void Keeps_the_previous_display_when_sdl_refuses_one()
+    {
+        // The engine is not started: the backend is driven directly, with a video mode no monitor has.
+        using Engine engine = Load(_ => { });
+        using var backend = new Sdl2Backend(engine.Logger);
+        IReadOnlyList<MonitorInfo> monitors = backend.GetMonitors();
+        var window = (Sdl2Window)backend.CreateWindow("Example", new WindowSize(640, 360));
+        Assert.Null(window.ApplyDisplay(new DisplayRequest(WindowMode.Borderless, 0, default)));
+
+        string? error = window.ApplyDisplay(new DisplayRequest(WindowMode.Exclusive, 0, new VideoMode(65536, 65536, 60)));
+
+        Assert.False(string.IsNullOrEmpty(error));
+        var flags = (WindowFlags)backend.Api.GetWindowFlags(window.Handle);
+        Assert.Equal(WindowFlags.FullscreenDesktop, flags & WindowFlags.FullscreenDesktop);
+        Assert.Equal(monitors[0].Bounds.Width, window.Size.Width);
+    }
+
     /// <summary>Checks the mode of the window; on failure, shows the warnings, which hold the reason the backend gave.</summary>
     private void AssertMode(WindowMode expected, IWindow window)
     {
