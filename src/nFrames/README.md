@@ -53,7 +53,9 @@ Third-party libraries: `Silk.NET.SDL` 2.23.0.
 
 Third-party libraries of nFrames.SDL2: `Silk.NET.SDL` (MIT), with
 `Silk.NET.Core` and `Silk.NET.Maths` (MIT), and the native SDL2 library of
-`Ultz.Native.SDL` (zlib). No other module sees their types.
+`Ultz.Native.SDL` (zlib). No other module sees their types. The backend
+loads the native library from the folder of the bindings when it is there,
+as in `lib/` of an installed game, and otherwise lets Silk.NET search for it.
 
 ## Entry points
 

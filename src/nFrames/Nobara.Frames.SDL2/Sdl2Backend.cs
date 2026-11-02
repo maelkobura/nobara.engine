@@ -153,7 +153,7 @@ internal sealed unsafe class Sdl2Backend : IWindowBackend
             return _sdl;
         }
 
-        Sdl sdl = Sdl.GetApi();
+        Sdl sdl = Sdl2Library.Load();
         if (sdl.WasInit(InitVideo) != 0)
         {
             throw new InvalidOperationException("The video subsystem of SDL is already initialized in this process; SDL keeps one state per process, so a single window backend may use it.");
