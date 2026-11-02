@@ -441,6 +441,13 @@ The ordered steps that a module goes through: discovery, loading,
 registration, initialization, start, execution, stop, and release. See
 [Lifecycle](architecture.md#lifecycle).
 
+### Loading task
+
+A share of the work that a world session waits for before it is active,
+such as reading a save or meshing the chunks around the player: a module adds
+it when the session starts, with a name, a weight, and a progress. See [the
+nContext module sheet](../../src/nContext/README.md#loading-tasks).
+
 ### Lock file
 
 `project.nobara.lock`, which records every module of a game with the version
@@ -527,7 +534,7 @@ module sheet](../../src/nBlocks/README.md).
 
 The platform module that drives the states of the application: it keeps the
 state stack of each context, applies the transitions at the start of a frame,
-and hands stop requests to the active state. See [its module
+hands stop requests to the active state, and runs the world sessions. See [its module
 sheet](../../src/nContext/README.md).
 
 ### nDebug
@@ -945,3 +952,17 @@ thread.
 A position with the same precision everywhere in the world: whole chunk
 coordinates on 32 bits and a position in the chunk, in blocks, in single
 precision. See [the nRenderer module sheet](../../src/nRenderer/README.md#positions).
+
+### World session
+
+The presence of a context in a world, from the entry to the exit. Modules
+create their state tied to the world when it starts and free it when it
+ends; a context chains several sessions without restarting its modules. See
+[the nContext module sheet](../../src/nContext/README.md#world-sessions).
+
+### World state counter
+
+A count of the objects tied to a world that a module holds, such as chunks
+or entities, which nContext reads in development mode once a world session
+ended: a value other than 0 is an error of the module. See [the nContext
+module sheet](../../src/nContext/README.md#world-state-left-behind).

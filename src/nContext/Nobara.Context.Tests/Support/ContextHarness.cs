@@ -44,16 +44,24 @@ internal sealed class ContextHarness : IDisposable
     /// <summary>Gets or sets the initial server state, or <see langword="null"/> for none.</summary>
     public string? ServerState { get; set; }
 
+    /// <summary>Gets or sets whether the engine runs in development mode.</summary>
+    public bool DevelopmentMode { get; set; }
+
     /// <summary>Adds a business module that depends on the context module and declares states.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="states">The states its manifest declares, with their side; <see cref="F.Side.Unspecified"/> for every side of the module.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
     /// <param name="side">The sides of the module.</param>
     /// <param name="policy">The error policy of the module, or <see langword="null"/> for the default.</param>
-    public ContextHarness Module(string id, (string Id, F.Side Side)[] states, Action<Probe>? behavior = null, F.Side side = F.Side.Both, F.Policy? policy = null)
+    /// <param name="dependsOn">Other modules of the test that the module requires, which load before it.</param>
+    public ContextHarness Module(string id, (string Id, F.Side Side)[] states, Action<Probe>? behavior = null, F.Side side = F.Side.Both, F.Policy? policy = null, string[]? dependsOn = null)
     {
         var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = side };
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.context", Range = "^1.0" });
+        foreach (string dependency in dependsOn ?? [])
+        {
+            manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });
+        }
         foreach ((string state, F.Side stateSide) in states)
         {
             manifest.States.Add(new F.StateDeclaration { Id = state, Side = stateSide });
@@ -104,6 +112,7 @@ internal sealed class ContextHarness : IDisposable
             LogToFile = false,
             LogSinks = [Log],
             MinimumLogLevel = LogLevel.Debug,
+            DevelopmentMode = DevelopmentMode,
         };
     }
 
@@ -201,6 +210,11 @@ internal sealed class Probe(string id, ContextHarness harness) : IModule
 
     public IStateStack States { get; private set; } = null!;
 
+    public IWorldSessions Sessions { get; private set; } = null!;
+
+    /// <summary>Gets the number of times the module initialized.</summary>
+    public int Initializations { get; private set; }
+
     public Action<Probe>? OnRegister { get; set; }
 
     public Action<Probe>? OnInitialize { get; set; }
@@ -214,17 +228,19 @@ internal sealed class Probe(string id, ContextHarness harness) : IModule
     public void Initialize(ModuleContext context)
     {
         States = context.Resolve<IStateStack>();
+        Sessions = context.Resolve<IWorldSessions>();
+        Initializations++;
         OnInitialize?.Invoke(this);
     }
 
     /// <summary>Registers a state that writes its calls in the journal.</summary>
-    public void State(string id, Action<JournalState>? setup = null, bool keepStatesBelowRunning = false) =>
+    public void State(string id, Action<JournalState>? setup = null, bool keepStatesBelowRunning = false, bool requiresSession = false) =>
         States.Register(Context, id, () =>
         {
             var state = new JournalState(Harness, States);
             setup?.Invoke(state);
             return state;
-        }, new StateOptions { KeepStatesBelowRunning = keepStatesBelowRunning });
+        }, new StateOptions { KeepStatesBelowRunning = keepStatesBelowRunning, RequiresSession = requiresSession });
 }
 
 /// <summary>A state that writes each call in the journal, then runs the code a test gives it.</summary>
