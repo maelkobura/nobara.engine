@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using Google.Protobuf;
 using Nobara.Core;
 using Nobara.Core.Loading;
+using Nobara.Core.Logging;
 using Silk.NET.SDL;
 using F = Nobara.Formats;
 using SdlEvent = Silk.NET.SDL.Event;
@@ -22,6 +23,7 @@ namespace Nobara.Frames.SDL2.Tests;
 public sealed unsafe class Sdl2WindowTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "nobara-sdl2-tests", Guid.NewGuid().ToString("N"));
+    private readonly MemoryLogSink _logs = new();
 
     public void Dispose()
     {
@@ -51,18 +53,18 @@ public sealed unsafe class Sdl2WindowTests : IDisposable
 
             game.Context.Settings.Set(FramesSettings.Mode, "borderless");
             engine.MainContext.RunFrame();
-            Assert.Equal(WindowMode.Borderless, window.Mode);
+            AssertMode(WindowMode.Borderless, window);
             MonitorInfo monitor = windows.Monitors[window.Monitor];
             Assert.Equal(monitor.Bounds.Width, window.Size.Width);
 
             game.Context.Settings.Set(FramesSettings.Mode, "exclusive");
             engine.MainContext.RunFrame();
-            Assert.Equal(WindowMode.Exclusive, window.Mode);
+            AssertMode(WindowMode.Exclusive, window);
             Assert.NotNull(window.ExclusiveMode);
 
             game.Context.Settings.Set(FramesSettings.Mode, "windowed");
             engine.MainContext.RunFrame();
-            Assert.Equal(WindowMode.Windowed, window.Mode);
+            AssertMode(WindowMode.Windowed, window);
 
             window.Title = "Example — test";
             Assert.Equal("Example — test", window.Title);
@@ -102,6 +104,16 @@ public sealed unsafe class Sdl2WindowTests : IDisposable
         Assert.True(engine.MainContext.IsStopRequested);
     }
 
+    /// <summary>Checks the mode of the window; on failure, shows the warnings, which hold the reason the backend gave.</summary>
+    private void AssertMode(WindowMode expected, IWindow window)
+    {
+        if (window.Mode != expected)
+        {
+            IEnumerable<string> warnings = _logs.Entries.Where(e => e.Level >= LogLevel.Warning).Select(e => e.Message);
+            Assert.Fail($"The window is {window.Mode}, not {expected}. Warnings:{Environment.NewLine}{string.Join(Environment.NewLine, warnings)}");
+        }
+    }
+
     private Engine Load(Action<Probe> setup)
     {
         var distribution = new F.DistributionManifest
@@ -126,6 +138,7 @@ public sealed unsafe class Sdl2WindowTests : IDisposable
             FramePacing = FramePacing.Free,
             LogToConsole = false,
             LogToFile = false,
+            LogSinks = [_logs],
         });
     }
 
@@ -183,4 +196,33 @@ internal sealed class Probe : IModule
 [CollectionDefinition(nameof(WindowCollection), DisableParallelization = true)]
 public sealed class WindowCollection
 {
+}
+
+/// <summary>Keeps the messages logged by the engine.</summary>
+internal sealed class MemoryLogSink : ILogSink
+{
+    private readonly List<LogEntry> _entries = [];
+
+    public IReadOnlyList<LogEntry> Entries
+    {
+        get
+        {
+            lock (_entries)
+            {
+                return _entries.ToArray();
+            }
+        }
+    }
+
+    public void Write(in LogEntry entry)
+    {
+        lock (_entries)
+        {
+            _entries.Add(entry);
+        }
+    }
+
+    public void Flush()
+    {
+    }
 }
