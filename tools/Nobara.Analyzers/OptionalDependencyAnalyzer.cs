@@ -94,9 +94,11 @@ public sealed class OptionalDependencyAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
-            // A private type nested in an isolation class is never named from outside: the runtime
-            // loads its base type and interfaces only when the isolation class creates it.
-            if (!IsExposed(type))
+            // A private class nested in an isolation class is never named from outside: the runtime
+            // loads its base type and interfaces only when the isolation class creates it. A struct
+            // is loaded with any class that holds it in a field, so it stays checked.
+            bool exposed = IsExposed(type);
+            if (!exposed && !type.IsValueType)
             {
                 return;
             }
@@ -109,6 +111,11 @@ public sealed class OptionalDependencyAnalyzer : DiagnosticAnalyzer
             foreach (INamedTypeSymbol @interface in type.Interfaces)
             {
                 ReportExposure(context, type, @interface);
+            }
+
+            if (!exposed)
+            {
+                return;
             }
 
             foreach (ISymbol member in type.GetMembers())

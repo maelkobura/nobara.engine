@@ -18,6 +18,8 @@ public sealed class OptionalDependencyAnalyzerTests
             public struct LightLevel { public int Value; }
 
             public interface ILightSource { int Emit(); }
+
+            public abstract class LightEffect { }
         }
         """;
 
@@ -136,7 +138,10 @@ public sealed class OptionalDependencyAnalyzerTests
                 private readonly Source _source = new();
                 public void Dispose() { }
                 private sealed class Source : ILightSource { public int Emit() => 0; }
+                private sealed class Glow : LightEffect { }
                 internal sealed class {|NOB402:Shared|} : ILightSource { public int Emit() => 0; }
+                // A struct is loaded with the class whose field holds it.
+                private struct {|NOB402:Pulse|} : ILightSource { public int Emit() => 0; }
             }
             """);
     }

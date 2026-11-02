@@ -412,9 +412,11 @@ dependency: its base class, its interfaces, and the signatures of its members
 that are not private (field and property types, return and parameter types)
 do not mention them. The same applies to the types nested in it that are not
 private. Code outside the class would otherwise load those types when it
-calls the class. A private nested type may derive from a type of the
-dependency or implement its interfaces: only the isolation class creates it,
-so the runtime loads those types only when the class runs.
+calls the class. A private class nested in an isolation class may derive
+from a type of the dependency or implement its interfaces: only the isolation
+class creates it, so the runtime loads those types only when that code runs.
+A private nested struct may not, since the runtime loads a struct, with its
+interfaces, together with any class that holds it in a field.
 
 **Example.**
 
@@ -463,4 +465,7 @@ internal sealed class RainBridge { }
   `static readonly` field of a mutable class of the module is not reported.
 - The analyzers do not check that an isolation class is called only when its
   dependency is present.
+- A private field of an isolation class whose type is a struct of an optional
+  dependency is not reported, although the runtime loads that struct with
+  the class.
 - The analyzers provide no code fixes.

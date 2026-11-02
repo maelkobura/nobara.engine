@@ -115,8 +115,9 @@ debug code in an isolation class that it calls only when nDebug is active:
    `[UsesOptionalDependency("nobara.debug")]`. Only this class names the types
    of nDebug and of Dear ImGui, and its members that other classes call do not
    expose them. The content of the window, which implements `IDebugWindow`, is
-   a private class nested in it: the isolation class itself implements no
-   interface of nDebug, since the module names it.
+   a private class nested in it. The isolation class itself implements no
+   interface of nDebug: the code that creates it is compiled even when nDebug
+   is absent, and the runtime would then load the interfaces of the class.
 3. Create the class only once `context.IsModuleActive("nobara.debug")` is
    true, and dispose its window when the module stops.
 

@@ -33,9 +33,10 @@ a use of these types outside such a class.
 In the isolation class, resolve `IDebugUi` and call `AddWindow` with the
 module context, a title, and the content: an `IDebugWindow` whose `Draw`
 calls Dear ImGui, written as a private class nested in the isolation class.
-The isolation class itself does not implement `IDebugWindow`: the module
-names it, and the runtime would load the interface, absent without nDebug. Keep the handle it returns, and dispose it when the module
-stops. A window of kind `Tool` shows while the debug tools are open: press F1,
+The isolation class itself does not implement `IDebugWindow`: the code of the
+module that creates it is compiled even when nDebug is absent, and the
+runtime would then load the interface of the class. Keep the handle that
+`AddWindow` returns, and dispose it when the module stops. A window of kind `Tool` shows while the debug tools are open: press F1,
 then pick the window in the `Windows` menu.
 
 The code of both steps is in [the module sheet of
