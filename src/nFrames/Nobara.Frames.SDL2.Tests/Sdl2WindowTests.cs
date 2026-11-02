@@ -122,6 +122,22 @@ public sealed unsafe class Sdl2WindowTests : IDisposable
         Assert.Equal(monitors[0].Bounds.Width, window.Size.Width);
     }
 
+    [Fact]
+    public void Shows_the_window_windowed_when_sdl_refuses_the_first_display()
+    {
+        using Engine engine = Load(_ => { });
+        using var backend = new Sdl2Backend(engine.Logger);
+        backend.GetMonitors();
+        var window = (Sdl2Window)backend.CreateWindow("Example", new WindowSize(640, 360));
+
+        string? error = window.ApplyDisplay(new DisplayRequest(WindowMode.Exclusive, 0, new VideoMode(65536, 65536, 60)));
+
+        Assert.False(string.IsNullOrEmpty(error));
+        var flags = (WindowFlags)backend.Api.GetWindowFlags(window.Handle);
+        Assert.Equal(WindowFlags.None, flags & (WindowFlags.Hidden | WindowFlags.Fullscreen));
+        Assert.Equal(new WindowSize(640, 360), window.Size);
+    }
+
     /// <summary>Checks the mode of the window; on failure, shows the warnings, which hold the reason the backend gave.</summary>
     private void AssertMode(WindowMode expected, IWindow window)
     {

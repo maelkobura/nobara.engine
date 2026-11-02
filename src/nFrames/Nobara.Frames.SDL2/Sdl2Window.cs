@@ -91,9 +91,15 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
         if (Show(request) is string error)
         {
             // A refused display may have left full screen already: go back to the previous one.
-            return RestoreDisplay(previous) is string restoreError
-                ? $"{error}; the previous display could not be restored either: {restoreError}"
-                : error;
+            string? restoreError = RestoreDisplay(previous);
+
+            // The first display has no previous one: the window is shown windowed.
+            if (previous.Hidden)
+            {
+                Api.ShowWindow(Handle);
+            }
+
+            return restoreError is null ? error : $"{error}; the previous display could not be restored either: {restoreError}";
         }
 
         Api.ShowWindow(Handle);
@@ -183,7 +189,7 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
             Api.GetWindowDisplayMode(Handle, &mode);
         }
 
-        return new Display(fullscreen, x, y, mode);
+        return new Display(fullscreen, x, y, mode, (Flags & WindowFlags.Hidden) != 0);
     }
 
     private string? RestoreDisplay(in Display display)
@@ -263,8 +269,8 @@ internal sealed unsafe class Sdl2Window : IBackendWindow, IOpenGLSurface
         _ => Silk.NET.SDL.SystemCursor.SystemCursorArrow,
     };
 
-    /// <summary>What the window shows: its full screen flags, its position, and its exclusive video mode.</summary>
-    private readonly record struct Display(uint Fullscreen, int X, int Y, DisplayMode Mode);
+    /// <summary>What the window shows: its full screen flags, its position, its exclusive video mode, and whether it is hidden.</summary>
+    private readonly record struct Display(uint Fullscreen, int X, int Y, DisplayMode Mode, bool Hidden);
 }
 
 /// <summary>An OpenGL context created by SDL2 on the window.</summary>
