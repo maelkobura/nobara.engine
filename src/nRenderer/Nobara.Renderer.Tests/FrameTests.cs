@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Graphics;
 using Nobara.Renderer.Tests.Support;
 
@@ -40,7 +41,7 @@ public sealed class FrameTests : IDisposable
         {
             for (int i = 0; i < ids.Length; i++)
             {
-                RenderTransform transform = RenderTransform.At(WorldPosition.FromBlocks(i, frame % 7, -10));
+                WorldTransform transform = WorldTransform.At(WorldPosition.FromBlocks(i, frame % 7, -10));
                 if (!ids[i].IsValid)
                 {
                     ids[i] = e.World.Create(new RenderObjectDescription(crate, transform));

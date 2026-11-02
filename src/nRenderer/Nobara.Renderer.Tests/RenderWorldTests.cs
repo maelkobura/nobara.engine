@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Renderer.Tests.Support;
 
 namespace Nobara.Renderer.Tests;
@@ -45,7 +46,7 @@ public sealed class RenderWorldTests : IDisposable
         _engine.MainContext.RunFrame();
     }
 
-    private static RenderTransform At(float x) => RenderTransform.At(WorldPosition.FromBlocks(x, 0, -5));
+    private static WorldTransform At(float x) => WorldTransform.At(WorldPosition.FromBlocks(x, 0, -5));
 
     private float DrawnX(RenderObjectId id) => FirstItem(id).Model.Translation.X;
 
@@ -188,7 +189,7 @@ public sealed class RenderWorldTests : IDisposable
         Frame(TimeSpan.Zero, e =>
         {
             e.MainView.TeleportCamera(new Camera { Position = camera });
-            crate = e.World.Create(new RenderObjectDescription(_crate, RenderTransform.At(camera.Offset(new Vector3(1.25f, -0.5f, -3)))));
+            crate = e.World.Create(new RenderObjectDescription(_crate, WorldTransform.At(camera.Offset(new Vector3(1.25f, -0.5f, -3)))));
         });
 
         Assert.Equal(new Vector3(1.25f, -0.5f, -3), FirstItem(crate).Model.Translation);

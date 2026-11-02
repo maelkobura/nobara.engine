@@ -58,6 +58,7 @@ manifests, resources, and schemas.
 | `JobAccess`, `JobData`, `LoopAccess` | The data that a job, or code on the loop thread, reads and writes, and the checks of development mode. |
 | `Profiler`, `ModuleProfiler`, `ProfilerMarker`, `ProfileEntry` | `Engine.Profiler` and `context.Profiler`: what each context, module, phase, job, and scope costs. |
 | `NativeArray<T>`, `ObjectPool<T>`, `BitSet`, `IntMath` | The low-level foundations, in `Nobara.Core.Memory`, `Nobara.Core.Collections`, and `Nobara.Core.Mathematics`. |
+| `WorldPosition`, `WorldTransform` | Positions and transforms with the same precision everywhere in the world, shared by the modules that place things in it, in `Nobara.Core.Mathematics`. |
 | `Logger`, `ILogSink` | Structured logging. |
 | `EnginePaths` | The data folders: config, worlds, mods, cache, logs, profiles. |
 | `[HotPath]`, `[LoopCallback]`, `[UsesOptionalDependency]` | The attributes that [the engine analyzers](../../docs/reference/analyzers.md) read. |
@@ -354,6 +355,8 @@ methods that hot path code calls are marked `[HotPath]` and allocate nothing.
 | `ObjectPool<T>` | Objects kept to be used again instead of allocated, with a fixed capacity. It is not thread-safe. |
 | `BitSet` | A set of small integers, one bit per value, such as the members of a tag: membership, union, intersection, and enumeration without allocating. |
 | `IntMath` | Division rounded down or up, and a remainder that is never negative, for grid coordinates and batch counts. |
+| `WorldPosition` | A position with the same precision everywhere in the world: whole chunk coordinates on 32 bits, and a position in the chunk of 32 blocks, in single precision. `RelativeTo` gives the offset between two positions, exact near the origin it is given. |
+| `WorldTransform` | A position, a rotation, and a scale. `Combine` places a transform given relative to it, such as a child entity; `TransformPoint` and `InverseTransformPoint` convert points; `ToMatrix` gives a matrix relative to an origin, such as the camera. |
 
 ### Discovery checks
 

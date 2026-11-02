@@ -7,6 +7,7 @@ using Google.Protobuf;
 using Nobara.Core;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
+using Nobara.Core.Mathematics;
 using Nobara.Frames;
 using Nobara.Frames.SDL2;
 using Nobara.Graphics;
@@ -147,7 +148,7 @@ internal sealed class UngpHarness : IDisposable
 
     /// <summary>Places a square of the test game, facing the camera, which stands at the origin and looks along -Z.</summary>
     public RenderObjectDescription Square(string material, double x, double y, double z, float scale = 1) =>
-        new(Resources.GetMesh("mesh:example.scene.quad"), new RenderTransform(WorldPosition.FromBlocks(x, y, z), Quaternion.Identity, new Vector3(scale)))
+        new(Resources.GetMesh("mesh:example.scene.quad"), new WorldTransform(WorldPosition.FromBlocks(x, y, z), Quaternion.Identity, new Vector3(scale)))
         {
             Material = Resources.GetMaterial(material),
         };

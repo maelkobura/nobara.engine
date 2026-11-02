@@ -181,7 +181,9 @@ The game world is modeled as an entity component system supplied by a
 platform module; the core has no knowledge of the world. To act on the world,
 a module declares components and registers systems with that module. Each
 grid of voxels is an entity. Its chunks are kept apart, in a structure owned
-by the voxel module and referenced from the entity.
+by the voxel module and referenced from the entity. Each dimension has its own
+entity world, and entity systems run as tick systems; see [entity
+worlds](entity-worlds.md).
 
 ### Module extension points
 

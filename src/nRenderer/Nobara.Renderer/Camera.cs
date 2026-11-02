@@ -4,49 +4,10 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Graphics;
 
 namespace Nobara.Renderer;
-
-/// <summary>
-/// Where an object of the render world is: its position, its rotation, and its
-/// scale. The renderer applies them in this order: scale, rotation, then
-/// translation to the position.
-/// </summary>
-/// <param name="Position">The position of the origin of the object.</param>
-/// <param name="Rotation">The rotation; a unit quaternion.</param>
-/// <param name="Scale">The scale along each axis of the object.</param>
-[HotPath]
-public readonly record struct RenderTransform(WorldPosition Position, Quaternion Rotation, Vector3 Scale)
-{
-    /// <summary>Gets a transform at a position, without rotation or scale.</summary>
-    /// <param name="position">The position.</param>
-    /// <returns>The transform.</returns>
-    [HotPath]
-    public static RenderTransform At(in WorldPosition position) => new(position, Quaternion.Identity, Vector3.One);
-
-    /// <summary>Gets the transform between two others: positions and scales are interpolated linearly, rotations spherically.</summary>
-    /// <param name="from">The transform at 0.</param>
-    /// <param name="to">The transform at 1.</param>
-    /// <param name="amount">The fraction of the way, from 0 to 1.</param>
-    /// <returns>The transform.</returns>
-    [HotPath]
-    public static RenderTransform Interpolate(in RenderTransform from, in RenderTransform to, float amount) => new(
-        WorldPosition.Lerp(from.Position, to.Position, amount),
-        Quaternion.Slerp(from.Rotation, to.Rotation, amount),
-        Vector3.Lerp(from.Scale, to.Scale, amount));
-
-    /// <summary>Gets the matrix of the transform seen from an origin, such as the camera: the translation is the offset from the origin.</summary>
-    /// <param name="origin">The origin.</param>
-    /// <returns>The matrix, for row vectors as in <see cref="System.Numerics"/>.</returns>
-    [HotPath]
-    public Matrix4x4 ToMatrix(in WorldPosition origin)
-    {
-        Matrix4x4 matrix = Matrix4x4.CreateScale(Scale) * Matrix4x4.CreateFromQuaternion(Rotation);
-        matrix.Translation = Position.RelativeTo(origin);
-        return matrix;
-    }
-}
 
 /// <summary>
 /// A camera: where it is, where it looks, and its perspective projection. It

@@ -5,6 +5,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Nobara.Core;
+using Nobara.Core.Mathematics;
 using Nobara.Graphics;
 
 namespace Nobara.Renderer;
