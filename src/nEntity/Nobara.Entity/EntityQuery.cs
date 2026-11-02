@@ -52,13 +52,9 @@ public sealed class EntityQuery
     public EntityWorld World { get; }
 
     internal List<EntityArchetype> Matches
-
     {
-
         [HotPath]
-
         get => _matches;
-
     }
 
     /// <summary>Counts the entities that match.</summary>

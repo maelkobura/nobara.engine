@@ -11,7 +11,7 @@ first platform modules, [nEvent](src/nEvent/README.md),
 [nItems](src/nItems/README.md), [nBlocks](src/nBlocks/README.md),
 [nFrames](src/nFrames/README.md), [nInput](src/nInput/README.md),
 [nGraphics](src/nGraphics/README.md), [nRenderer](src/nRenderer/README.md),
-[nDebug](src/nDebug/README.md), and the render pipeline
+[nDebug](src/nDebug/README.md), [nEntity](src/nEntity/README.md), and the render pipeline
 [UNGP](src/UNGP/README.md), exist;
 there is no release yet. Start with [the architecture
 overview](docs/explanation/architecture.md).

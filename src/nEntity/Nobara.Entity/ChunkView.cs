@@ -110,7 +110,9 @@ public readonly unsafe ref struct ChunkView
             throw new ArgumentOutOfRangeException(nameof(index), "The index is outside the block.");
         }
 
-        _archetype.Stamp(_data, Slot(component), index, _archetype.World.ChangeVersion);
+        int slot = Slot(component);
+        _archetype.World.Registry[component.Index].Data.CheckWrite();
+        _archetype.Stamp(_data, slot, index, _archetype.World.ChangeVersion);
     }
 
     /// <summary>

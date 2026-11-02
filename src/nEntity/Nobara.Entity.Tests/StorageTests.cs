@@ -160,6 +160,28 @@ public sealed class StorageTests : IDisposable
 
         Assert.Throws<InvalidOperationException>(() => world.Set(child, worlds.ParentLink, default));
         Assert.Throws<ArgumentException>(() => world.Remove(child, worlds.ParentLink));
+        Assert.Throws<InvalidOperationException>(() => world.Add(parent, worlds.ParentLink, world.Read(child, worlds.ParentLink)));
+        Assert.Equal(EntityId.Null, world.GetParent(parent));
+    }
+
+    [Fact]
+    public void The_transforms_of_an_entity_in_a_hierarchy_cannot_be_removed()
+    {
+        using Engine engine = _harness.StartSession();
+        IEntityWorlds worlds = _harness.Owner.Worlds;
+        EntityWorld world = _harness.Owner.World();
+        EntityId parent = world.Create(world.GetArchetype(worlds.WorldTransform));
+        EntityId child = world.Create(world.GetArchetype(worlds.WorldTransform));
+        world.SetParent(child, parent);
+
+        Assert.Throws<ArgumentException>(() => world.Remove(parent, worlds.WorldTransform));
+        Assert.Throws<ArgumentException>(() => world.Remove(child, worlds.WorldTransform));
+        Assert.Throws<ArgumentException>(() => world.Remove(child, worlds.LocalTransform));
+
+        world.ClearParent(child);
+        world.Remove(child, worlds.LocalTransform);
+        world.Remove(parent, worlds.WorldTransform);
+        Assert.False(world.Has(parent, worlds.WorldTransform));
     }
 
     [Fact]

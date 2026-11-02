@@ -332,5 +332,10 @@ None.
   system cannot run once every few ticks.
 - An entity created by a command buffer is not known to the system that
   records it.
+- When a job of `RunChunks` fails, the system is not told: its commands are
+  still applied, and the failure reaches the next synchronization point.
+- A component type is never unregistered: it stays until the context ends.
+- `GetArchetype` allocates, even for an archetype that exists: get archetypes
+  once, outside hot path code.
 - Scales of a hierarchy combine axis by axis: a non-uniform scale under a
   rotation gives an approximate transform.

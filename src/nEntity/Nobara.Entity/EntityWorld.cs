@@ -80,33 +80,21 @@ public sealed unsafe partial class EntityWorld
     public bool IsDestroyed => _disposed;
 
     internal ComponentRegistry Registry
-
     {
-
         [HotPath]
-
         get => _owner.Registry;
-
     }
 
     internal List<EntityArchetype> ArchetypeList
-
     {
-
         [HotPath]
-
         get => _archetypes;
-
     }
 
     internal EntityWorlds Owner
-
     {
-
         [HotPath]
-
         get => _owner;
-
     }
 
     /// <summary>Gets the state of each entity system in this world, by the slot of the system.</summary>
@@ -158,6 +146,7 @@ public sealed unsafe partial class EntityWorld
     /// <summary>Gets the archetype of the entities that have exactly these components.</summary>
     /// <param name="components">The components, in any order; duplicates count once.</param>
     /// <returns>The archetype, created the first time.</returns>
+    /// <remarks>It allocates, even for an archetype that exists: get archetypes once, not in hot path code.</remarks>
     /// <exception cref="ArgumentException">A handle is not valid in this context.</exception>
     public EntityArchetype GetArchetype(params ReadOnlySpan<ComponentType> components)
     {
@@ -340,13 +329,14 @@ public sealed unsafe partial class EntityWorld
     /// <param name="component">The component.</param>
     /// <param name="value">The value.</param>
     /// <exception cref="ArgumentException">The entity is not alive in this world, or already has the component.</exception>
-    /// <exception cref="InvalidOperationException">A system runs on the world: use its command buffer.</exception>
+    /// <exception cref="InvalidOperationException">A system runs on the world: use its command buffer; or the component is <see cref="ParentLink"/>, which <see cref="SetParent"/> adds.</exception>
     [HotPath]
     public void Add<T>(EntityId entity, ComponentType<T> component, in T value)
         where T : unmanaged
     {
         RequireUnlocked();
         Registry.Require(component);
+        RequireWritable(component.Untyped);
         _owner.Structure.CheckWrite();
         if (Has(entity, component))
         {
@@ -360,7 +350,11 @@ public sealed unsafe partial class EntityWorld
     /// <summary>Removes a component from an entity. The entity moves to another archetype.</summary>
     /// <param name="entity">The entity.</param>
     /// <param name="component">The component.</param>
-    /// <exception cref="ArgumentException">The entity is not alive in this world, or does not have the component, or the component is <see cref="ParentLink"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The entity is not alive in this world, or does not have the component;
+    /// or the component is <see cref="ParentLink"/>, or a transform of an
+    /// entity that has a parent or children: detach them first.
+    /// </exception>
     /// <exception cref="InvalidOperationException">A system runs on the world: use its command buffer.</exception>
     [HotPath]
     public void Remove(EntityId entity, ComponentType component)
@@ -373,11 +367,7 @@ public sealed unsafe partial class EntityWorld
             throw new ArgumentException($"The {entity} does not have the component.", nameof(component));
         }
 
-        if (component.Index == EntityWorlds.ParentIndex)
-        {
-            throw new ArgumentException("The parent link is never removed: detach the entity with ClearParent.", nameof(component));
-        }
-
+        RequireRemovable(entity, component.Index);
         Move(entity, component.Index, add: false);
     }
 
@@ -555,6 +545,25 @@ public sealed unsafe partial class EntityWorld
         int size = archetype.Sizes[slot];
         Buffer.MemoryCopy(value, address, size, size);
         archetype.Stamp(BlockOf(entity), slot, row, ChangeVersion);
+    }
+
+    /// <summary>Refuses to remove the parent link, or a transform the hierarchy needs.</summary>
+    [HotPath]
+    internal void RequireRemovable(EntityId entity, int componentIndex)
+    {
+        if (componentIndex == EntityWorlds.ParentIndex)
+        {
+            throw new ArgumentException("The parent link is never removed: detach the entity with ClearParent.", nameof(componentIndex));
+        }
+
+        ref EntityRecord record = ref Record(entity);
+        bool transform = componentIndex == _owner.WorldTransform.Untyped.Index || componentIndex == _owner.LocalTransform.Untyped.Index;
+        if (transform && (record.Parent >= 0 || record.FirstChild >= 0))
+        {
+            throw new ArgumentException(
+                $"The {entity} has a parent or children, which need its transforms: detach them before removing its transform.",
+                nameof(componentIndex));
+        }
     }
 
     [HotPath]

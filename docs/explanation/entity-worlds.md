@@ -24,16 +24,10 @@ flowchart TB
     S --> W0 & W1 & W3
 ```
 
-- **Isolation comes for free.** A query never has to filter entities by
-  dimension, and a dimension whose clock is frozen is simply skipped.
-- **Dimensions stay independent.** Since no world refers to another, the
-  dimensions can later be simulated side by side.
-- **Moving between dimensions is explicit.** An entity that goes through a
-  portal is created in the target world and destroyed in the source one. It
-  is a rare operation.
-
-A single world with a dimension component was the alternative: every query
-would filter by dimension, and no dimension could run on its own.
+- **Isolation comes for free.** A query never filters entities by
+  dimension, and the systems skip a dimension whose clock is frozen.
+- **Dimensions stay independent.** Since no world refers to another, nothing
+  ties the simulation of one dimension to another.
 
 Component types and systems belong to the context, not to a world: they are
 registered once, while modules initialize, and serve every world. Worlds come
@@ -107,9 +101,9 @@ So:
 
 ## Change detection
 
-Writes to a component that someone reads the changes of, such as one sent
+Writes to a component whose changes someone reads, such as a component sent
 over the network, are recorded with a version per entity, and a version per
 block. A reader first skips the blocks whose version is older than its last
-read, then picks the entities that changed in the others. Recording per block
-only would be cheaper, but scattered writes would mark nearly every block, so
-the reader would get almost every entity even when few changed.
+read, then picks the entities that changed in the others. When writes are
+scattered over the world, nearly every block holds one: the version per
+entity is what keeps the reader from getting every entity of those blocks.

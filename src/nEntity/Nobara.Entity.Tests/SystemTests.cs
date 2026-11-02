@@ -92,6 +92,29 @@ public sealed class SystemTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void In_development_mode_a_system_that_reads_an_undeclared_component_is_stopped()
+    {
+        _harness.DevelopmentMode = true;
+        Farm(p => p.Worlds.AddSystem(p.Context, "example.farm.peek", new ActionSystem((world, _) =>
+        {
+            foreach (ChunkView block in world.Query(new QueryDescription { All = [_farm.Health] }))
+            {
+                block.Read(_farm.Health);
+            }
+        }), new EntitySystemOptions { Writes = [_farm.Position] }));
+        using Engine engine = _harness.StartSession();
+        EntityWorld world = _harness.Owner.World();
+        world.Create(world.GetArchetype(_farm.Health));
+
+        Assert.Throws<EngineStopException>(() => _harness.Tick(engine));
+
+        LogEntry error = _harness.Log.Entries.First(e => e.Exception is JobAccessException);
+        Assert.Equal(
+            "The tick system 'example.farm.peek' of module 'example.farm' reads 'component example.farm.health', which it does not declare. Declare it in its accesses.",
+            error.Exception!.Message);
+    }
+
+    [Fact]
     public void In_development_mode_a_job_of_a_system_that_writes_an_undeclared_component_is_stopped()
     {
         _harness.DevelopmentMode = true;

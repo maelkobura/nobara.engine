@@ -25,7 +25,7 @@ namespace Nobara.Entity;
 /// managed memory once the buffer has grown to its size.
 /// </para>
 /// </remarks>
-public sealed unsafe class EntityCommandBuffer : IDisposable
+public sealed unsafe class EntityCommandBuffer
 {
     private readonly object _gate = new();
     private readonly EntityWorld _world;
@@ -69,6 +69,11 @@ public sealed unsafe class EntityCommandBuffer : IDisposable
         where T : unmanaged
     {
         _world.Registry.Require(component);
+        if (component.Untyped.Index == EntityWorlds.ParentIndex)
+        {
+            throw new InvalidOperationException("The parent link of an entity is added by SetParent only.");
+        }
+
         T copy = value;
         Append(new Command { Kind = CommandKind.Add, Entity = entity, Component = component.Untyped.Index }, (byte*)&copy, sizeof(T));
     }
@@ -76,7 +81,11 @@ public sealed unsafe class EntityCommandBuffer : IDisposable
     /// <summary>Records the removal of a component from an entity.</summary>
     /// <param name="entity">The entity.</param>
     /// <param name="component">The component; never <see cref="ParentLink"/>.</param>
-    /// <remarks>When the entity does not have the component by then, nothing happens.</remarks>
+    /// <remarks>
+    /// When the entity does not have the component by then, nothing happens.
+    /// Removing a transform of an entity that has a parent or children throws
+    /// when the command is applied.
+    /// </remarks>
     [HotPath]
     public void Remove(EntityId entity, ComponentType component)
     {
@@ -125,7 +134,7 @@ public sealed unsafe class EntityCommandBuffer : IDisposable
     public void ClearParent(EntityId child) => Append(new Command { Kind = CommandKind.ClearParent, Entity = child }, null, 0);
 
     /// <summary>Frees the memory of the buffer. Its world disposes it.</summary>
-    public void Dispose() => _bytes.Dispose();
+    internal void Dispose() => _bytes.Dispose();
 
     /// <summary>Applies the commands in order, then empties the buffer. The structure of the world is unlocked.</summary>
     [HotPath]
@@ -197,6 +206,7 @@ public sealed unsafe class EntityCommandBuffer : IDisposable
             case CommandKind.Remove:
                 if (world.Has(command.Entity, new ComponentType(command.Component)))
                 {
+                    world.RequireRemovable(command.Entity, command.Component);
                     world.Move(command.Entity, command.Component, add: false);
                 }
 

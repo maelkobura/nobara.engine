@@ -193,7 +193,7 @@ internal sealed unsafe class EntitySystemRunner : ITickSystem
     }
 
     /// <summary>The state of an entity system in one world.</summary>
-    internal sealed class WorldState(EntityWorld world, EntityQuery query, EntityCommandBuffer commands, ProfilerMarker marker) : IDisposable
+    internal sealed class WorldState(EntityWorld world, EntityQuery query, EntityCommandBuffer commands, ProfilerMarker marker)
     {
         private NativeList<BlockRef> _blocks = new(16);
 

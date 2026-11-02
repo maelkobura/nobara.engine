@@ -18,7 +18,7 @@ namespace Nobara.Entity;
 /// another archetype: avoid doing that often (see the entity module sheet,
 /// "Transient states").
 /// </remarks>
-public sealed unsafe class EntityArchetype : IDisposable
+public sealed unsafe class EntityArchetype
 {
     /// <summary>The size a block aims at, in bytes. A block holds at least one entity, so a very large entity makes a larger block.</summary>
     internal const int BlockBytes = 64 * 1024;
@@ -107,13 +107,9 @@ public sealed unsafe class EntityArchetype : IDisposable
     internal int BlockSize { get; }
 
     internal NativeList<Block> Blocks
-
     {
-
         [HotPath]
-
         get => _blocks;
-
     }
 
     /// <summary>Tells whether the entities of the archetype have a component.</summary>
@@ -296,7 +292,7 @@ public sealed unsafe class EntityArchetype : IDisposable
     }
 
     /// <summary>Frees the memory of the archetype. Its world disposes it.</summary>
-    public void Dispose()
+    internal void Dispose()
     {
         Clear();
         _blocks.Dispose();
