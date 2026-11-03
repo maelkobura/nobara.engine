@@ -40,9 +40,10 @@ internal sealed class EntityWorlds : IEntityWorlds, IDisposable
         Registry = new ComponentRegistry(module.Jobs);
         Structure = module.Jobs.CreateData("entity structure");
         string id = module.Module.Id;
-        WorldTransform = Registry.Register(id, WorldTransformName, new ComponentOptions { TrackChanges = true }, Core.Mathematics.WorldTransform.Identity);
-        LocalTransform = Registry.Register(id, LocalTransformName, null, global::Nobara.Entity.LocalTransform.Identity);
-        ParentLink = Registry.Register(id, ParentLinkName, null, default(ParentLink));
+        WorldTransform = Registry.Register(id, WorldTransformName, new ComponentOptions { TrackChanges = true }, Core.Mathematics.WorldTransform.Identity, TransformReaders.World);
+        LocalTransform = Registry.Register(id, LocalTransformName, null, global::Nobara.Entity.LocalTransform.Identity, TransformReaders.Local);
+        ParentLink = Registry.Register(id, ParentLinkName, null, default(ParentLink), TransformReaders.Parent);
+        Definitions = new EntityDefinitions(this, module);
     }
 
     public IReadOnlyList<EntityWorld> Worlds => new ArraySegment<EntityWorld>(_sorted, 0, SortedCount);
@@ -58,6 +59,8 @@ internal sealed class EntityWorlds : IEntityWorlds, IDisposable
     public ComponentType<ParentLink> ParentLink { get; }
 
     internal ComponentRegistry Registry { get; }
+
+    internal EntityDefinitions Definitions { get; }
 
     /// <summary>Gets the worlds in the order of their dimensions; the first <see cref="SortedCount"/> are used.</summary>
     internal EntityWorld[] Sorted
@@ -79,8 +82,13 @@ internal sealed class EntityWorlds : IEntityWorlds, IDisposable
         _sessions = sessions;
 
         // A world left by a module after the end of the previous session is freed here: in
-        // development mode the leak was reported, and the new session starts clean.
-        sessions.SubscribeStarting(_module, _ => DisposeLeftovers());
+        // development mode the leak was reported, and the new session starts clean. Then no
+        // world exists, and a reloaded definition can change its components.
+        sessions.SubscribeStarting(_module, _ =>
+        {
+            DisposeLeftovers();
+            Definitions.ApplyPending();
+        });
     }
 
     public EntityWorld Create(ModuleContext owner, DimensionId dimension)
@@ -165,6 +173,21 @@ internal sealed class EntityWorlds : IEntityWorlds, IDisposable
         ArgumentNullException.ThrowIfNull(module);
         return Registry.Register(module.Module.Id, name, options, defaultValue);
     }
+
+    public ComponentType<T> RegisterComponent<T>(ModuleContext module, string name, ComponentReader<T> read, ComponentOptions? options = null, T defaultValue = default)
+        where T : unmanaged
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(read);
+        return Registry.Register(module.Module.Id, name, options, defaultValue, read);
+    }
+
+    public EntityDefinition GetDefinition(string objectId) => Definitions.Get(objectId);
+
+    public bool TryGetDefinition(string objectId, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out EntityDefinition? definition) =>
+        Definitions.TryGet(objectId, out definition);
+
+    public EntityConverterHandle AddConverter(ModuleContext module, EntityConverter converter) => Definitions.AddConverter(module, converter);
 
     public ComponentType RegisterComponent(ModuleContext module, string name, Type type, ComponentOptions? options = null)
     {

@@ -94,6 +94,23 @@ public interface IEntityWorlds
     ComponentType<T> RegisterComponent<T>(ModuleContext module, string name, ComponentOptions? options = null, T defaultValue = default)
         where T : unmanaged;
 
+    /// <summary>
+    /// Registers a component type whose initial value in an entity definition
+    /// is read by a reader of the module, instead of by its public fields:
+    /// for a value that a field cannot hold as written, such as an object
+    /// identifier turned into an index.
+    /// </summary>
+    /// <typeparam name="T">The C# type of the component: an unmanaged struct, registered once.</typeparam>
+    /// <param name="module">The module that registers the component.</param>
+    /// <param name="name">The qualified name: the identifier of the module, a dot, and a name.</param>
+    /// <param name="read">Reads the values that a definition writes for the component.</param>
+    /// <param name="options">Whether changes are tracked; <see langword="null"/> for none.</param>
+    /// <param name="defaultValue">The value of the component on a new entity; <see langword="default"/> otherwise.</param>
+    /// <returns>The handle, valid in every world of the context.</returns>
+    /// <exception cref="ArgumentException">The name does not start with the identifier of the module, or the name or the type is registered already.</exception>
+    ComponentType<T> RegisterComponent<T>(ModuleContext module, string name, ComponentReader<T> read, ComponentOptions? options = null, T defaultValue = default)
+        where T : unmanaged;
+
     /// <summary>Registers a component type known only by its <see cref="Type"/>, such as a type found in an assembly loaded at run time.</summary>
     /// <param name="module">The module that registers the component.</param>
     /// <param name="name">The qualified name.</param>
@@ -121,6 +138,39 @@ public interface IEntityWorlds
     /// <returns>The name, type, size, module, and data of the component.</returns>
     /// <exception cref="ArgumentException">The handle is not valid in this context.</exception>
     ComponentInfo GetComponent(ComponentType component);
+
+    /// <summary>
+    /// Gets an entity definition of a <c>.nof</c> file, whose entities
+    /// <see cref="EntityWorld.Instantiate(EntityDefinition)"/> creates. In
+    /// development mode every definition is loaded when the entity module
+    /// starts; otherwise each one is loaded the first time it is asked for.
+    /// </summary>
+    /// <param name="objectId">The object identifier: <c>entity:example.animals.pig</c>.</param>
+    /// <returns>The definition; the same object every time.</returns>
+    /// <exception cref="KeyNotFoundException">No definition has the identifier.</exception>
+    /// <exception cref="EntityLoadException">The definition cannot be loaded.</exception>
+    /// <exception cref="InvalidOperationException">The entity module has not started: modules initialize.</exception>
+    /// <remarks>Loading allocates: get definitions once, outside hot path code.</remarks>
+    EntityDefinition GetDefinition(string objectId);
+
+    /// <summary>Gets an entity definition, if one has the identifier.</summary>
+    /// <param name="objectId">The object identifier.</param>
+    /// <param name="definition">The definition, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when a definition has the identifier.</returns>
+    /// <exception cref="EntityLoadException">The definition cannot be loaded.</exception>
+    /// <exception cref="InvalidOperationException">The entity module has not started: modules initialize.</exception>
+    bool TryGetDefinition(string objectId, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out EntityDefinition? definition);
+
+    /// <summary>
+    /// Adds a converter: it reads the free properties of each entity
+    /// definition when the definition is loaded, and adds or fills components
+    /// of the module. Converters run in the load order of their modules.
+    /// </summary>
+    /// <param name="module">The module that adds the converter; an exception in it follows its error policy.</param>
+    /// <param name="converter">The converter.</param>
+    /// <returns>The handle; dispose it to remove the converter for the definitions loaded later.</returns>
+    /// <exception cref="InvalidOperationException">The entity module has started: add converters while modules initialize.</exception>
+    EntityConverterHandle AddConverter(ModuleContext module, EntityConverter converter);
 
     /// <summary>
     /// Registers an entity system: one tick system of nGame, under the same

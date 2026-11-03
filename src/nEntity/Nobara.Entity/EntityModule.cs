@@ -23,6 +23,10 @@ public sealed class EntityModule : IModule
     public void Register(ModuleContext context)
     {
         _worlds = new EntityWorlds(context);
+        context.Resources.RegisterDecoder(EntityDefinitions.ResourceType, EntityResource.Decode);
+        context.Resources.RegisterReloadHandler(
+            EntityDefinitions.ResourceType,
+            reload => _worlds.Definitions.Reload(reload, context.Resources.GetAll<EntityResource>(EntityDefinitions.ResourceType)));
         context.Publish<IEntityWorlds>(_worlds);
     }
 
@@ -37,6 +41,17 @@ public sealed class EntityModule : IModule
             Reads = [_worlds.ParentLink, _worlds.LocalTransform],
             Writes = [_worlds.WorldTransform],
         });
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Every module has initialized: their components and converters are known. In development mode, every entity definition is loaded and checked here.</remarks>
+    public void Start(ModuleContext context)
+    {
+        _worlds!.Definitions.Start(context.Resources.GetAll<EntityResource>(EntityDefinitions.ResourceType));
+        if (context.DevelopmentMode)
+        {
+            context.Logger.Info($"Entity definitions loaded and checked: {_worlds.Definitions.Built.Count}.");
+        }
     }
 
     /// <inheritdoc/>

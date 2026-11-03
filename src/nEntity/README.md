@@ -10,8 +10,9 @@ worlds](../../docs/explanation/entity-worlds.md).
 
 nEntity holds the game world as entities and components: one entity world
 per dimension, component types registered under qualified names, entity
-systems that run as tick systems of nGame, change detection, and a parent
-and child hierarchy with relative transforms.
+systems that run as tick systems of nGame, change detection, a parent and
+child hierarchy with relative transforms, and entity definitions written in
+`.nof` files, from which it creates entities.
 
 ## Status
 
@@ -44,6 +45,9 @@ Platform module, on the client and on the server.
 | `EntityCommandBuffer` | Structural changes recorded while a system runs. |
 | `ChangeVersions` | Comparing the change versions of tracked components. |
 | `LocalTransform`, `ParentLink`, `OrphanPolicy` | The hierarchy of entities. |
+| `EntityDefinition`, `EntityLoadException`, `EntityProblem` | Entity definitions of `.nof` files, and why one cannot be loaded. |
+| `ComponentReader<T>`, `DefinitionValues`, `DefinitionValueException` | How a module reads the values that definitions write for its component. |
+| `EntityConverter`, `EntityConversion`, `EntityConverterHandle` | Free properties of definitions converted into components. |
 
 The service is resolved with `context.Resolve<IEntityWorlds>()`. There is one
 per context, client and server, and nothing is shared between contexts.
@@ -293,6 +297,117 @@ world.ClearParent(rider);                                        // keeps its pl
   one depth in parallel. A child's world transform is written by this system:
   move a child through its local transform.
 
+### Entity definitions
+
+An `Entity` resource of a `.nof` file defines the components of an entity
+and their initial values; its format is in [the `Entity`
+reference](../../docs/reference/formats/entity.md). nEntity loads each
+definition once per context, then creates entities from it without reading
+the resources again:
+
+```csharp
+EntityDefinition pig = worlds.GetDefinition("entity:example.animals.pig");   // once, outside hot path code
+EntityId one = world.Instantiate(pig);
+world.Instantiate(pig, herd);                                                 // a Span<EntityId>: as many as it holds
+```
+
+- In development mode, every definition is loaded when nEntity starts: an
+  error stops the start of the context with an `EntityLoadException`, which
+  lists every problem with its file, line, and column. Otherwise a
+  definition is loaded the first time `GetDefinition` asks for it, and the
+  exception is thrown there.
+- Definitions are read once nEntity has started, after every module has
+  initialized: register components and converters while initializing.
+- The components of a definition are fixed when it is loaded: those the file
+  writes, without the optional components of modules that are not active,
+  plus those the converters add. A definition has one archetype per world,
+  created the first time it is instantiated there; after that, instantiating
+  allocates nothing.
+- A component not found is an error, unless it is optional and the module its
+  name starts with is declared by the distribution but not active. The table
+  of cases is in [the `Entity` reference](../../docs/reference/formats/entity.md#optional-components).
+- Entities created from a definition are ordinary entities: nothing links
+  them to the definition afterwards.
+
+### Component values
+
+By default, the values a definition writes for a component go to the public
+fields of its struct, by name: numbers, booleans, enumerations by the name of
+a member, and nested structs such as `Vector3` as child elements. A field
+that is not written keeps the default value of the component.
+
+A value that a field cannot hold as written, such as an object identifier, or
+a rule of the component, such as a bound, is read by a reader that the module
+registers with the component:
+
+```csharp
+worlds.RegisterComponent<Voice>(context, "example.animals.voice", (values, fallback) =>
+{
+    double volume = values.GetFloat("Volume", fallback.Volume);
+    return volume is >= 0 and <= 1
+        ? new Voice { Volume = (float)volume }
+        : throw values.Error($"<Volume> is {volume}, expected 0 to 1.", values.GetElement("Volume"));
+});
+```
+
+- A reader runs once per definition and per context, when definitions load
+  or reload; it may allocate.
+- A value written twice, a value of the wrong type, and a child element that
+  the reader never reads are errors, with the position of the value.
+- `nobara.entity.transform` and `nobara.entity.local_transform` read
+  `<Position>`, `<Rotation>` (a quaternion), and `<Scale>` as vectors.
+  `nobara.entity.parent` is never written in a definition.
+
+### Converters
+
+A module reads the free properties of the definitions it cares about, and
+turns them into components of its own. The definition does not need to know
+the module:
+
+```csharp
+public void Register(ModuleContext context) =>
+    _weight = context.Resources.DeclareProperty("Weight", PropertyType.Float);
+
+public void Initialize(ModuleContext context)
+{
+    IEntityWorlds worlds = context.Resolve<IEntityWorlds>();
+    _body = worlds.RegisterComponent<Body>(context, "example.motion.body");
+    worlds.AddConverter(context, conversion =>
+    {
+        if (_weight.TryGetFloat(conversion.Resource, out double mass))
+        {
+            conversion.Set(_body, new Body { Mass = (float)mass });
+        }
+    });
+}
+```
+
+- A converter runs once per definition and per context, when the definition
+  is loaded or reloaded. Nothing of the free properties is kept afterwards.
+- The components of the file come first; then converters run in the load
+  order of their modules, and in the order they were added within a module.
+  A converter reads every component of the definition (`Has`, `TryGet`,
+  `Components`) and sets the components of its own module only (`Set`).
+- `conversion.Error` reports a property that breaks a rule of the module: the
+  definition fails to load, as for a wrong value. An exception thrown by the
+  converter follows the error policy of its module, and what the converter
+  set is discarded.
+- Converters are added while modules initialize. Disposing the handle
+  removes the converter for the definitions loaded later.
+
+### Hot reload of definitions
+
+In a development build, a changed `.nof` file applies at the next frame:
+
+- new values apply to the entities created from then on; entities created
+  before keep theirs;
+- a change of the components of a definition is reported in the logs, and
+  applies once no entity world exists, when the world is reloaded: until
+  then, the definition keeps its previous components and values;
+- a definition added is loaded at once; a definition removed stays until the
+  context restarts, and a value that fails its checks is reported, with the
+  definition kept as it was.
+
 ## Events
 
 None.
@@ -305,7 +420,10 @@ None.
 
 ## Resources
 
-None.
+nEntity defines the resource type `Entity` (prefix `entity`), described in
+[the `Entity` reference](../../docs/reference/formats/entity.md). Its plugin,
+`Nobara.Entity.Build`, checks it when a module that depends on
+`nobara.entity` is built.
 
 ## Constraints
 
@@ -316,6 +434,9 @@ None.
 - Running entity systems allocates nothing once the worlds and archetypes are
   stable, in development mode too; the tests measure it with 100,000
   entities. Creating a world, an archetype, or a query allocates.
+- Instantiating a definition allocates nothing once its archetype exists in
+  the world; the tests measure it with 10,000 entities. Getting a definition
+  the first time loads it, which allocates.
 - nEntity keeps no static state: each context has its own component types,
   worlds, and systems.
 
@@ -339,3 +460,13 @@ None.
   once, outside hot path code.
 - Scales of a hierarchy combine axis by axis: a non-uniform scale under a
   rotation gives an approximate transform.
+- A command buffer cannot instantiate a definition, so an entity system
+  cannot create entities from one while it runs.
+- Definitions have no tags, and do not inherit from one another.
+- The fields of a component are written by their C# names: renaming a field
+  breaks the files that write it, unless the module reads the values with a
+  reader.
+- A whole number above the range of `long` cannot be written in a `ulong`
+  field.
+- A converter adds or fills components; it does not remove the components
+  that the file writes.

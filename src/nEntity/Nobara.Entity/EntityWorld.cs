@@ -36,6 +36,7 @@ public sealed unsafe partial class EntityWorld
     // Creating an archetype allocates once per set of components. Structural
     // changes reach that rare path through this delegate.
     private readonly Func<EntityArchetype, int, bool, EntityArchetype> _edge;
+    private readonly Func<EntityDefinition, EntityArchetype> _definitionArchetype;
     private NativeList<EntityRecord> _records = new(1024);
     private NativeList<int> _free = new(256);
     private NativeList<int> _depths = new(8);
@@ -48,6 +49,7 @@ public sealed unsafe partial class EntityWorld
         Dimension = dimension;
         OwnerModuleId = ownerModuleId;
         _edge = CreateEdge;
+        _definitionArchetype = CreateDefinitionArchetype;
         _empty = GetArchetype(ReadOnlySpan<ComponentType>.Empty);
     }
 

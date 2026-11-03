@@ -22,6 +22,7 @@ internal sealed unsafe class ComponentRegistry : IDisposable
     private readonly Dictionary<Type, int> _byType = [];
     private ComponentInfo[] _infos = new ComponentInfo[32];
     private Entry[] _entries = new Entry[32];
+    private ComponentCodec[] _codecs = new ComponentCodec[32];
     private int _count;
     private bool _disposed;
 
@@ -44,7 +45,7 @@ internal sealed unsafe class ComponentRegistry : IDisposable
     }
 
     /// <summary>Registers a component of a module, after checking that its name is qualified by the module.</summary>
-    public ComponentType<T> Register<T>(string moduleId, string name, ComponentOptions? options, in T defaultValue)
+    public ComponentType<T> Register<T>(string moduleId, string name, ComponentOptions? options, in T defaultValue, ComponentReader<T>? reader = null)
         where T : unmanaged
     {
         ArgumentNullException.ThrowIfNull(name);
@@ -56,7 +57,7 @@ internal sealed unsafe class ComponentRegistry : IDisposable
                 nameof(name));
         }
 
-        return RegisterCore(moduleId, name, options, defaultValue);
+        return RegisterCore(moduleId, name, options, defaultValue, reader);
     }
 
     /// <summary>Registers a component known only by its <see cref="Type"/>, such as one of an assembly loaded at run time.</summary>
@@ -80,6 +81,13 @@ internal sealed unsafe class ComponentRegistry : IDisposable
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(exception.InnerException);
             throw;
         }
+    }
+
+    /// <summary>Gets what reads the initial value of a component from an entity definition.</summary>
+    public ComponentCodec Codec(ComponentType type)
+    {
+        Require(type);
+        return _codecs[type.Index];
     }
 
     public bool TryGet(string name, out ComponentType type)
@@ -149,9 +157,9 @@ internal sealed unsafe class ComponentRegistry : IDisposable
     // Called by reflection from Register(Type): the struct is unmanaged, checked before.
     private ComponentType RegisterBoxed<T>(string moduleId, string name, ComponentOptions? options)
         where T : unmanaged =>
-        Register<T>(moduleId, name, options, default).Untyped;
+        Register<T>(moduleId, name, options, default, null).Untyped;
 
-    private ComponentType<T> RegisterCore<T>(string moduleId, string name, ComponentOptions? options, in T defaultValue)
+    private ComponentType<T> RegisterCore<T>(string moduleId, string name, ComponentOptions? options, in T defaultValue, ComponentReader<T>? reader)
         where T : unmanaged
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -173,6 +181,7 @@ internal sealed unsafe class ComponentRegistry : IDisposable
             // Replaced, not changed in place: a worker thread may read the old arrays.
             ComponentInfo[] infos = new ComponentInfo[index * 2];
             Entry[] entries = new Entry[index * 2];
+            Array.Resize(ref _codecs, index * 2);
             Array.Copy(_infos, infos, index);
             Array.Copy(_entries, entries, index);
             _infos = infos;
@@ -186,6 +195,7 @@ internal sealed unsafe class ComponentRegistry : IDisposable
         *(T*)value = defaultValue;
         _infos[index] = new ComponentInfo(handle, name, typeof(T), sizeof(T), moduleId, track, data);
         _entries[index] = new Entry(sizeof(T), track, data, value);
+        _codecs[index] = new ComponentCodec<T>(defaultValue, reader);
         _byName.Add(name, index);
         _byType.Add(typeof(T), index);
         Volatile.Write(ref _count, index + 1);

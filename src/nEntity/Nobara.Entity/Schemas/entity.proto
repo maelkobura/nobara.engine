@@ -1,0 +1,22 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource type Entity: the definition of an entity, its components and
+// their initial values. Its identifier is derived from the namespace and the
+// name, such as entity:example.animals.pig.
+syntax = "proto3";
+
+package nobara.entity;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Entity.Schemas";
+
+message Entity {
+  option (nobara.resource_type) = "entity";
+
+  // The components of the entity and their initial values, in the generic
+  // representation: <Component ref="example.animals.health">.
+  repeated bytes component = 1 [(nobara.generic) = "component"];
+}

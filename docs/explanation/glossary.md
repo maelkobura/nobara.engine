@@ -219,6 +219,21 @@ nEntity module sheet](../../src/nEntity/README.md#structural-changes-during-a-sy
 The architecture that represents the game world as entities, components, and
 systems. It is provided by the platform module [nEntity](#nentity).
 
+### Entity converter
+
+Code of a module that reads the [free properties](#free-property) of each
+[entity definition](#entity-definition) when the definition is loaded, and adds
+or fills components of that module, such as a body built from `Weight`. Without
+the module, the property adds nothing. See [the nEntity module
+sheet](../../src/nEntity/README.md#converters).
+
+### Entity definition
+
+The components of an entity and their initial values, written in an `Entity`
+resource of a `.nof` file and loaded once per context by nEntity, which creates
+entities from it. Its components are fixed when it is loaded. See [the `Entity`
+reference](../reference/formats/entity.md).
+
 ### Entity system
 
 A [system](#system) registered with nEntity. nEntity registers it with nGame
@@ -649,6 +664,13 @@ and its references. See [the SDK page](../../tools/Nobara.Sdk/README.md).
 
 The identifier of a defined object, derived from its type, namespace, and
 name: `block:example.blocks.dirt`. See [the `.nof` reference](../reference/formats/nof.md#identifiers).
+
+### Optional component
+
+A component of a definition marked `optional="true"`: it is ignored, without
+a message, when the module that registers it is declared by the distribution
+but not active, and an error otherwise. See [the `Entity`
+reference](../reference/formats/entity.md#optional-components).
 
 ### Optional dependency
 

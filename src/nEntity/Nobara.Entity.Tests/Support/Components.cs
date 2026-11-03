@@ -54,3 +54,32 @@ internal sealed class FarmComponents
 
     public ComponentType<Cargo> Cargo { get; }
 }
+
+internal enum Diet
+{
+    Grass,
+    Meat,
+}
+
+/// <summary>A component that entity definitions write by its public fields.</summary>
+internal struct Stats
+{
+    public int Health;
+    public float Speed;
+    public Vector3 Size;
+    public Diet Diet;
+    public bool Tame;
+    public byte Litter;
+}
+
+/// <summary>A component that a converter of module <c>example.motion</c> sets from the free property <c>Weight</c>.</summary>
+internal struct Body
+{
+    public float Mass;
+}
+
+/// <summary>A component whose reader checks a bound: a volume from 0 to 1.</summary>
+internal struct Voice
+{
+    public float Volume;
+}
