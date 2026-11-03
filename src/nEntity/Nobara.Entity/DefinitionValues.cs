@@ -35,7 +35,7 @@ public delegate T ComponentReader<T>(DefinitionValues values, T defaultValue)
 /// </remarks>
 /// <example>
 /// <code>
-/// worlds.RegisterComponent(context, "example.animals.sound", (values, fallback) => new Sound
+/// worlds.RegisterComponent&lt;Sound&gt;(context, "example.animals.sound", (values, fallback) => new Sound
 /// {
 ///     Id = sounds.IndexOf(values.GetObjectId("Sound")),
 ///     Volume = (float)values.GetFloat("Volume", fallback.Volume),
@@ -137,7 +137,7 @@ public sealed class DefinitionValues
     /// <exception cref="DefinitionValueException">The value has child elements.</exception>
     public string GetString(string name, string fallback) => Optional(name) is { } element ? ReadString(element) : fallback;
 
-    /// <summary>Reads a required object identifier, such as <c>mesh:example.animals.pig</c>. The compiler checked that the object exists.</summary>
+    /// <summary>Reads a required object identifier, such as <c>mesh:example.animals.pig</c>. The compiler checked that the object exists, except in an optional component.</summary>
     /// <param name="name">The name of the child element.</param>
     /// <returns>The identifier.</returns>
     /// <exception cref="DefinitionValueException">The value is missing or is not an object identifier.</exception>

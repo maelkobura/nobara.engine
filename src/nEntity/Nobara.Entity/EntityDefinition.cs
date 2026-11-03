@@ -66,7 +66,12 @@ public sealed class EntityDefinition
     /// <summary>Tells whether the entities of the definition have a component.</summary>
     /// <param name="component">The component.</param>
     /// <returns><see langword="true"/> when they have it.</returns>
-    public bool Has(ComponentType component) => Layout.SlotOf(component.Index) >= 0;
+    /// <exception cref="ArgumentException">The handle comes from another context.</exception>
+    public bool Has(ComponentType component)
+    {
+        Owner.Registry.Require(component);
+        return Layout.SlotOf(component.Index) >= 0;
+    }
 
     /// <summary>Gets the initial value of a component on the entities of the definition.</summary>
     /// <typeparam name="T">The type of the component.</typeparam>

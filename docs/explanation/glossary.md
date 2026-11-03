@@ -87,6 +87,13 @@ A piece of data attached to an [entity](#entity): an unmanaged struct,
 registered under a qualified name that starts with the identifier of its
 module. See [the nEntity module sheet](../../src/nEntity/README.md#components).
 
+### Component reader
+
+Code that a module registers with a [component](#component) to read the values
+that [entity definitions](#entity-definition) write for it, instead of matching
+them to the public fields of its struct by name. See [the nEntity module
+sheet](../../src/nEntity/README.md#component-values).
+
 ### Configuration key
 
 A named setting declared by a module in its manifest, with a type, a

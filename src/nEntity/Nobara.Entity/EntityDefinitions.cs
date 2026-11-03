@@ -221,6 +221,7 @@ internal sealed class EntityDefinitions
     /// <summary>Applies the changes of components that waited for the worlds to go; no world exists.</summary>
     public void ApplyPending()
     {
+        System.Diagnostics.Debug.Assert(_worlds.SortedCount == 0, "Components of definitions change only while no world exists.");
         foreach (EntityDefinition definition in _built)
         {
             if (definition.Pending is { } layout)

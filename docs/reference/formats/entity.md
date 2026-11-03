@@ -59,7 +59,7 @@ Values are written as the C# type of the component declares them:
 | Field of the component | Written as | Example |
 | --- | --- | --- |
 | `bool` | `true` or `false` | `<Tame>true</Tame>` |
-| Whole number (`byte` to `long`) | A whole number that fits in the type | `<Health>12</Health>` |
+| Whole number (`sbyte` to `ulong`) | A whole number that fits in the type, up to the range of `long` | `<Health>12</Health>` |
 | `float`, `double` | A number; a whole number is accepted | `<Speed>1.5</Speed>` |
 | Enumeration | The name of a member, with its case | `<Diet>Grass</Diet>` |
 | Struct, such as `Vector3` or `Quaternion` | Its public fields as child elements | `<Size><X>1</X><Y>0.75</Y><Z>1.5</Z></Size>` |
