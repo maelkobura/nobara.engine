@@ -4,6 +4,7 @@
 
 using Google.Protobuf;
 using System.Numerics;
+using Nobara.Blocks;
 using Nobara.Context;
 using Nobara.Core;
 using Nobara.Core.Loading;
@@ -33,6 +34,10 @@ internal sealed class VoxelHarness : IDisposable
 
     public Probe Owner { get; private set; } = null!;
 
+    public byte[]? OwnerResources { get; set; }
+
+    public Action<Probe>? ConfigureOwner { get; set; }
+
     public Engine Start()
     {
         var distribution = new F.DistributionManifest
@@ -51,6 +56,7 @@ internal sealed class VoxelHarness : IDisposable
         }
         var ownerManifest = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.voxel", Range = "^1.0" });
+        ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.blocks", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.context", Range = "^1.0" });
         ownerManifest.States.Add(new F.StateDeclaration { Id = PlayStateId });
         distribution.Modules.Add(new F.DistributionModule { Id = OwnerId, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
@@ -123,10 +129,10 @@ internal sealed class VoxelHarness : IDisposable
             "nobara.voxel" => new LoadedModule(typeof(VoxelModule).Assembly, () => new VoxelModule()),
             _ => new LoadedModule(typeof(Probe).Assembly, () =>
             {
-                var probe = new Probe();
+                var probe = new Probe(harness.ConfigureOwner);
                 harness.Owner = probe;
                 return probe;
-            }),
+            }, name => name == "nobara/resources.pb" && harness.OwnerResources is not null ? new MemoryStream(harness.OwnerResources) : null),
         };
 
         private static F.ModuleManifest ContextManifest()
@@ -160,21 +166,35 @@ internal sealed class VoxelHarness : IDisposable
     }
 }
 
-internal sealed class Probe : IModule
+internal sealed class Probe(Action<Probe>? configure = null) : IModule
 {
+    private readonly Action<Probe>? _configure = configure;
     public ModuleContext Context { get; private set; } = null!;
 
     public IVoxelWorlds Worlds { get; private set; } = null!;
+
+    public IBlockRegistry Blocks { get; private set; } = null!;
+
+    public IShapeRegistry Shapes { get; private set; } = null!;
+
+    public IMultiBlockRegistry MultiBlocks { get; private set; } = null!;
 
     public IWorldSessions Sessions { get; private set; } = null!;
 
     public List<Grid> CreatedGrids { get; } = [];
 
-    public void Register(ModuleContext context) => Context = context;
+    public void Register(ModuleContext context)
+    {
+        Context = context;
+    }
 
     public void Initialize(ModuleContext context)
     {
         Worlds = context.Resolve<IVoxelWorlds>();
+        Blocks = context.Resolve<IBlockRegistry>();
+        Shapes = context.Resolve<IShapeRegistry>();
+        MultiBlocks = context.Resolve<IMultiBlockRegistry>();
+        _configure?.Invoke(this);
         Sessions = context.Resolve<IWorldSessions>();
         IStateStack states = context.Resolve<IStateStack>();
         states.Register(context, VoxelHarness.PlayStateId, () => new PlayState(Sessions));

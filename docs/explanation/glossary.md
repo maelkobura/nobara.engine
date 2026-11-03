@@ -97,6 +97,37 @@ Rare, extensible data attached to one block cell, such as an inventory or
 durability value. A block data type declares serialization and an optional
 quarter-turn operation; it is separate from the block state index.
 
+### Contact mask
+
+A 4 × 4 bit mask for one face of a voxel shape. It marks the parts of the
+face where two neighboring shapes can make structural contact.
+
+### Instance-dependent shape
+
+A block shape whose collision or other physical values can depend on the
+block data attached to one cell. nVoxel evaluates it with a read-only data
+view instead of caching one result for the whole state.
+
+### Multiblock
+
+A block type that occupies several grid cells. Each cell stores a part index,
+and nVoxel calculates the origin from the rotated footprint and that index.
+
+### Orientation
+
+The discrete rotation stored in a block state: none, four horizontal
+directions, six facing directions, or one of the 24 rotations of a cube.
+
+### Part index
+
+The state value that identifies one cell of a multiblock footprint. Part zero
+is the origin and the other parts carry no shared block data.
+
+### Shape
+
+The registered geometric description of a block: neutral collision boxes,
+face opacity, and contact masks. A shape is independent of the render mesh.
+
 ### Block state index
 
 The 32-bit runtime identity of a block state in a chunk palette. nBlocks
