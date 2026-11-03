@@ -155,6 +155,18 @@ public sealed class Chunk : IDisposable
         return true;
     }
 
+    internal void RotateBlockData(int localIndex, int quarterTurns = 1)
+    {
+        RequireAlive();
+        _access?.CheckWrite();
+        foreach (BlockDataKey key in _blockData.Keys.Where(k => k.LocalIndex == localIndex).ToArray())
+        {
+            _blockData[key] = BlockRotation.RotateData(key.Type, _blockData[key], quarterTurns);
+        }
+
+        Version++;
+    }
+
     /// <summary>Removes all metadata attached to a cell.</summary>
     internal void RemoveBlockData(int localIndex)
     {

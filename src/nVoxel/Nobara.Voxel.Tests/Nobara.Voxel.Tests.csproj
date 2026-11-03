@@ -27,6 +27,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Nobara.Voxel\Nobara.Voxel.csproj" />
+    <ProjectReference Include="..\..\nItems\Nobara.Items.Build\Nobara.Items.Build.csproj" />
+    <ProjectReference Include="..\..\nBlocks\Nobara.Blocks.Build\Nobara.Blocks.Build.csproj" />
     <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
   </ItemGroup>
 

@@ -36,6 +36,9 @@ Platform module, on the client and on the server.
 | `Grid`, `GridStorage`, `GridBounds` | ECS-backed grids and their resident chunk tables. |
 | `Chunk`, `ChunkSnapshot`, `Palette` | Palette storage, versions, frozen copies, and compact native memory. |
 | `DenseChannelDefinition`, `BlockDataType<T>` | Lazy dense channels and serializable block data declarations. |
+| `IShapeRegistry`, `IBlockShape`, `ShapeEvaluation` | Shape registration, cached oriented collision, face opacity, contact masks, and instance-dependent queries. |
+| `IMultiBlockRegistry`, `MultiBlockCell` | Rotated footprints, part indices, and calculated origins. |
+| `BlockRotation` | Quarter-turn transformations for block states and block-data values. |
 
 Resolve the service with `context.Resolve<IVoxelWorlds>()`. Every context has its own dimensions, entity worlds, grids, chunks, and spatial index.
 
@@ -70,6 +73,7 @@ metadata determine the final client footprint.
 
 ## Known limitations
 
-- Block modification batches, notifications, chunk loading, block ticks, height maps, shapes, and chunk serialization are not implemented yet.
+- Model shapes use a full unit-block collision fallback; a renderer supplies the visual mesh separately.
+- Block modification batches, notifications, chunk loading, block ticks, height maps, spatial block queries, and chunk serialization are not implemented yet.
 - Grid transforms are updated explicitly; nPhysics is not yet the movement authority.
 - An unbounded grid is always a candidate in the spatial index; finite grids use transformed axis-aligned bounds.
