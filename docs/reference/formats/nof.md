@@ -178,7 +178,8 @@ A component, for a field marked `"component"`, takes these attributes:
 
 The object identifiers in the values of a component must resolve, except in an
 optional component. The components of an item are described in [the `Item`
-resource](item.md#components).
+resource](item.md#components), and those of an entity in [the `Entity`
+resource](entity.md#components).
 
 ## Free properties
 

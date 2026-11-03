@@ -8,7 +8,10 @@ using Nobara.Core;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
 using Nobara.Core.Loop;
+using Nobara.Entity.Build;
 using Nobara.Game;
+using Nobara.ResourceCompiler;
+using Nobara.ResourceCompiler.Nof;
 using F = Nobara.Formats;
 
 namespace Nobara.Entity.Tests.Support;
@@ -16,7 +19,8 @@ namespace Nobara.Entity.Tests.Support;
 /// <summary>
 /// An engine whose modules live in memory: the real game, context, and entity
 /// modules, a module that owns the dimensions and opens a world session, and
-/// modules of the test assembly that run the code a test gives them.
+/// modules of the test assembly that run the code a test gives them, with
+/// entity definitions compiled by the tests.
 /// </summary>
 internal sealed class EntityHarness : IDisposable
 {
@@ -24,7 +28,7 @@ internal sealed class EntityHarness : IDisposable
     public const string OwnerId = "example.world";
 
     private const string PlayStateId = "state:example.world.play";
-    private readonly List<(F.ModuleManifest Manifest, Action<Probe>? Behavior)> _probes = [];
+    private readonly List<(F.ModuleManifest Manifest, Action<Probe>? Behavior, byte[]? Resources)> _probes = [];
     private readonly Dictionary<string, F.Policy> _policies = [];
 
     public EntityHarness()
@@ -63,10 +67,58 @@ internal sealed class EntityHarness : IDisposable
     /// <summary>Gets the instances of the modules of the test, by identifier, for the last engine loaded.</summary>
     public Dictionary<string, Probe> Probes { get; } = [];
 
-    /// <summary>Adds a business module that depends on the entity module.</summary>
-    public EntityHarness Module(string id, Action<Probe>? behavior, F.Policy? policy = null)
+    /// <summary>Gets the entity module, as the compiler reads it from its assembly.</summary>
+    public static CompiledModule EntityModuleImage { get; } = CompiledModule.FromAssembly(typeof(EntityModule).Assembly.Location)!;
+
+    /// <summary>Wraps resource elements in a root element.</summary>
+    public static string Nof(string ns, string body) => $"<Nobara version=\"1.0.0\" namespace=\"{ns}\">\n{body}\n</Nobara>";
+
+    /// <summary>Compiles the resources of a module that depends on the entity module, from one file, <c>animals.nof</c>.</summary>
+    public static CompilationResult Compile(string moduleId, string nof)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
+        string root = Path.Combine(Path.GetTempPath(), "nobara-entity-tests", "nof-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "animals.nof"), nof);
+            var compiler = new ResourceCompiler.ResourceCompiler(new ResourceCompilerOptions
+            {
+                ModuleId = moduleId,
+                ResourcesDirectory = root,
+                Dependencies = [EntityModuleImage],
+                Plugins = [new EntityPlugin()],
+            });
+            return compiler.Compile(Directory.EnumerateFiles(root, "*.nof"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>Compiles resources that must compile.</summary>
+    public static F.ResourceBundle Bundle(string moduleId, string nof)
+    {
+        CompilationResult result = Compile(moduleId, nof);
+        Assert.True(result.Success, string.Join(Environment.NewLine, result.Diagnostics));
+        return result.Bundle!;
+    }
+
+    /// <summary>Adds a business module that depends on the entity module.</summary>
+    /// <param name="id">The identifier of the module.</param>
+    /// <param name="behavior">Sets up each instance of the module.</param>
+    /// <param name="policy">The error policy of the module, or <see langword="null"/> for the default.</param>
+    /// <param name="nof">Its entity definitions, compiled now, or <see langword="null"/> for none.</param>
+    /// <param name="side">The sides of the module.</param>
+    /// <param name="shortName">The short name of the module, or <see langword="null"/>.</param>
+    public EntityHarness Module(string id, Action<Probe>? behavior, F.Policy? policy = null, string? nof = null, F.Side side = F.Side.Both, string? shortName = null)
+    {
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = side };
+        if (shortName is not null)
+        {
+            manifest.ShortName = shortName;
+        }
+
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.entity", Range = "^1.0" });
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.game", Range = "^1.0" });
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.context", Range = "^1.0" });
@@ -79,7 +131,7 @@ internal sealed class EntityHarness : IDisposable
             manifest.Dependencies.Add(new F.Dependency { Id = OwnerId, Range = "^1.0" });
         }
 
-        _probes.Add((manifest, behavior));
+        _probes.Add((manifest, behavior, nof is null ? null : Bundle(id, nof).ToByteArray()));
         if (policy is { } value)
         {
             _policies[id] = value;
@@ -90,6 +142,14 @@ internal sealed class EntityHarness : IDisposable
 
     /// <summary>Loads and starts an engine. The first frame enters the play state, which starts the session.</summary>
     public Engine Start(Side side = Side.Client)
+    {
+        Engine engine = Load(side);
+        engine.MainContext.Start();
+        return engine;
+    }
+
+    /// <summary>Loads an engine without starting its main context.</summary>
+    public Engine Load(Side side = Side.Client)
     {
         var distribution = new F.DistributionManifest
         {
@@ -106,7 +166,7 @@ internal sealed class EntityHarness : IDisposable
             distribution.Modules.Add(new F.DistributionModule { Id = id, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
         }
 
-        foreach ((F.ModuleManifest manifest, _) in _probes)
+        foreach ((F.ModuleManifest manifest, _, _) in _probes)
         {
             distribution.Modules.Add(new F.DistributionModule { Id = manifest.Id, Version = manifest.Version, Hash = ByteString.CopyFrom(new byte[32]) });
         }
@@ -122,7 +182,7 @@ internal sealed class EntityHarness : IDisposable
         }
 
         Probes.Clear();
-        Engine engine = Engine.Load(new EngineOptions
+        return Engine.Load(new EngineOptions
         {
             Side = side,
             DistributionManifest = distribution.ToByteArray(),
@@ -137,8 +197,6 @@ internal sealed class EntityHarness : IDisposable
             LogSinks = [Log],
             MinimumLogLevel = LogLevel.Debug,
         });
-        engine.MainContext.Start();
-        return engine;
     }
 
     /// <summary>Runs frames of one tick at 30 ticks per second.</summary>
@@ -234,19 +292,22 @@ internal sealed class EntityHarness : IDisposable
                     return new LoadedModule(typeof(EntityModule).Assembly, () => new EntityModule());
             }
 
-            Action<Probe>? behavior = harness._probes.Single(p => p.Manifest.Id == image.Id).Behavior;
-            return new LoadedModule(typeof(Probe).Assembly, () =>
-            {
-                var probe = new Probe(image.Id);
-                if (image.Id == OwnerId)
+            (_, Action<Probe>? behavior, byte[]? resources) = harness._probes.Single(p => p.Manifest.Id == image.Id);
+            return new LoadedModule(
+                typeof(Probe).Assembly,
+                () =>
                 {
-                    harness.SetUpOwner(probe);
-                }
+                    var probe = new Probe(image.Id);
+                    if (image.Id == OwnerId)
+                    {
+                        harness.SetUpOwner(probe);
+                    }
 
-                behavior?.Invoke(probe);
-                harness.Probes[image.Id] = probe;
-                return probe;
-            });
+                    behavior?.Invoke(probe);
+                    harness.Probes[image.Id] = probe;
+                    return probe;
+                },
+                name => name == "nobara/resources.pb" && resources is not null ? new MemoryStream(resources) : null);
         }
 
         private static F.ModuleManifest GameManifest()
@@ -299,7 +360,17 @@ internal sealed class Probe(string id) : IModule
 
     public Action<Probe>? OnInitialize { get; set; }
 
-    public void Register(ModuleContext context) => Context = context;
+    public Action<Probe>? OnRegister { get; set; }
+
+    public Action<Probe>? OnStart { get; set; }
+
+    public void Register(ModuleContext context)
+    {
+        Context = context;
+        OnRegister?.Invoke(this);
+    }
+
+    public void Start(ModuleContext context) => OnStart?.Invoke(this);
 
     public void Initialize(ModuleContext context)
     {

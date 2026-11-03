@@ -107,3 +107,25 @@ block. A reader first skips the blocks whose version is older than its last
 read, then picks the entities that changed in the others. When writes are
 scattered over the world, nearly every block holds one: the version per
 entity is what keeps the reader from getting every entity of those blocks.
+
+## Entity definitions
+
+An entity can be written in a `.nof` file as a list of components and their
+values. Components are always C# types, so the compiler cannot check the
+values: it stores them in a generic form, and nEntity matches them to the
+types when it loads the definition. Each definition is checked once, then
+instantiating copies a prepared row of values, without reading the resources
+again. A development build loads every definition when the game starts, so
+that a typing error in any of them shows at once rather than when the entity
+first appears.
+
+The components of a definition are fixed when it is loaded. An optional
+component of a module that is not active is left out, so the same file gives
+other archetypes where other modules are active; nothing depends on that
+afterwards.
+
+Free properties such as `Weight` let a definition serve modules it does not
+know. Rather than keep the properties on each entity, which would mean a bag
+of named values on the managed heap, read by name on every access, each
+module that cares converts them, when the definition loads, into a component
+of its own. Without that module, the property adds nothing.

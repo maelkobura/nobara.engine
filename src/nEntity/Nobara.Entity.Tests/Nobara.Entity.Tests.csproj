@@ -25,9 +25,13 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>
 
-  <!-- The resource compiler gives the tests the compiled manifest formats. -->
+  <!--
+    The resource compiler gives the tests the compiled manifest formats, and
+    compiles entity definitions with the plugin of the type.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\Nobara.Entity\Nobara.Entity.csproj" />
+    <ProjectReference Include="..\Nobara.Entity.Build\Nobara.Entity.Build.csproj" />
     <ProjectReference Include="..\..\nGame\Nobara.Game\Nobara.Game.csproj" />
     <ProjectReference Include="..\..\nContext\Nobara.Context\Nobara.Context.csproj" />
     <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />

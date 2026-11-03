@@ -23,6 +23,7 @@
   </Folder>
   <Folder Name="/src/nEntity/">
     <Project Path="src/nEntity/Nobara.Entity/Nobara.Entity.csproj" />
+    <Project Path="src/nEntity/Nobara.Entity.Build/Nobara.Entity.Build.csproj" />
     <Project Path="src/nEntity/Nobara.Entity.Tests/Nobara.Entity.Tests.csproj" />
   </Folder>
   <Folder Name="/src/nEvent/">

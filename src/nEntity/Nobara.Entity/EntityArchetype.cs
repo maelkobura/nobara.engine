@@ -140,7 +140,15 @@ public sealed unsafe class EntityArchetype
 
     /// <summary>Adds a row for an entity, with the default value of each component, stamped as changed.</summary>
     [HotPath]
-    internal int AddRow(EntityId entity, uint version, out int row)
+    internal int AddRow(EntityId entity, uint version, out int row) => AddRow(entity, version, null, out row);
+
+    /// <summary>
+    /// Adds a row for an entity, stamped as changed, with the values of a
+    /// template: the value of each component, packed in the order of the
+    /// slots; <see langword="null"/> for the default values.
+    /// </summary>
+    [HotPath]
+    internal int AddRow(EntityId entity, uint version, byte* template, out int row)
     {
         if (_blocks.Count == 0 || _blocks[_blocks.Count - 1].Count == Capacity)
         {
@@ -163,8 +171,13 @@ public sealed unsafe class EntityArchetype
         for (int slot = 0; slot < Indices.Length; slot++)
         {
             int size = Sizes[slot];
-            Buffer.MemoryCopy(registry[Indices[slot]].Default, last.Data + ColumnOffsets[slot] + (row * size), size, size);
+            byte* value = template == null ? registry[Indices[slot]].Default : template;
+            Buffer.MemoryCopy(value, last.Data + ColumnOffsets[slot] + (row * size), size, size);
             Stamp(last.Data, slot, row, version);
+            if (template != null)
+            {
+                template += size;
+            }
         }
 
         EntityCount++;
