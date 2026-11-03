@@ -73,6 +73,36 @@ sheet](../../src/nEntity/README.md#change-detection).
 A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid
 and references them from the grid's entity.
 
+### Natural channel
+
+A per-block flag in a chunk that marks cells still matching the generated terrain.
+It is separate from the block state so generation can track edits without changing
+the block palette.
+
+### Palette
+
+The compact table of block state indices used by a chunk. Cells store an entry
+index, and the palette chooses the narrowest packed entry width that can represent
+its current values.
+
+### Dense channel
+
+A lazily allocated per-block array attached to a chunk, with a fixed width of
+1, 8, 16, or 32 bits and a declared default value. Storage is allocated when
+a value differs from the default and can be released by compaction.
+
+### Block data
+
+Rare, extensible data attached to one block cell, such as an inventory or
+durability value. A block data type declares serialization and an optional
+quarter-turn operation; it is separate from the block state index.
+
+### Block state index
+
+The 32-bit runtime identity of a block state in a chunk palette. nBlocks
+assigns it to a combination of block type and state properties; index 0 is
+air and the value is not a persistence identifier.
+
 ### Command buffer
 
 A list of GPU commands recorded by a module, then submitted to the

@@ -61,6 +61,10 @@
     <Project Path="src/nRenderer/Nobara.Renderer.Build/Nobara.Renderer.Build.csproj" />
     <Project Path="src/nRenderer/Nobara.Renderer.Tests/Nobara.Renderer.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nVoxel/">
+    <Project Path="src/nVoxel/Nobara.Voxel/Nobara.Voxel.csproj" />
+    <Project Path="src/nVoxel/Nobara.Voxel.Tests/Nobara.Voxel.Tests.csproj" />
+  </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Nobara.Analyzers/Nobara.Analyzers.csproj" />
     <Project Path="tools/Nobara.Analyzers.Tests/Nobara.Analyzers.Tests.csproj" />
