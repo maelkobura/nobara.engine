@@ -17,6 +17,7 @@ public sealed class VoxelModule : IModule
     private VoxelWorlds? _worlds;
     private ShapeRegistry? _shapes;
     private MultiBlockRegistry? _multiBlocks;
+    private VoxelBatches? _batches;
 
     /// <inheritdoc/>
     public void Register(ModuleContext context)
@@ -29,12 +30,21 @@ public sealed class VoxelModule : IModule
         context.Publish<IShapeRegistry>(_shapes);
         _multiBlocks = new MultiBlockRegistry();
         context.Publish<IMultiBlockRegistry>(_multiBlocks);
+        _batches = new VoxelBatches(context, _worlds);
+        context.Publish<IVoxelBatches>(_batches);
     }
 
     /// <inheritdoc/>
     public void Initialize(ModuleContext context)
     {
         _worlds!.Initialize(context.Resolve<IEntityWorlds>(), context.Resolve<IGameTime>(), context.Resolve<IWorldSessions>());
+        _batches!.Initialize(
+            context.Resolve<Nobara.Blocks.IBlockRegistry>(),
+            context.Resolve<Nobara.Blocks.IBlockHooks>(),
+            _multiBlocks!,
+            context.Resolve<ITickSchedule>(),
+            context.Resolve<Nobara.Items.IItemUsage>());
+        _worlds.AttachBatches(_batches);
     }
 
     /// <inheritdoc/>
@@ -46,5 +56,9 @@ public sealed class VoxelModule : IModule
     }
 
     /// <inheritdoc/>
-    public void Release(ModuleContext context) => _worlds?.Dispose();
+    public void Release(ModuleContext context)
+    {
+        _batches?.Dispose();
+        _worlds?.Dispose();
+    }
 }

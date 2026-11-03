@@ -39,6 +39,11 @@ public sealed class Chunk : IDisposable
     /// <summary>Gets the coordinate of the chunk in its grid.</summary>
     public ChunkCoordinate Coordinate { get; }
 
+    internal JobData AccessData
+    {
+        get => _access ?? throw new InvalidOperationException("The chunk has no job access declaration.");
+    }
+
     /// <summary>Gets the version, incremented when a block or metadata value changes.</summary>
     public uint Version { get; private set; }
 
@@ -65,17 +70,43 @@ public sealed class Chunk : IDisposable
     /// <returns><see langword="true"/> when the state changed.</returns>
     internal bool SetState(int localIndex, uint state, bool natural = false)
     {
+        BlockApplyResult result = ApplyState(localIndex, state, natural);
+        if (result.OldState != result.NewState) DetachAndReset(localIndex);
+        return result.OldState != result.NewState;
+    }
+
+    internal BlockApplyResult ApplyState(int localIndex, uint state, bool natural)
+    {
         RequireAlive();
         _access?.CheckWrite();
+        uint oldState = _palette.Get(localIndex);
         bool changed = _palette.Set(localIndex, state);
-        if (changed)
+        bool naturalChanged = _natural.Set(localIndex, natural ? 1u : 0u);
+        if (changed || naturalChanged)
         {
-            _natural.Set(localIndex, natural ? 1u : 0u);
-            ResetMetadata(localIndex);
             Version++;
         }
 
-        return changed;
+        return new BlockApplyResult(oldState, state, false, null);
+    }
+
+    internal RemovedBlockData? DetachAndReset(int localIndex)
+    {
+        RequireAlive();
+        _access?.CheckWrite();
+        RemovedBlockData? removed = DetachBlockData(localIndex);
+        bool changed = removed is not null;
+        foreach (DenseChannel channel in _channels.Values)
+        {
+            if (channel.Get(localIndex) != channel.Definition.DefaultValue)
+            {
+                channel.Set(localIndex, channel.Definition.DefaultValue);
+                changed = true;
+            }
+        }
+
+        if (changed) Version++;
+        return removed;
     }
 
     /// <summary>Reads whether a block is natural without allocating the natural channel.</summary>
@@ -153,6 +184,45 @@ public sealed class Chunk : IDisposable
         _blockData[key] = value!;
         Version++;
         return true;
+    }
+
+    internal void SetBlockDataValue(IBlockDataType type, int localIndex, object value)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(value);
+        RequireAlive();
+        _access?.CheckWrite();
+        _blockData[new BlockDataKey(localIndex, type)] = value;
+        Version++;
+    }
+
+    internal void CopyCellMetadataTo(Chunk destination, int sourceIndex, int destinationIndex, int quarterTurns = 0)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        RequireAlive();
+        destination.RequireAlive();
+        _access?.CheckRead();
+        destination._access?.CheckWrite();
+
+        if (_natural.Get(sourceIndex) != NaturalChannel.DefaultValue)
+        {
+            destination._natural.Set(destinationIndex, _natural.Get(sourceIndex));
+        }
+
+        foreach (DenseChannel channel in _channels.Values)
+        {
+            uint value = channel.Get(sourceIndex);
+            if (value != channel.Definition.DefaultValue)
+            {
+                destination.SetChannel(channel.Definition, destinationIndex, value);
+            }
+        }
+
+        foreach ((BlockDataKey key, object value) in _blockData.Where(pair => pair.Key.LocalIndex == sourceIndex))
+        {
+            object copy = quarterTurns == 0 ? value : BlockRotation.RotateData(key.Type, value, quarterTurns);
+            destination.SetBlockDataValue(key.Type, destinationIndex, copy);
+        }
     }
 
     internal void RotateBlockData(int localIndex, int quarterTurns = 1)
@@ -236,6 +306,19 @@ public sealed class Chunk : IDisposable
         foreach (DenseChannel channel in _channels.Values) channel.Set(localIndex, channel.Definition.DefaultValue);
     }
 
+    private RemovedBlockData? DetachBlockData(int localIndex)
+    {
+        List<BlockDataEntry>? values = null;
+        foreach (BlockDataKey key in _blockData.Keys.Where(k => k.LocalIndex == localIndex).ToArray())
+        {
+            values ??= [];
+            values.Add(new BlockDataEntry(key.Type, _blockData[key]));
+            _blockData.Remove(key);
+        }
+
+        return values is null ? null : new RemovedBlockData(values);
+    }
+
     [HotPath]
     private void RequireAlive() => ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -254,6 +337,18 @@ public sealed class Chunk : IDisposable
 
         public override int GetHashCode() => HashCode.Combine(LocalIndex, Type);
     }
+}
+
+internal readonly struct BlockApplyResult
+{
+    [HotPath]
+    public BlockApplyResult(uint oldState, uint newState, bool dataChanged, RemovedBlockData? removedData) =>
+        (OldState, NewState, DataChanged, RemovedData) = (oldState, newState, dataChanged, removedData);
+
+    public uint OldState { get; }
+    public uint NewState { get; }
+    public bool DataChanged { get; }
+    public RemovedBlockData? RemovedData { get; }
 }
 
 /// <summary>An immutable chunk copy suitable for a mesher, lighting job, or serializer.</summary>

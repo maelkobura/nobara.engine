@@ -4,7 +4,7 @@ nVoxel stores voxel worlds in dimensions, ECS-backed grids, resident 32³ chunks
 
 ## Purpose
 
-nVoxel owns the dimensions of a context and stores the terrain and other voxel grids of each world session. It is independent of rendering, meshing, persistence, and block modification batches.
+nVoxel owns the dimensions of a context and stores the terrain and other voxel grids of each world session. It also applies block batches at the World tick, expands multiblocks, reports chunk notifications, and exposes split/merge operations. It remains independent of rendering, meshing, and persistence.
 
 ## Status
 
@@ -25,6 +25,7 @@ Platform module, on the client and on the server.
 | `nobara.context` | `^1.0` | Required |
 | `nobara.entity` | `^1.0` | Required |
 | `nobara.game` | `^1.0` | Required |
+| `nobara.items` | `^1.0` | Required |
 <!-- nobara:generated:end -->
 
 ## Entry points
@@ -39,12 +40,20 @@ Platform module, on the client and on the server.
 | `IShapeRegistry`, `IBlockShape`, `ShapeEvaluation` | Shape registration, cached oriented collision, face opacity, contact masks, and instance-dependent queries. |
 | `IMultiBlockRegistry`, `MultiBlockCell` | Rotated footprints, part indices, and calculated origins. |
 | `BlockRotation` | Quarter-turn transformations for block states and block-data values. |
+| `IVoxelBatches` | Tick-aligned placement, breaking, interaction, technical batches, and chunk notifications. |
+| `VoxelBatchNotification`, `VoxelBlockChange`, `RemovedBlockData` | Per-chunk results, removed block data, and optional notification filters. |
 
 Resolve the service with `context.Resolve<IVoxelWorlds>()`. Every context has its own dimensions, entity worlds, grids, chunks, and spatial index.
 
 ## Events
 
-None. Session lifecycle is followed through `IWorldSessions`; block change notifications are part of a later batch API.
+`IVoxelBatches` applies submitted batches in the `World` stage of the next
+simulation tick. Each touched chunk produces one notification for that batch;
+subscribers may filter by block type, tag, or block-data type. Direct neighbors
+are notified on the following tick, so a neighbor handler that submits another
+batch cannot cascade inside the current application pass. Action batches fire
+the nBlocks `Placing`, `Breaking`, `Placed`, `Broken`, and `Interact` hooks;
+technical batches used by generation, split, and merge do not fire action hooks.
 
 ## Configuration
 
@@ -74,6 +83,6 @@ metadata determine the final client footprint.
 ## Known limitations
 
 - Model shapes use a full unit-block collision fallback; a renderer supplies the visual mesh separately.
-- Block modification batches, notifications, chunk loading, block ticks, height maps, spatial block queries, and chunk serialization are not implemented yet.
+- Chunk loading, block ticks, height maps, spatial block queries, and chunk serialization are not implemented yet.
 - Grid transforms are updated explicitly; nPhysics is not yet the movement authority.
 - An unbounded grid is always a candidate in the spatial index; finite grids use transformed axis-aligned bounds.

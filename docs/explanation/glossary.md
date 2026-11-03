@@ -97,6 +97,20 @@ Rare, extensible data attached to one block cell, such as an inventory or
 durability value. A block data type declares serialization and an optional
 quarter-turn operation; it is separate from the block state index.
 
+### Block batch
+
+A group of block changes applied together at the World tick by nVoxel. An
+action batch fires the nBlocks placing or breaking hooks; a technical batch is
+used for work such as generation, grid split, or grid merge and skips those
+hooks. See [the voxel batch cycle](voxel-batch-cycle.md).
+
+### Batch notification
+
+The per-chunk result that nVoxel emits after one block batch: old and new
+states, metadata changes, and block data detached from replaced cells. A
+subscriber can filter it by block type, tag, or block-data type. See [the
+voxel batch cycle](voxel-batch-cycle.md#notifications-and-neighbors).
+
 ### Contact mask
 
 A 4 × 4 bit mask for one face of a voxel shape. It marks the parts of the
@@ -426,6 +440,18 @@ sheet](../../src/nGraphics/README.md).
 
 A set of voxels organized in chunks, such as a world dimension. A grid is an
 entity. The word *grid* is used for every voxel grid, terrain included.
+
+### Grid merge
+
+The technical operation that rotates and moves every occupied cell of one
+voxel grid into another, then destroys the absorbed grid after its removal
+batch completes. See [the voxel batch cycle](voxel-batch-cycle.md#placement-and-grid-moves).
+
+### Grid split
+
+The technical operation that moves a complete selection of voxel cells,
+including complete multiblocks and their metadata, into a new grid. See [the
+voxel batch cycle](voxel-batch-cycle.md#placement-and-grid-moves).
 
 ### HDR
 

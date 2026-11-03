@@ -124,6 +124,9 @@ public sealed class Grid : IDisposable
     /// <summary>Gets the stable storage handle.</summary>
     public GridHandle Handle { get; }
 
+    /// <summary>Gets the neutral identifier used by block positions.</summary>
+    public ulong Identifier => (uint)Handle.Index;
+
     /// <summary>Gets whether this is the terrain grid.</summary>
     public bool IsTerrain { get; }
 
@@ -192,6 +195,21 @@ public sealed class GridStorage : IDisposable
     {
         RequireAlive();
         return _chunks.TryGetValue(coordinate, out Chunk? chunk) ? chunk : AddChunk(coordinate);
+    }
+
+    internal IEnumerable<KeyValuePair<ChunkCoordinate, Chunk>> ResidentChunks
+    {
+        get
+        {
+            RequireAlive();
+            return _chunks;
+        }
+    }
+
+    internal bool Contains(BlockCoordinate coordinate)
+    {
+        RequireInBounds(coordinate);
+        return true;
     }
 
     /// <summary>Reads a state, reporting whether its chunk is resident.</summary>
