@@ -12,6 +12,7 @@
 
   <Dependencies>
     <Module id="nobara.game" version="^1.0" />
+    <Module id="nobara.items" version="^1.0" />
     <Module id="nobara.blocks" version="^1.0" />
     <Module id="nobara.entity" version="^1.0" />
     <Module id="nobara.context" version="^1.0" />

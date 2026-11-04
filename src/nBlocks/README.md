@@ -42,7 +42,7 @@ registers with it the item component `nobara.blocks.placeable`.
 | `BlockType`, `StateProperty`, `BlockTag` | A type of block with its native fields, its range of states, and its properties; a state property and its values; a tag of the registry. |
 | `BlockCollision`, `BlockOpacity`, `BlockOrientations`, `BlockCell`, `StatePropertyKind` | The values of the native fields, and the kinds of state properties. |
 | `IBlockHooks` | The standard hooks (`Placing`, `Placed`, `Breaking`, `Broken`, `Interact`, `NeighborChanged`, `RandomTick`, `ScheduledTick`), the hooks declared by modules (`DeclareHook`), the subscriptions (`Subscribe`, `SubscribeAll`), and the firing (`HasSubscribers`, `Fire`). |
-| `BlockBatch`, `BlockChange`, `BlockBatchView`, `IBlockBatchHandler` | A batch of blocks placed or broken, one block of it, what one subscriber sees of it, and the subscriber. |
+| `BlockBatch`, `BlockChange`, `BlockBatchView`, `IBlockBatchHandler` | A batch of blocks placed or broken, one block of it, what one subscriber sees of it, and the subscriber. `PreserveData` lets a technical owner keep metadata during a move. |
 | `BlockHook<TArgs>`, `IBlockHandler<TArgs>`, `BlockInteraction`, `NeighborChange`, `BlockTick` | A hook fired for one block, its subscriber, and the arguments of the standard ones. |
 | `BlockActor`, `BlockCause`, `BlockPosition` | Who acts, why, and where, in a neutral form. |
 | `PlaceableBlock` | The value of the item component `nobara.blocks.placeable`: the block and the state an item places. |
@@ -226,7 +226,7 @@ of the context.
 ## Known limitations
 
 - Worlds, grids, chunks, and the storage of blocks are not part of nBlocks:
-  nothing fires the hooks yet but the modules that act on blocks.
+  nVoxel fires the hooks when it applies its action batches.
 - Shapes are kept as identifiers: no module checks them yet, and nothing is
   drawn.
 - The tags of the generated item cannot be written in `<CreateItem>`.

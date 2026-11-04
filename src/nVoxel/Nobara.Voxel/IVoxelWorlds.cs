@@ -51,6 +51,21 @@ public interface IVoxelWorlds
     /// <exception cref="ArgumentException">The grid belongs to another module or context.</exception>
     void Destroy(ModuleContext owner, Grid grid);
 
+    /// <summary>Splits selected resident blocks into a new grid.</summary>
+    /// <param name="owner">The module that owns the source grid.</param>
+    /// <param name="source">The source grid.</param>
+    /// <param name="selection">The local cells to move; incomplete multi-blocks stay in the source.</param>
+    /// <returns>The new grid. Its changes are applied on the next World tick.</returns>
+    Grid Split(ModuleContext owner, Grid source, IReadOnlyCollection<BlockCoordinate> selection);
+
+    /// <summary>Merges one grid into another with a vertical-axis quarter-turn and integer offset.</summary>
+    /// <param name="owner">The module that owns both grids.</param>
+    /// <param name="target">The grid that receives the blocks.</param>
+    /// <param name="absorbed">The grid that is destroyed after its removal batch.</param>
+    /// <param name="quarterTurns">The clockwise relative quarter-turn, from 0 to 3.</param>
+    /// <param name="offset">The target-grid offset applied after rotation.</param>
+    void Merge(ModuleContext owner, Grid target, Grid absorbed, int quarterTurns, BlockCoordinate offset);
+
     /// <summary>Gets the terrain grid of a dimension, when its session has started.</summary>
     bool TryGetTerrain(DimensionId dimension, out Grid? terrain);
 }

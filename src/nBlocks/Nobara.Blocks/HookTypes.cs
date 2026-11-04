@@ -261,6 +261,15 @@ public sealed class BlockCause : IEquatable<BlockCause>
     /// <summary>Gets a command.</summary>
     public static BlockCause Command { get; } = new("command");
 
+    /// <summary>Gets world generation.</summary>
+    public static BlockCause Generation { get; } = new("generation");
+
+    /// <summary>Gets a grid split.</summary>
+    public static BlockCause Split { get; } = new("split");
+
+    /// <summary>Gets a grid merge.</summary>
+    public static BlockCause Merge { get; } = new("merge");
+
     /// <summary>Gets the name.</summary>
     public string Name { get; }
 
@@ -322,6 +331,12 @@ public sealed class BlockBatch
     /// <summary>Gets or sets why.</summary>
     public BlockCause Cause { get; set; } = BlockCause.Hand;
 
+    /// <summary>
+    /// Gets or sets whether replacing a block keeps its data and dense
+    /// channels instead of resetting them.
+    /// </summary>
+    public bool PreserveData { get; set; }
+
     /// <summary>Gets the number of blocks added, removed ones included.</summary>
     public int Count
     {
@@ -367,6 +382,7 @@ public sealed class BlockBatch
         _removed.Clear();
         RemainingCount = 0;
         IsCancelled = false;
+        PreserveData = false;
         _linked = false;
     }
 

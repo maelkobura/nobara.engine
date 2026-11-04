@@ -12,6 +12,7 @@ using Nobara.Core.Logging;
 using Nobara.Core.Mathematics;
 using Nobara.Entity;
 using Nobara.Game;
+using Nobara.Items;
 using F = Nobara.Formats;
 
 namespace Nobara.Voxel.Tests;
@@ -56,6 +57,7 @@ internal sealed class VoxelHarness : IDisposable
         }
         var ownerManifest = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.voxel", Range = "^1.0" });
+        ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.items", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.blocks", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.context", Range = "^1.0" });
         ownerManifest.States.Add(new F.StateDeclaration { Id = PlayStateId });
@@ -113,7 +115,7 @@ internal sealed class VoxelHarness : IDisposable
                 "nobara.entity" => Manifest("nobara.entity", "Entity", "nobara.game", "nobara.context"),
                 "nobara.items" => Manifest("nobara.items", "Items", "nobara.game"),
                 "nobara.blocks" => Manifest("nobara.blocks", "Blocks", "nobara.items"),
-                "nobara.voxel" => Manifest("nobara.voxel", "Voxel", "nobara.game", "nobara.blocks", "nobara.entity", "nobara.context"),
+                "nobara.voxel" => Manifest("nobara.voxel", "Voxel", "nobara.game", "nobara.items", "nobara.blocks", "nobara.entity", "nobara.context"),
                 _ => ownerManifest,
             };
             return new ModuleImage(module.Id, "memory:" + module.Id, manifest.ToByteArray());
@@ -175,6 +177,14 @@ internal sealed class Probe(Action<Probe>? configure = null) : IModule
 
     public IBlockRegistry Blocks { get; private set; } = null!;
 
+    public IItemRegistry Items { get; private set; } = null!;
+
+    public IItemUsage Usage { get; private set; } = null!;
+
+    public IBlockHooks Hooks { get; private set; } = null!;
+
+    public IVoxelBatches Batches { get; private set; } = null!;
+
     public IShapeRegistry Shapes { get; private set; } = null!;
 
     public IMultiBlockRegistry MultiBlocks { get; private set; } = null!;
@@ -192,6 +202,10 @@ internal sealed class Probe(Action<Probe>? configure = null) : IModule
     {
         Worlds = context.Resolve<IVoxelWorlds>();
         Blocks = context.Resolve<IBlockRegistry>();
+        Items = context.Resolve<IItemRegistry>();
+        Usage = context.Resolve<IItemUsage>();
+        Hooks = context.Resolve<IBlockHooks>();
+        Batches = context.Resolve<IVoxelBatches>();
         Shapes = context.Resolve<IShapeRegistry>();
         MultiBlocks = context.Resolve<IMultiBlockRegistry>();
         _configure?.Invoke(this);
