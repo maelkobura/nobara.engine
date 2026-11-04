@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Buffers;
+using System.Diagnostics;
 using System.Numerics;
 using Google.Protobuf;
 using Nobara.Blocks;
@@ -16,6 +17,7 @@ using ItemBlockFace = Nobara.Items.BlockFace;
 using Nobara.ResourceCompiler;
 using Nobara.ResourceCompiler.Nof;
 using F = Nobara.Formats;
+using Xunit.Abstractions;
 
 namespace Nobara.Voxel.Tests;
 
@@ -23,6 +25,9 @@ public sealed class BatchTests : IDisposable
 {
     private const string ModuleId = VoxelHarness.OwnerId;
     private readonly VoxelHarness _harness = new();
+    private readonly ITestOutputHelper _output;
+
+    public BatchTests(ITestOutputHelper output) => _output = output;
 
     public void Dispose() => _harness.Dispose();
 
@@ -183,7 +188,10 @@ public sealed class BatchTests : IDisposable
         }
 
         VoxelBatchHandle handle = _harness.Owner.Batches.Place(grid, BlockActor.OfCommand("bulk"), BlockCause.Generation, placements);
+        Stopwatch stopwatch = Stopwatch.StartNew();
         _harness.Tick(engine);
+        stopwatch.Stop();
+        _output.WriteLine($"Applied 50,000 cells across 30 chunks in {stopwatch.Elapsed.TotalMilliseconds:F2} ms.");
 
         Assert.True(handle.IsCompleted);
         Assert.Equal(30, notifications.Count);
