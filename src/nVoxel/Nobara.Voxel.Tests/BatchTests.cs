@@ -229,6 +229,30 @@ public sealed class BatchTests : IDisposable
     }
 
     [Fact]
+    public void SplitPreservesTheNaturalChannel()
+    {
+        _harness.OwnerResources = Bundle("<Block><Name>Cube</Name><Content><Shape>shape:nobara.cube</Shape></Content></Block>");
+        using Engine engine = _harness.Start();
+        _harness.Tick(engine);
+        Grid source = _harness.Owner.Worlds.CreateGrid(_harness.Owner.Context, DimensionId.Default);
+        BlockType type = _harness.Owner.Blocks.Get("block:example.batches.cube");
+        var position = new BlockCoordinate(0, 0, 0);
+        _harness.Owner.Batches.Place(source, BlockActor.OfCommand("generator"), BlockCause.Generation, [new BlockPlacement(position, type.DefaultState)]);
+        _harness.Tick(engine);
+
+        Chunk sourceChunk = source.Storage.GetOrCreateChunk(new ChunkCoordinate(0, 0, 0));
+        int localIndex = VoxelCoordinates.ToIndex(position);
+        Assert.True(sourceChunk.IsNatural(localIndex));
+
+        Grid split = _harness.Owner.Worlds.Split(_harness.Owner.Context, source, [position]);
+        _harness.Tick(engine);
+
+        Chunk splitChunk = split.Storage.GetOrCreateChunk(new ChunkCoordinate(0, 0, 0));
+        Assert.True(splitChunk.IsNatural(localIndex));
+        Assert.False(sourceChunk.IsNatural(localIndex));
+    }
+
+    [Fact]
     public void PlaceableItemUsesTheTargetFaceForPositionAndOrientation()
     {
         _harness.OwnerResources = Bundle("<Block><Name>Orientable</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>horizontal</Orientations><CreateItem/></Content></Block>");

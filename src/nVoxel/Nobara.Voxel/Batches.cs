@@ -404,7 +404,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
             int handleIndex = 0;
             foreach (ChunkOperation operation in operations.Values)
             {
-                var job = new ApplyChunkJob(operation, batch.Cause.Equals(BlockCause.Generation));
+                var job = new ApplyChunkJob(operation, batch.Cause.Equals(BlockCause.Generation), batch.PreserveData);
                 handles[handleIndex++] = context.Jobs.Schedule(job, new JobAccess([], [operation.Chunk.AccessData]));
             }
 
@@ -573,9 +573,9 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
         public Chunk Chunk { get; }
         public List<PendingCell> Cells { get; } = [];
         public List<VoxelBlockChange> Changes { get; } = [];
-        public Action<bool> Apply { get; }
+        public Action<bool?> Apply { get; }
 
-        private void ApplyStates(bool natural)
+        private void ApplyStates(bool? natural)
         {
             foreach (PendingCell cell in Cells)
             {
@@ -589,18 +589,20 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     {
         private readonly ChunkOperation _operation;
         private readonly bool _natural;
+        private readonly bool _preserveNatural;
 
         [HotPath]
-        public ApplyChunkJob(ChunkOperation operation, bool natural)
+        public ApplyChunkJob(ChunkOperation operation, bool natural, bool preserveNatural)
         {
             _operation = operation;
             _natural = natural;
+            _preserveNatural = preserveNatural;
         }
 
         [HotPath]
         public void Execute()
         {
-            _operation.Apply(_natural);
+            _operation.Apply(_preserveNatural ? null : _natural);
         }
     }
 

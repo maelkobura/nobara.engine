@@ -75,13 +75,13 @@ public sealed class Chunk : IDisposable
         return result.OldState != result.NewState;
     }
 
-    internal BlockApplyResult ApplyState(int localIndex, uint state, bool natural)
+    internal BlockApplyResult ApplyState(int localIndex, uint state, bool? natural)
     {
         RequireAlive();
         _access?.CheckWrite();
         uint oldState = _palette.Get(localIndex);
         bool changed = _palette.Set(localIndex, state);
-        bool naturalChanged = _natural.Set(localIndex, natural ? 1u : 0u);
+        bool naturalChanged = natural is { } value && _natural.Set(localIndex, value ? 1u : 0u);
         if (changed || naturalChanged)
         {
             Version++;
@@ -204,9 +204,10 @@ public sealed class Chunk : IDisposable
         _access?.CheckRead();
         destination._access?.CheckWrite();
 
-        if (_natural.Get(sourceIndex) != NaturalChannel.DefaultValue)
+        if (_natural.Get(sourceIndex) != destination._natural.Get(destinationIndex))
         {
             destination._natural.Set(destinationIndex, _natural.Get(sourceIndex));
+            destination.Version++;
         }
 
         foreach (DenseChannel channel in _channels.Values)
