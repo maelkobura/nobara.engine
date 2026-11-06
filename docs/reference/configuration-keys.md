@@ -34,3 +34,11 @@ player is described in [the core page](../../src/Core/README.md#configuration-ke
 | `ungp.exposure` | distribution | [UNGP](../../src/UNGP/README.md#configuration) |
 | `ungp.renderScale` | user | [UNGP](../../src/UNGP/README.md#configuration) |
 | `ungp.skyColor` | distribution | [UNGP](../../src/UNGP/README.md#configuration) |
+| `voxel.freezeInactiveDimensions` | distribution | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.randomTicksPerChunk` | distribution | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.reducedTickInterval` | distribution | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.simulationHeight` | distribution | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.simulationRadius` | distribution | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.unloadDelay` | distribution | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.viewHeight` | user | [nVoxel](../../src/nVoxel/README.md#configuration) |
+| `voxel.viewRadius` | user | [nVoxel](../../src/nVoxel/README.md#configuration) |

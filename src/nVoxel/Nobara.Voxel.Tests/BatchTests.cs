@@ -53,7 +53,7 @@ public sealed class BatchTests : IDisposable
         };
 
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid grid = _harness.Owner.CreatedGrids[0];
         BlockType cube = _harness.Owner.Blocks.Get("block:example.batches.cube");
         var position = new BlockCoordinate(0, 0, 0);
@@ -99,7 +99,7 @@ public sealed class BatchTests : IDisposable
         };
 
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid grid = _harness.Owner.CreatedGrids[0];
         BlockType cube = _harness.Owner.Blocks.Get("block:example.batches.cube");
         neighbor!.Grid = grid;
@@ -129,7 +129,7 @@ public sealed class BatchTests : IDisposable
         _harness.OwnerResources = Bundle("<Block><Name>Door</Name><Content><Shape>shape:nobara.cube</Shape><Footprint><Cell x=\"1\"/></Footprint></Content></Block>");
         _harness.ConfigureOwner = probe => { };
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid grid = _harness.Owner.CreatedGrids[0];
         BlockType door = _harness.Owner.Blocks.Get("block:example.batches.door");
         var origin = new BlockCoordinate(0, 0, 0);
@@ -156,7 +156,7 @@ public sealed class BatchTests : IDisposable
             probe.Hooks.Subscribe(probe.Context, probe.Hooks.Placing, type, new CancellingBatch());
         };
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid grid = _harness.Owner.CreatedGrids[0];
         BlockType cube = _harness.Owner.Blocks.Get("block:example.batches.cube");
         var position = new BlockCoordinate(0, 0, 0);
@@ -176,7 +176,7 @@ public sealed class BatchTests : IDisposable
         var notifications = new List<VoxelBatchNotification>();
         _harness.ConfigureOwner = probe => probe.Batches.Subscribe(probe.Context, notifications.Add);
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid grid = _harness.Owner.Worlds.CreateGrid(_harness.Owner.Context, DimensionId.Default);
         BlockType cube = _harness.Owner.Blocks.Get("block:example.batches.cube");
         var placements = new BlockPlacement[50_000];
@@ -208,7 +208,7 @@ public sealed class BatchTests : IDisposable
         }, static bytes => new Vector2(BitConverter.ToSingle(bytes)), value => new Vector2(-value.Y, value.X));
         _harness.OwnerResources = Bundle("<Block><Name>Turnable</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>horizontal</Orientations></Content></Block>");
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid source = _harness.Owner.Worlds.CreateGrid(_harness.Owner.Context, DimensionId.Default);
         Grid destination = _harness.Owner.Worlds.CreateGrid(_harness.Owner.Context, DimensionId.Default);
         BlockType type = _harness.Owner.Blocks.Get("block:example.batches.turnable");
@@ -241,7 +241,7 @@ public sealed class BatchTests : IDisposable
     {
         _harness.OwnerResources = Bundle("<Block><Name>Cube</Name><Content><Shape>shape:nobara.cube</Shape></Content></Block>");
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid source = _harness.Owner.Worlds.CreateGrid(_harness.Owner.Context, DimensionId.Default);
         BlockType type = _harness.Owner.Blocks.Get("block:example.batches.cube");
         var position = new BlockCoordinate(0, 0, 0);
@@ -265,7 +265,7 @@ public sealed class BatchTests : IDisposable
     {
         _harness.OwnerResources = Bundle("<Block><Name>Orientable</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>horizontal</Orientations><CreateItem/></Content></Block>");
         using Engine engine = _harness.Start();
-        _harness.Tick(engine);
+        _harness.Tick(engine, 2);
         Grid grid = _harness.Owner.CreatedGrids[0];
         BlockType type = _harness.Owner.Blocks.Get("block:example.batches.orientable");
         ItemType item = _harness.Owner.Items.Get("item:example.batches.orientable");
