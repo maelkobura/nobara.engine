@@ -25,7 +25,7 @@ public sealed class ShaderLibraryTests
     public void AFileIsIncludedOnce()
     {
         byte[] once = GlslCompiler.ExpandIncludes(Encoding.UTF8.GetBytes("#include <nobara/renderer/chunk.glsl>\n"))!;
-        byte[] twice = GlslCompiler.ExpandIncludes(Encoding.UTF8.GetBytes("#include <nobara/renderer/chunk.glsl>\n#include \"nobara/renderer/chunk.glsl\"\n"))!;
+        byte[] twice = GlslCompiler.ExpandIncludes(Encoding.UTF8.GetBytes("#include <nobara/renderer/chunk.glsl>\n#include <nobara/renderer/chunk.glsl>\n"))!;
         Assert.Contains("nobara_decodeChunkVertex", Encoding.UTF8.GetString(once), StringComparison.Ordinal);
         Assert.Equal(1, CountOf(Encoding.UTF8.GetString(twice), "NobaraChunkVertex nobara_decodeChunkVertex"));
     }

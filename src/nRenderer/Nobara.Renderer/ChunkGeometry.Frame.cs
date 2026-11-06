@@ -110,6 +110,9 @@ public sealed partial class ChunkGeometry
     /// <summary>Gets the state of a section, for tests and tools.</summary>
     internal SectionSlot Slot(ChunkSectionId section) => _sections[section.Index];
 
+    /// <summary>Gets the state of a group for the last frame, for tests and tools.</summary>
+    internal GroupSlot Group(ChunkGroupId group) => _groups[group.Index];
+
     /// <summary>
     /// Gets the resource layout of the set that <see cref="Draw"/> binds: the
     /// storage buffer of the groups at <see cref="GroupsBinding"/>, read by the

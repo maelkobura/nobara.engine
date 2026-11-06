@@ -261,6 +261,10 @@ box nearer than none of them was hidden. nRenderer builds it from the depth of
 one frame for the culling of the next. See [GPU-driven chunk
 geometry](chunk-geometry.md#occlusion-culling).
 
+### Hi-Z
+
+See [depth pyramid](#depth-pyramid).
+
 ### Deferred event
 
 An event that a module queues instead of emitting at once. The event bus hands

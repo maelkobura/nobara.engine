@@ -133,6 +133,7 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
         Assert.Equal(2000, open.Candidates);
         Assert.Equal(2000, open.Drawn + open.FrustumCulled + open.OcclusionCulled);
         Assert.True(open.Drawn > 200, $"Only {open.Drawn} sections are drawn.");
+        Assert.True(open.FrustumCulled > 0, "No section is outside the view.");
         Assert.True(Covered(scene) > 0.05, "The sections cover nothing.");
 
         // A wall of one section, scaled up, stands between the camera and the field.

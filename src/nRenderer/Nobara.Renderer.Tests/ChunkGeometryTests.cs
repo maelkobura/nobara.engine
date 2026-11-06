@@ -338,9 +338,38 @@ public sealed class ChunkGeometryTests : IDisposable
     public void AMovedGroupIsInterpolatedAndATeleportedOneIsNot()
     {
         ChunkGroupId group = default;
+        _scene.Look(WorldPosition.FromBlocks(0, 0, 0));
         _scene.Extract(e => group = e.Chunks.CreateGroup(WorldTransform.At(WorldPosition.FromBlocks(0, 0, 0))));
-        _scene.Extract(e => e.Chunks.MoveGroup(group, WorldTransform.At(WorldPosition.FromBlocks(10, 0, 0))));
-        Assert.Equal(WorldPosition.FromBlocks(10, 0, 0), _scene.Chunks.GetGroupTransform(group).Position);
+
+        // Moved during a tick, the group is drawn between its two positions, by the fraction of tick of the frame.
+        double alpha = -1;
+        while (alpha < 0)
+        {
+            _scene.Extract(e =>
+            {
+                if (e.IsNewTick)
+                {
+                    e.Chunks.MoveGroup(group, WorldTransform.At(WorldPosition.FromBlocks(64, 0, 0)));
+                    alpha = e.Alpha;
+                }
+            });
+        }
+
+        Assert.True(_scene.Harness.Render.World.Interpolates);
+        Assert.Equal(WorldPosition.FromBlocks(64, 0, 0), _scene.Chunks.GetGroupTransform(group).Position);
+        Assert.Equal(-64 * alpha, CameraX(group), 3);
+
+        // Teleported, it is drawn where it is, and the depth pyramid of the previous frame no longer applies to it.
+        _scene.Extract(e => e.Chunks.TeleportGroup(group, WorldTransform.At(WorldPosition.FromBlocks(128, 0, 0))));
+        Assert.Equal(-128, CameraX(group), 3);
+        Assert.False(_scene.Chunks.Group(group).PyramidValid);
+    }
+
+    // The camera seen from a group, along X, in blocks.
+    private double CameraX(ChunkGroupId group)
+    {
+        ChunkGeometry.GroupSlot slot = _scene.Chunks.Group(group);
+        return ((double)slot.ChunkX * WorldPosition.ChunkSize) + slot.Local.X;
     }
 
     [Fact]

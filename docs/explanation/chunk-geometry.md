@@ -87,7 +87,8 @@ the camera of that frame, and is hidden when it is behind the farthest depth
 of the values it covers. It needs nothing from the mesher and hides anything
 behind anything, entities included. Its limits come from its delay: on the
 first frame, after a frame without it, or for a box behind the camera of the
-previous frame, it hides nothing; and a section that the camera uncovers
+previous frame, it hides nothing (after a change of the render resolution,
+the pyramid of the previous size still applies, with its own camera); and a section that the camera uncovers
 during one frame may miss that frame.
 
 The **[visibility graph](glossary.md#visibility-graph)** runs on the CPU,

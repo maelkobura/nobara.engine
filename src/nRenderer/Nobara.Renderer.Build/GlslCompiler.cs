@@ -219,7 +219,7 @@ internal sealed unsafe partial class GlslCompiler : IDisposable
         throw new DllNotFoundException("The native library of shaderc (shaderc_shared) is not next to the renderer plugin: build the plugin again.");
     }
 
-    [GeneratedRegex(@"^\s*#\s*include\s*[<""](?<path>[^>""]+)[>""]\s*$")]
+    [GeneratedRegex(@"^\s*#\s*include\s*<(?<path>[^>]+)>\s*$")]
     private static partial Regex Include();
 
     [GeneratedRegex(@"^(?<file>.+?):(?<line>\d+): (?<kind>error|warning): (?<text>.*)$")]

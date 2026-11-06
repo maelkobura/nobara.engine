@@ -419,7 +419,9 @@ sections of a group sees them all. The culling pass then tests each candidate
 on the GPU against the view and, with `OcclusionCulling` (on by default),
 against the depth pyramid of the previous frame. On the first frame, after a
 frame without a depth pyramid, or for a section behind the previous camera,
-only the view culls. The figures of the GPU (`Statistics.Drawn`,
+only the view culls. When the render resolution changes, the culling of the
+next frame still uses the pyramid of the previous one, with the camera it was
+built for, and the pyramid is built again at the new size. The figures of the GPU (`Statistics.Drawn`,
 `FrustumCulled`, `OcclusionCulled`) are read without waiting, a few frames
 late (`CulledFrame`).
 

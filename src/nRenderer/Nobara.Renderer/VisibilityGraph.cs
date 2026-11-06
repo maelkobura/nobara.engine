@@ -18,7 +18,8 @@ namespace Nobara.Renderer;
 /// The search covers the box of the sections of the group, one chunk wider on
 /// each side. Its result depends only on the chunk of the camera and on the
 /// sections, so it is kept until one of them changes. A camera outside the box
-/// sees every section: the graph does not apply.
+/// sees every section: the graph does not apply, nor for a box of more than
+/// 64 Mi chunks.
 /// </remarks>
 internal sealed class VisibilityGraph
 {
@@ -31,7 +32,11 @@ internal sealed class VisibilityGraph
     private int[] _reached = [];
     private int _reachedCount;
     private int _minX, _minY, _minZ, _sizeX, _sizeY, _sizeZ;
+    // The largest box searched, about 11 bytes per chunk: beyond it, every section of the group is visible.
+    private const long MaxCells = 64L * 1024 * 1024;
+
     private bool _dirty = true;
+    private bool _tooLarge;
     private bool _searched;
     private SectionOrigin _camera;
 
@@ -93,7 +98,7 @@ internal sealed class VisibilityGraph
             Rebuild();
         }
 
-        return Traverse(camera, connectivity);
+        return !_tooLarge && Traverse(camera, connectivity);
     }
 
     [HotPath]
@@ -208,9 +213,10 @@ internal sealed class VisibilityGraph
         _sizeY = maxY - minY + 3;
         _sizeZ = maxZ - minZ + 3;
         long cells = (long)_sizeX * _sizeY * _sizeZ;
-        if (cells > Array.MaxLength / 4)
+        _tooLarge = cells > MaxCells;
+        if (_tooLarge)
         {
-            throw new InvalidOperationException($"The sections of a group span {cells} chunks: too many for the visibility graph. Turn it off with ChunkGeometry.VisibilityGraph.");
+            return;
         }
 
         if (_cells.Length < cells)

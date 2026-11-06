@@ -121,7 +121,8 @@ public enum ChunkCategory
 /// The three lists of indices share the vertices; each holds three indices
 /// per triangle, below the number of vertices. A list may be empty, and a
 /// section with no triangle at all is drawn by nothing but still takes part
-/// in the visibility graph.
+/// in the visibility graph. Build it with its constructor: the default value
+/// has no geometry and <see cref="SectionConnectivity.None"/>.
 /// </remarks>
 public readonly ref struct ChunkSectionGeometry
 {
