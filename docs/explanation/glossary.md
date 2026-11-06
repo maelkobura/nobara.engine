@@ -161,6 +161,42 @@ The 32-bit runtime identity of a block state in a chunk palette. nBlocks
 assigns it to a combination of block type and state properties; index 0 is
 air and the value is not a persistence identifier.
 
+### Chunk ticket
+
+A revocable handle that holds chunks of a grid in memory at a level: loaded,
+active (its blocks tick), or active at a reduced frequency. A chunk that no
+ticket holds is unloaded after a delay. See [voxel worlds](voxel-worlds.md#loading-chunks).
+
+### Chunk provider
+
+A source of chunks, such as a save or a generator, asked in order for a chunk
+that a ticket holds and that is not in memory. The first provider that accepts
+the chunk writes its blocks in a background job. See [voxel
+worlds](voxel-worlds.md#loading-chunks).
+
+### Linked ticket
+
+A ticket that nVoxel places on the chunks of a multi-block's footprint while
+the chunk of its origin is held, so the multi-block stays whole. It does not
+propagate. See [voxel worlds](voxel-worlds.md#loading-chunks).
+
+### Scheduled tick
+
+A tick of one block, asked for a number of ticks of its dimension clock ahead,
+and delivered by the `ScheduledTick` block hook. It waits in the queue of its
+chunk. See [voxel worlds](voxel-worlds.md#block-ticks-and-frozen-dimensions).
+
+### Random tick
+
+A tick delivered by the `RandomTick` block hook to cells drawn at random in
+each active chunk, at each tick, for growth and decay. See [voxel
+worlds](voxel-worlds.md#block-ticks-and-frozen-dimensions).
+
+### Height map
+
+For a column of chunks, the highest opaque block known in each of its 32 × 32
+columns of blocks. See [voxel worlds](voxel-worlds.md#height-maps-and-queries).
+
 ### Command buffer
 
 A list of GPU commands recorded by a module, then submitted to the

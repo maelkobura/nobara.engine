@@ -29,6 +29,7 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
     private int _nextHandle;
     private bool _disposed;
     private VoxelBatches? _batches;
+    private ChunkLoader? _loader;
 
     public VoxelWorlds(ModuleContext module)
     {
@@ -44,6 +45,15 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
     public GridSpatialIndex SpatialIndex => _spatialIndex;
 
     internal JobData ChunkAccess => _chunkAccess;
+
+    /// <summary>Gets the declared dimensions, enumerated without allocation.</summary>
+    internal Dictionary<DimensionId, DimensionDefinition>.KeyCollection DimensionKeys
+    {
+        [HotPath]
+        get => _dimensions.Keys;
+    }
+
+    internal void AttachLoader(ChunkLoader loader) => _loader = loader;
 
     internal JobData EntityStructure => _entities!.Structure;
 
@@ -139,6 +149,7 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
         _grids.Add(handle, grid);
         _gridView.Add(grid);
         _spatialIndex.Insert(grid);
+        _loader?.OnGridCreated(grid);
         CountLeaks(owner);
         return grid;
     }
@@ -266,6 +277,7 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
 
     private void DestroyCore(Grid grid)
     {
+        _loader?.OnGridDestroying(grid);
         _spatialIndex.Remove(grid);
         _grids.Remove(grid.Handle);
         _gridView.Remove(grid);
@@ -323,5 +335,5 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
         }
     }
 
-    private readonly record struct DimensionDefinition(ulong Clock, GridBounds? TerrainBounds);
+    internal readonly record struct DimensionDefinition(ulong Clock, GridBounds? TerrainBounds);
 }

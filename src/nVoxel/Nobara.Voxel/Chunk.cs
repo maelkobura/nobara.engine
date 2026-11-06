@@ -48,7 +48,11 @@ public sealed class Chunk : IDisposable
     public uint Version { get; private set; }
 
     /// <summary>Gets the compact block-state palette.</summary>
-    public Palette Palette => _palette;
+    public Palette Palette
+    {
+        [HotPath]
+        get => _palette;
+    }
 
     /// <summary>Reads a block state by its local index.</summary>
     [HotPath]
@@ -88,6 +92,43 @@ public sealed class Chunk : IDisposable
         }
 
         return new BlockApplyResult(oldState, state, false, null);
+    }
+
+    /// <summary>Writes every cell of a chunk from a provider, keeping cells natural.</summary>
+    /// <param name="states">The 32,768 states, by local index.</param>
+    /// <param name="changes">Receives the cells whose state changed, or <see langword="null"/> when nobody reads them.</param>
+    internal void Fill(ReadOnlySpan<uint> states, List<VoxelBlockChange>? changes)
+    {
+        RequireAlive();
+        _access?.CheckWrite();
+        if (states.Length != Volume) throw new ArgumentException("A chunk is filled with one state per cell.", nameof(states));
+        if (_palette.IsUniform && _palette.GetEntry(0) == 0 && states.IndexOfAnyExcept(states[0]) < 0)
+        {
+            // A uniform result, such as solid stone, stays in uniform mode.
+            uint uniform = states[0];
+            if (uniform == 0) return;
+            _palette.Dispose();
+            _palette = new Palette(uniform);
+            if (changes is not null)
+            {
+                for (int i = 0; i < Volume; i++) changes.Add(new VoxelBlockChange(i, 0, uniform, false, null));
+            }
+
+            Version++;
+            return;
+        }
+
+        bool changed = false;
+        for (int i = 0; i < Volume; i++)
+        {
+            uint old = _palette.Get(i);
+            if (old == states[i]) continue;
+            _palette.Set(i, states[i]);
+            changes?.Add(new VoxelBlockChange(i, old, states[i], false, null));
+            changed = true;
+        }
+
+        if (changed) Version++;
     }
 
     internal RemovedBlockData? DetachAndReset(int localIndex)

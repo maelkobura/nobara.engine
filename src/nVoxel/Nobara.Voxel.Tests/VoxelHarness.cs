@@ -39,6 +39,9 @@ internal sealed class VoxelHarness : IDisposable
 
     public Action<Probe>? ConfigureOwner { get; set; }
 
+    /// <summary>Gets the defaults of nVoxel keys that a test changes, by key.</summary>
+    public Dictionary<string, string> VoxelDefaults { get; } = new(StringComparer.Ordinal);
+
     public Engine Start()
     {
         var distribution = new F.DistributionManifest
@@ -60,6 +63,7 @@ internal sealed class VoxelHarness : IDisposable
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.items", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.blocks", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.context", Range = "^1.0" });
+        ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.game", Range = "^1.0" });
         ownerManifest.States.Add(new F.StateDeclaration { Id = PlayStateId });
         distribution.Modules.Add(new F.DistributionModule { Id = OwnerId, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
 
@@ -104,18 +108,31 @@ internal sealed class VoxelHarness : IDisposable
         return loop;
     }
 
+    /// <summary>The keys of nVoxel, as its module.nobara declares them; a test may change a default.</summary>
+    public static (string Key, F.SettingDeclaration.Types.Scope Scope, F.SettingDeclaration.Types.Type Type, string Default)[] VoxelSettingsDeclared { get; } =
+    [
+        (VoxelSettings.ViewRadius, F.SettingDeclaration.Types.Scope.User, F.SettingDeclaration.Types.Type.Int, "8"),
+        (VoxelSettings.ViewHeight, F.SettingDeclaration.Types.Scope.User, F.SettingDeclaration.Types.Type.Int, "4"),
+        (VoxelSettings.SimulationRadius, F.SettingDeclaration.Types.Scope.Distribution, F.SettingDeclaration.Types.Type.Int, "4"),
+        (VoxelSettings.SimulationHeight, F.SettingDeclaration.Types.Scope.Distribution, F.SettingDeclaration.Types.Type.Int, "2"),
+        (VoxelSettings.RandomTicksPerChunk, F.SettingDeclaration.Types.Scope.Distribution, F.SettingDeclaration.Types.Type.Int, "3"),
+        (VoxelSettings.ReducedTickInterval, F.SettingDeclaration.Types.Scope.Distribution, F.SettingDeclaration.Types.Type.Int, "4"),
+        (VoxelSettings.UnloadDelay, F.SettingDeclaration.Types.Scope.Distribution, F.SettingDeclaration.Types.Type.Int, "300"),
+        (VoxelSettings.FreezeInactiveDimensions, F.SettingDeclaration.Types.Scope.Distribution, F.SettingDeclaration.Types.Type.Bool, "true"),
+    ];
+
     private sealed class Source(VoxelHarness harness, F.ModuleManifest ownerManifest) : IModuleSource
     {
         public ModuleImage Discover(ExpectedModule module)
         {
             F.ModuleManifest manifest = module.Id switch
             {
-                "nobara.game" => Manifest("nobara.game", "Game"),
+                "nobara.game" => Manifest(harness.VoxelDefaults, "nobara.game", "Game"),
                 "nobara.context" => ContextManifest(),
-                "nobara.entity" => Manifest("nobara.entity", "Entity", "nobara.game", "nobara.context"),
-                "nobara.items" => Manifest("nobara.items", "Items", "nobara.game"),
-                "nobara.blocks" => Manifest("nobara.blocks", "Blocks", "nobara.items"),
-                "nobara.voxel" => Manifest("nobara.voxel", "Voxel", "nobara.game", "nobara.items", "nobara.blocks", "nobara.entity", "nobara.context"),
+                "nobara.entity" => Manifest(harness.VoxelDefaults, "nobara.entity", "Entity", "nobara.game", "nobara.context"),
+                "nobara.items" => Manifest(harness.VoxelDefaults, "nobara.items", "Items", "nobara.game"),
+                "nobara.blocks" => Manifest(harness.VoxelDefaults, "nobara.blocks", "Blocks", "nobara.items"),
+                "nobara.voxel" => Manifest(harness.VoxelDefaults, "nobara.voxel", "Voxel", "nobara.game", "nobara.items", "nobara.blocks", "nobara.entity", "nobara.context"),
                 _ => ownerManifest,
             };
             return new ModuleImage(module.Id, "memory:" + module.Id, manifest.ToByteArray());
@@ -139,12 +156,12 @@ internal sealed class VoxelHarness : IDisposable
 
         private static F.ModuleManifest ContextManifest()
         {
-            var manifest = Manifest("nobara.context", "Context");
+            var manifest = Manifest(new Dictionary<string, string>(), "nobara.context", "Context");
             manifest.Reserves.Add("core.contexts");
             return manifest;
         }
 
-        private static F.ModuleManifest Manifest(string id, string shortName, params string[] dependencies)
+        private static F.ModuleManifest Manifest(IReadOnlyDictionary<string, string> overrides, string id, string shortName, params string[] dependencies)
         {
             var manifest = new F.ModuleManifest { Format = 1, Id = id, ShortName = shortName, Version = "1.0.0", Level = F.Level.Platform, Side = F.Side.Both };
             foreach (string dependency in dependencies) manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });
@@ -156,6 +173,15 @@ internal sealed class VoxelHarness : IDisposable
                 Type = F.SettingDeclaration.Types.Type.Int,
                 DefaultValue = "64",
             });
+            if (id == "nobara.voxel")
+            {
+                foreach ((string key, F.SettingDeclaration.Types.Scope scope, F.SettingDeclaration.Types.Type type, string value) in VoxelSettingsDeclared)
+                {
+                    string chosen = overrides.TryGetValue(key, out string? custom) ? custom : value;
+                    manifest.Settings.Add(new F.SettingDeclaration { Key = key, Scope = scope, Type = type, DefaultValue = chosen });
+                }
+            }
+
             if (id == "nobara.blocks") manifest.Settings.Add(new F.SettingDeclaration
             {
                 Key = "blocks.maxStatesPerType",
@@ -191,6 +217,16 @@ internal sealed class Probe(Action<Probe>? configure = null) : IModule
 
     public IWorldSessions Sessions { get; private set; } = null!;
 
+    public IChunkLoading Loading { get; private set; } = null!;
+
+    public IBlockTicks Ticks { get; private set; } = null!;
+
+    public IHeightMaps HeightMaps { get; private set; } = null!;
+
+    public IVoxelQueries Queries { get; private set; } = null!;
+
+    public IGameTime Time { get; private set; } = null!;
+
     public List<Grid> CreatedGrids { get; } = [];
 
     public void Register(ModuleContext context)
@@ -208,8 +244,13 @@ internal sealed class Probe(Action<Probe>? configure = null) : IModule
         Batches = context.Resolve<IVoxelBatches>();
         Shapes = context.Resolve<IShapeRegistry>();
         MultiBlocks = context.Resolve<IMultiBlockRegistry>();
-        _configure?.Invoke(this);
+        Loading = context.Resolve<IChunkLoading>();
+        Ticks = context.Resolve<IBlockTicks>();
+        HeightMaps = context.Resolve<IHeightMaps>();
+        Queries = context.Resolve<IVoxelQueries>();
+        Time = context.Resolve<IGameTime>();
         Sessions = context.Resolve<IWorldSessions>();
+        _configure?.Invoke(this);
         IStateStack states = context.Resolve<IStateStack>();
         states.Register(context, VoxelHarness.PlayStateId, () => new PlayState(Sessions));
         Sessions.SubscribeStarted(context, _ =>

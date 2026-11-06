@@ -17,4 +17,15 @@
     <Module id="nobara.entity" version="^1.0" />
     <Module id="nobara.context" version="^1.0" />
   </Dependencies>
+
+  <Settings>
+    <Setting key="voxel.viewRadius" scope="user" type="int" min="2" max="32" default="8" />
+    <Setting key="voxel.viewHeight" scope="user" type="int" min="1" max="16" default="4" />
+    <Setting key="voxel.simulationRadius" scope="distribution" type="int" min="1" max="32" default="4" />
+    <Setting key="voxel.simulationHeight" scope="distribution" type="int" min="1" max="16" default="2" />
+    <Setting key="voxel.randomTicksPerChunk" scope="distribution" type="int" min="0" max="4096" default="3" />
+    <Setting key="voxel.reducedTickInterval" scope="distribution" type="int" min="2" max="64" default="4" />
+    <Setting key="voxel.unloadDelay" scope="distribution" type="int" min="0" max="72000" default="300" />
+    <Setting key="voxel.freezeInactiveDimensions" scope="distribution" type="bool" default="true" />
+  </Settings>
 </NobaraModule>
