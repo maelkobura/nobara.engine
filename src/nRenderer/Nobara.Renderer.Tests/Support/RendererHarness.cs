@@ -159,6 +159,9 @@ internal sealed class RendererHarness : IDisposable
         if (Gpu)
         {
             distribution.Settings.Add(new F.SettingValue { Key = GraphicsSettings.VSync, Operation = F.SettingValue.Types.Operation.Default, Value = "off" });
+
+            // The window of a test has no focus: without this, frames would wait in the background, by the clock of the test.
+            distribution.Settings.Add(new F.SettingValue { Key = FramesSettings.BackgroundFps, Operation = F.SettingValue.Types.Operation.Default, Value = "1000" });
         }
 
         string window = Gpu ? "nobara.frames.sdl2" : "example.window";

@@ -73,6 +73,19 @@ sheet](../../src/nEntity/README.md#change-detection).
 A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid
 and references them from the grid's entity.
 
+### Chunk group
+
+The geometry of one grid on the GPU, for nRenderer: the chunk sections of the
+grid and the transform they share, moved and interpolated like an object of
+the render world. See [GPU-driven chunk geometry](chunk-geometry.md).
+
+### Chunk section
+
+The geometry of one chunk on the GPU: its vertices and its opaque, cut-out,
+and transparent triangles, stored in the buffers that every section shares,
+with the connections of its faces for the visibility graph. See [GPU-driven
+chunk geometry](chunk-geometry.md).
+
 ### Natural channel
 
 A per-block flag in a chunk that marks cells still matching the generated terrain.
@@ -238,6 +251,15 @@ A pass that draws the depth of the opaque geometry before any color, so that
 the next pass shades each pixel once, for the nearest surface only.
 [UNGP](#ungp) runs one, which can be turned off. See [the render
 pipelines](render-pipelines.md#why-a-depth-prepass).
+
+### Depth pyramid
+
+The depth of a frame reduced level by level, each value keeping the farthest
+depth of the four below it, also called a Hi-Z buffer. The culling of the GPU
+tests a box against the level where it covers at most two values per axis: a
+box nearer than none of them was hidden. nRenderer builds it from the depth of
+one frame for the culling of the next. See [GPU-driven chunk
+geometry](chunk-geometry.md#occlusion-culling).
 
 ### Deferred event
 
@@ -640,6 +662,13 @@ of the glTF file. The `Mesh` resource gives a material to each slot. See [the
 A resource of type `Mesh` that wraps a glTF binary file: static triangles in
 one vertex buffer and one index buffer, split in [material
 slots](#material-slot). See [the `Mesh` reference](../reference/formats/mesh.md).
+
+### Multi-draw indirect
+
+One draw command that runs many draws whose arguments (index count, first
+index, base vertex, instance) are read from a GPU buffer, which a compute
+shader may write. Chunk geometry is drawn with one per category of faces. See
+[GPU-driven chunk geometry](chunk-geometry.md#shared-buffers-and-indirect-draws).
 
 ### Module
 
@@ -1091,6 +1120,14 @@ pipeline](#render-pipeline) of the engine, meant to run everywhere. It draws
 the scene in [HDR](#hdr) at a render resolution apart from the window, with
 passes that can be turned off. See [the UNGP module
 sheet](../../src/UNGP/README.md).
+
+### Visibility graph
+
+The search, from the chunk of the camera, across the faces of chunks: it
+crosses a chunk section only between two faces that the section connects,
+and never turns back toward the camera. Sections it does not reach are hidden
+behind sections that block the view, and are not sent to the GPU. See
+[GPU-driven chunk geometry](chunk-geometry.md#occlusion-culling).
 
 ### Video mode
 

@@ -141,6 +141,12 @@ internal sealed class FakeDevice : GraphicsDevice
                 GpuBuffer buffer = commands.GetObject<GpuBuffer>(command.Object);
                 WriteBufferCore(buffer.Block, buffer.Offset + command.X, commands.GetData(command.Y, command.A));
             }
+            else if (command.Kind == CommandKind.CopyBuffer)
+            {
+                GpuBuffer source = commands.GetObject<GpuBuffer>(command.Object);
+                GpuBuffer destination = commands.GetObject<GpuBuffer>(command.Object2);
+                Contents[source.Block].AsSpan((int)(source.Offset + command.X), (int)command.Y).CopyTo(Contents[destination.Block].AsSpan((int)(destination.Offset + command.Z)));
+            }
         }
     }
 

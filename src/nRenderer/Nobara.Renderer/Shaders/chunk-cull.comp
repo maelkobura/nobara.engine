@@ -1,0 +1,208 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#version 460
+
+// The culling of chunk sections: one invocation per candidate section. A
+// section outside the view, or hidden behind the depth pyramid of the previous
+// frame, is not drawn. Visible sections append their opaque and cut-out draws
+// to two lists, with counts; transparent draws keep the place that the CPU
+// gave them, from the farthest to the nearest, with no instance when hidden.
+layout(local_size_x = 64) in;
+
+struct Section
+{
+    ivec4 chunkGroup;
+    vec4 boundsMin;
+    vec4 boundsMax;
+    uvec4 opaque;
+    uvec4 cutout;
+    uvec4 transparent;
+};
+
+struct Group
+{
+    ivec4 cameraChunk;
+    vec4 cameraLocal;
+    mat4 basis;
+    ivec4 previousChunk;
+    vec4 previousLocal;
+    mat4 previousBasis;
+};
+
+struct Draw
+{
+    uint count;
+    uint instances;
+    uint first;
+    int baseVertex;
+    uint firstInstance;
+};
+
+layout(std140, binding = 0) uniform Frame
+{
+    mat4 ViewProjection;
+    mat4 PreviousViewProjection;
+    // Candidates, occlusion on, levels of the pyramid, transparent draws.
+    uvec4 Counts;
+    // Width and height of the depth, draws per list.
+    uvec4 Sizes;
+    // Per level of the pyramid: first value, width, height.
+    uvec4 Levels[16];
+};
+
+layout(std430, binding = 0) readonly buffer Sections { Section sections[]; };
+layout(std430, binding = 1) readonly buffer Groups { Group groups[]; };
+layout(std430, binding = 2) readonly buffer Candidates { uvec2 candidates[]; };
+layout(std430, binding = 3) writeonly buffer Draws { Draw draws[]; };
+// 0 opaque draws, 1 cut-out draws, 2 visible, 3 outside the view, 4 hidden, 5 transparent drawn.
+layout(std430, binding = 4) buffer Counters { uint counters[]; };
+layout(std430, binding = 5) readonly buffer Pyramid { float pyramid[]; };
+
+const float CHUNK_SIZE = 32.0;
+
+vec4 corner(vec3 base, mat4 basis, mat4 projection, vec3 low, vec3 high, uint i)
+{
+    vec3 local = vec3((i & 1u) != 0u ? high.x : low.x, (i & 2u) != 0u ? high.y : low.y, (i & 4u) != 0u ? high.z : low.z);
+    vec3 relative = (basis * vec4(base + local, 0.0)).xyz;
+    return projection * vec4(relative, 1.0);
+}
+
+bool outsideView(vec3 base, mat4 basis, vec3 low, vec3 high)
+{
+    // Corners outside each plane: left, right, bottom, top, near. With
+    // reversed depth, the near plane is depth 1 (z = w); the far plane is at
+    // infinity.
+    uint outside[5] = uint[5](0u, 0u, 0u, 0u, 0u);
+    for (uint i = 0u; i < 8u; i++)
+    {
+        vec4 c = corner(base, basis, ViewProjection, low, high, i);
+        outside[0] += c.x < -c.w ? 1u : 0u;
+        outside[1] += c.x > c.w ? 1u : 0u;
+        outside[2] += c.y < -c.w ? 1u : 0u;
+        outside[3] += c.y > c.w ? 1u : 0u;
+        outside[4] += c.z > c.w ? 1u : 0u;
+    }
+
+    return outside[0] == 8u || outside[1] == 8u || outside[2] == 8u || outside[3] == 8u || outside[4] == 8u;
+}
+
+float farthest(uint level, int x0, int y0, int x1, int y1)
+{
+    uvec4 info = Levels[level];
+    int width = int(info.y);
+    int height = int(info.z);
+    x0 = clamp(x0, 0, width - 1);
+    x1 = clamp(x1, 0, width - 1);
+    y0 = clamp(y0, 0, height - 1);
+    y1 = clamp(y1, 0, height - 1);
+    float depth = 1.0;
+    for (int y = y0; y <= y1; y++)
+    {
+        for (int x = x0; x <= x1; x++)
+        {
+            depth = min(depth, pyramid[info.x + uint(y * width + x)]);
+        }
+    }
+
+    return depth;
+}
+
+bool hidden(Group g, ivec3 chunk, vec3 low, vec3 high)
+{
+    if (Counts.y == 0u || g.previousLocal.w == 0.0)
+    {
+        return false;
+    }
+
+    vec3 base = vec3(chunk - g.previousChunk.xyz) * CHUNK_SIZE - g.previousLocal.xyz;
+    vec2 lowest = vec2(1.0);
+    vec2 highest = vec2(-1.0);
+    float nearest = 0.0;
+    for (uint i = 0u; i < 8u; i++)
+    {
+        vec4 c = corner(base, g.previousBasis, PreviousViewProjection, low, high, i);
+        // A corner at the camera or behind it: the box cannot be judged.
+        if (c.w <= 1e-4)
+        {
+            return false;
+        }
+
+        vec3 ndc = c.xyz / c.w;
+        lowest = min(lowest, ndc.xy);
+        highest = max(highest, ndc.xy);
+        nearest = max(nearest, ndc.z);
+    }
+
+    // Outside the previous view: nothing there to hide it.
+    if (highest.x < -1.0 || highest.y < -1.0 || lowest.x > 1.0 || lowest.y > 1.0 || nearest >= 1.0)
+    {
+        return false;
+    }
+
+    vec2 size = vec2(Sizes.xy);
+    vec2 from = (clamp(lowest, -1.0, 1.0) * 0.5 + 0.5) * size;
+    vec2 to = (clamp(highest, -1.0, 1.0) * 0.5 + 0.5) * size;
+    // Level 0 has a texel for 2 x 2 pixels, each level above half as many;
+    // the level where the box spans at most two texels per axis.
+    float extent = max(max(to.x - from.x, to.y - from.y), 1.0);
+    uint level = uint(clamp(ceil(log2(extent)) - 1.0, 0.0, float(Counts.z - 1u)));
+    float texel = exp2(float(level + 1u));
+    float depth = farthest(level, int(from.x / texel), int(from.y / texel), int(to.x / texel), int(to.y / texel));
+    return nearest < depth;
+}
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= Counts.x)
+    {
+        return;
+    }
+
+    uvec2 candidate = candidates[index];
+    uint slot = candidate.x;
+    Section s = sections[slot];
+    Group g = groups[s.chunkGroup.w];
+    vec3 low = s.boundsMin.xyz;
+    vec3 high = s.boundsMax.xyz;
+    vec3 base = vec3(s.chunkGroup.xyz - g.cameraChunk.xyz) * CHUNK_SIZE - g.cameraLocal.xyz;
+
+    bool visible = true;
+    if (outsideView(base, g.basis, low, high))
+    {
+        visible = false;
+        atomicAdd(counters[3], 1u);
+    }
+    else if (hidden(g, s.chunkGroup.xyz, low, high))
+    {
+        visible = false;
+        atomicAdd(counters[4], 1u);
+    }
+
+    uint perList = Sizes.z;
+    if (visible)
+    {
+        atomicAdd(counters[2], 1u);
+        if (s.opaque.y != 0u)
+        {
+            uint i = atomicAdd(counters[0], 1u);
+            draws[i] = Draw(s.opaque.y, 1u, s.opaque.x, int(s.opaque.z), slot);
+        }
+
+        if (s.cutout.y != 0u)
+        {
+            uint i = atomicAdd(counters[1], 1u);
+            draws[perList + i] = Draw(s.cutout.y, 1u, s.cutout.x, int(s.cutout.z), slot);
+        }
+    }
+
+    if (candidate.y != 0xFFFFFFFFu)
+    {
+        draws[2u * perList + candidate.y] = Draw(s.transparent.y, visible ? 1u : 0u, s.transparent.x, int(s.transparent.z), slot);
+        if (visible)
+        {
+            atomicAdd(counters[5], 1u);
+        }
+    }
+}

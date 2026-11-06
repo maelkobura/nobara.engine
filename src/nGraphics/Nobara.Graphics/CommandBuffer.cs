@@ -74,6 +74,14 @@ public enum CommandKind : byte
 
     /// <summary>Inserts a debug marker named by the string <see cref="Command.Object"/>.</summary>
     InsertDebugMarker,
+
+    /// <summary>
+    /// Draws indexed from arguments in <see cref="Command.Object"/> at byte
+    /// <see cref="Command.X"/>, as many draws as the 32-bit count in
+    /// <see cref="Command.Object2"/> at byte <see cref="Command.Y"/> says, at
+    /// most <see cref="Command.A"/>; stride <see cref="Command.B"/>.
+    /// </summary>
+    DrawIndexedIndirectCount,
 }
 
 /// <summary>
@@ -500,6 +508,47 @@ public sealed class CommandBuffer
         }
 
         Add(new Command(CommandKind.DrawIndexedIndirect, AddObject(arguments), a: drawCount, b: stride, x: offset));
+    }
+
+    /// <summary>
+    /// Draws indexed with arguments read from a buffer, as many draws as a
+    /// count read from another buffer says, such as a list of draws that a
+    /// compute shader filled. Requires <see cref="GraphicsFeatures.IndirectCount"/>,
+    /// and an index buffer bound as <see cref="DrawIndexedIndirect"/> needs it.
+    /// </summary>
+    /// <param name="arguments">A buffer with <see cref="BufferUsage.Indirect"/> that holds the arguments, five 32-bit integers per draw.</param>
+    /// <param name="offset">The byte of the first arguments; a multiple of 4.</param>
+    /// <param name="count">A buffer with <see cref="BufferUsage.Indirect"/> that holds the number of draws, a 32-bit unsigned integer.</param>
+    /// <param name="countOffset">The byte of the count; a multiple of 4.</param>
+    /// <param name="maxDrawCount">The largest number of draws; a larger count draws this many.</param>
+    /// <param name="stride">The bytes between two arguments; 0 for packed arguments.</param>
+    [HotPath]
+    public void DrawIndexedIndirectCount(GpuBuffer arguments, long offset, GpuBuffer count, long countOffset, int maxDrawCount, int stride = 0)
+    {
+        if (!Device.Capabilities.Supports(GraphicsFeatures.IndirectCount))
+        {
+            throw new NotSupportedException("Indirect draws with a count read from a buffer need the graphics feature IndirectCount, which the device does not support.");
+        }
+
+        CheckDraw();
+        CheckIndirect(arguments, offset);
+        CheckIndirect(count, countOffset);
+        if (maxDrawCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxDrawCount), maxDrawCount, "The largest number of draws is at least 0.");
+        }
+
+        if (!_indexBuffer)
+        {
+            throw new InvalidOperationException("Bind an index buffer before an indexed draw.");
+        }
+
+        if (!_indexAtBlockStart)
+        {
+            throw new InvalidOperationException("An indexed indirect draw reads indices from the start of a memory block: create the index buffer with BufferDescription.Dedicated and bind it at offset 0.");
+        }
+
+        Add(new Command(CommandKind.DrawIndexedIndirectCount, AddObject(arguments), AddObject(count), a: maxDrawCount, b: stride, x: offset, y: countOffset));
     }
 
     /// <summary>Runs the bound compute pipeline, outside render passes.</summary>

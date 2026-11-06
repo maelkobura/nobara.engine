@@ -1,0 +1,47 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#version 460
+
+// One level of the depth pyramid: each value is the farthest depth (the
+// smallest, with reversed depth) of the 2 x 2 values below it, from the depth
+// texture for level 0, from the level below for the others. The values past
+// the edge of an odd size are left out, so each value covers its pixels only.
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(std140, binding = 0) uniform Level
+{
+    // First value read, width, height, 1 when reading the depth texture.
+    uvec4 Source;
+    // First value written, width, height.
+    uvec4 Target;
+};
+
+layout(binding = 0) uniform sampler2D Depth;
+
+layout(std430, binding = 0) buffer Pyramid { float pyramid[]; };
+
+float source(ivec2 p)
+{
+    if (Source.w != 0u)
+    {
+        return texelFetch(Depth, p, 0).r;
+    }
+
+    return pyramid[Source.x + uint(p.y) * Source.y + uint(p.x)];
+}
+
+void main()
+{
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    if (p.x >= int(Target.y) || p.y >= int(Target.z))
+    {
+        return;
+    }
+
+    ivec2 last = ivec2(Source.yz) - 1;
+    ivec2 a = p * 2;
+    ivec2 b = min(a + 1, last);
+    float depth = min(min(source(a), source(ivec2(b.x, a.y))), min(source(ivec2(a.x, b.y)), source(b)));
+    pyramid[Target.x + uint(p.y) * Target.y + uint(p.x)] = depth;
+}

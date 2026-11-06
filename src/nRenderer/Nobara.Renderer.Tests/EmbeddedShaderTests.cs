@@ -14,6 +14,8 @@ public sealed class EmbeddedShaderTests
     [Theory]
     [InlineData("debug-draw.vert", "vertex")]
     [InlineData("debug-draw.frag", "fragment")]
+    [InlineData("chunk-cull.comp", "compute")]
+    [InlineData("chunk-pyramid.comp", "compute")]
     public void TheEmbeddedSpirVIsTheSourceCompiled(string file, string stage)
     {
         string source = Path.Combine(SourceFolder(), file);
