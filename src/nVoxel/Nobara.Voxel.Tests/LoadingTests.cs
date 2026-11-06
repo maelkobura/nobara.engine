@@ -347,6 +347,57 @@ public sealed class LoadingTests : IDisposable
         Assert.False(left!.IsActive);
     }
 
+    [Fact]
+    public void ABatchOnAChunkBeingLoadedWaitsForTheGeneratedBlocks()
+    {
+        var gate = new ManualResetEventSlim(false);
+        _harness.ConfigureOwner = probe => probe.Loading.AddProvider(probe.Context, new GatedProvider(() => probe.Blocks.Get("block:example.loading.stone").DefaultState, gate));
+        using Engine engine = _harness.Start();
+        _harness.Tick(engine, 2);
+        Probe probe = _harness.Owner;
+        Assert.True(probe.Worlds.TryGetTerrain(DimensionId.Default, out Grid? terrain));
+        using ChunkTicket ticket = probe.Loading.AddTicket(probe.Context, terrain!, new ChunkCoordinate(0, -1, 0), TicketLevel.Loaded);
+        _harness.Tick(engine);
+        Assert.Equal(ChunkLoadState.Loading, probe.Loading.GetStatus(terrain!, new ChunkCoordinate(0, -1, 0)).State);
+
+        VoxelBatchHandle breaking = probe.Batches.SubmitTechnical(Single(terrain!, new BlockCoordinate(1, -1, 1), 0));
+        _harness.Tick(engine, 3);
+        Assert.False(breaking.IsCompleted);
+        Assert.Equal(BlockReadStatus.NotLoaded, probe.Queries.Read(terrain!, new BlockCoordinate(1, -1, 1)).Status);
+
+        gate.Set();
+        RunUntil(engine, () => breaking.IsCompleted);
+        uint stone = probe.Blocks.Get("block:example.loading.stone").DefaultState;
+        Assert.Equal(0u, terrain!.GetBlock(new BlockCoordinate(1, -1, 1)));
+        Assert.Equal(stone, terrain.GetBlock(new BlockCoordinate(2, -1, 1)));
+    }
+
+    private static BlockBatch Single(Grid grid, BlockCoordinate position, uint state)
+    {
+        var batch = new BlockBatch { Cause = BlockCause.Command };
+        batch.Add(new BlockChange(new BlockPosition(grid.Identifier, position.X, position.Y, position.Z), 0, state));
+        return batch;
+    }
+
+    /// <summary>Stone, produced once the test opens the gate.</summary>
+    private sealed class GatedProvider(Func<uint> ground, ManualResetEventSlim gate) : IChunkProvider
+    {
+        private uint _ground = uint.MaxValue;
+
+        public bool Accepts(in ChunkRequest request)
+        {
+            if (_ground == uint.MaxValue) _ground = ground();
+            return true;
+        }
+
+        [HotPath]
+        public void Produce(in ChunkRequest request, Span<uint> states)
+        {
+            gate.Wait();
+            states.Fill(_ground);
+        }
+    }
+
     internal static void RunUntil(VoxelHarness harness, Engine engine, Func<bool> condition, int frames = 4000)
     {
         for (int i = 0; i < frames; i++)

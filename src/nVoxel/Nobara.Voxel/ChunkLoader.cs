@@ -352,6 +352,9 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
         if (ticket.IsDetached || !_grids.TryGetValue(ticket.Grid, out Dictionary<ChunkCoordinate, ChunkEntry>? entries)) return;
         ChunkCoordinate center = new GridFrame(ticket.Grid.Transform).ChunkOf(position);
         if (center == ticket.Center) return;
+
+        // The priorities follow the new center: those of the old area are dropped, and the new area gives its own; a chunk held by another ticket only is then served after the others.
+        ApplyArea(ticket.Grid, entries, ticket.Center, ticket.Area, ticket.Level, 0);
         ApplyArea(ticket.Grid, entries, center, ticket.Area, ticket.Level, 1);
         ApplyArea(ticket.Grid, entries, ticket.Center, ticket.Area, ticket.Level, -1);
         ticket.Center = center;
@@ -454,6 +457,12 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
         ChunkEntry? entry;
         if (delta > 0) entry = GetOrCreate(grid, entries, chunk);
         else if (!entries.TryGetValue(chunk, out entry)) return;
+        if (delta == 0)
+        {
+            entry!.Priority = int.MaxValue;
+            return;
+        }
+
         switch (level)
         {
             case TicketLevel.Active:

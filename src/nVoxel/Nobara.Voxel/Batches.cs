@@ -173,6 +173,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     private ItemHandlerHandle? _placeableHandler;
     private ulong _nextMultiBlock = 1;
     private readonly List<IVoxelChangeObserver> _observers = [];
+    private readonly List<PendingBatch> _waiting = [];
     private readonly Action<Grid, Chunk, List<VoxelBlockChange>?> _notifyFillCallback;
     private ChunkLoader? _loader;
 
@@ -352,8 +353,35 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     {
         int count = _pending.Count;
         ProcessNeighbors();
-        for (int i = 0; i < count; i++) Process(_pending[i]);
+        for (int i = 0; i < count; i++)
+        {
+            PendingBatch pending = _pending[i];
+
+            // A batch that writes in a chunk a provider is producing waits for it, so it applies over the generated blocks.
+            if (pending.Fill is null && WaitsForLoading(pending.Batch)) _waiting.Add(pending);
+            else Process(pending);
+        }
+
         if (count > 0) _pending.RemoveRange(0, count);
+        if (_waiting.Count > 0)
+        {
+            _pending.InsertRange(0, _waiting);
+            _waiting.Clear();
+        }
+    }
+
+    private bool WaitsForLoading(BlockBatch batch)
+    {
+        if (_loader is null || batch.IsCancelled) return false;
+        ReadOnlySpan<BlockChange> changes = batch.Changes;
+        for (int i = 0; i < changes.Length; i++)
+        {
+            if (batch.IsRemoved(i) || !worlds.TryResolve(changes[i].Position.Grid, out Grid? grid) || grid!.Residency != GridResidency.Tickets) continue;
+            ChunkCoordinate chunk = VoxelCoordinates.ToChunk(new BlockCoordinate(changes[i].Position.X, changes[i].Position.Y, changes[i].Position.Z));
+            if (!grid.Storage.TryGetChunk(chunk, out _) && _loader.TryGetEntry(grid, chunk, out ChunkEntry? entry) && entry!.State == ChunkLoadState.Loading) return true;
+        }
+
+        return false;
     }
 
     internal void Revoke(NotificationSubscription subscription) => subscription.Revoked = true;

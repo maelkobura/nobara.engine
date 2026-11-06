@@ -143,7 +143,8 @@ metadata determine the final client footprint.
 - Model shapes use a full unit-block collision fallback; a renderer supplies the visual mesh separately.
 - Chunk serialization is not implemented yet: an unloaded chunk loses its changes, its scheduled ticks, and its block data; its column of the height map is released once none of its chunks is in memory.
 - Each context has its own providers; no provider reads the network yet.
-- A batch that writes in a chunk that is not loaded creates it empty, and the chunk is unloaded later if no ticket holds it; a provider result for a chunk that is already in memory is dropped.
+- A batch that writes in a chunk that a provider is producing waits until the chunk is loaded, then applies over the generated blocks; batches submitted after it may apply first. A batch that writes in a chunk that nothing loads creates it empty, and the chunk is unloaded later if no ticket holds it.
+- The freeze of a dimension is one flag shared with other modules: nVoxel unfreezes only a dimension it froze itself, but when another module also freezes a dimension that nVoxel froze, nVoxel still unfreezes it once a chunk becomes active; and a dimension without an active chunk that another module unfreezes is frozen again at the next tick while `voxel.freezeInactiveDimensions` is `true`.
 - A box or sphere query visits every cell of the box around the region in each grid: keep queries small.
 - Random ticks draw cells uniformly: a block of a subscribed type is ticked about `voxel.randomTicksPerChunk` / 32,768 times per tick, whatever the other blocks of its chunk.
 - Grid transforms are updated explicitly; nPhysics is not yet the movement authority.

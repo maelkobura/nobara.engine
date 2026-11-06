@@ -31,6 +31,7 @@ public interface IBlockTicks
     /// <returns><see langword="false"/> when the chunk of the block is not loaded: nothing is scheduled.</returns>
     /// <remarks>A tick already scheduled for the same block at the same clock tick is not added again. The queue of a chunk is dropped when the chunk is unloaded.</remarks>
     /// <exception cref="ArgumentOutOfRangeException">The delay is 0.</exception>
+    /// <exception cref="OverflowException">The clock of the dimension plus the delay exceeds the range of the clock.</exception>
     bool Schedule(Grid grid, BlockCoordinate position, ulong delay);
 
     /// <summary>Gets the number of ticks scheduled in a chunk.</summary>
