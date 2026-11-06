@@ -90,6 +90,13 @@ Each source is one GLSL stage written for OpenGL: it starts with
 samplers, uniform blocks, and storage buffers each have their own numbers
 (see [the nGraphics module sheet](../../../src/nGraphics/README.md#shaders)).
 
+A source may include a file of the shader library of nRenderer, on a line of
+its own: `#include <nobara/renderer/chunk.glsl>` decodes the vertices of chunk
+geometry (see [the nRenderer module
+sheet](../../../src/nRenderer/README.md#shaders-of-chunk-geometry)). Each file is
+included once; the lines after an include keep their numbers in the messages
+of the compiler. An include of any other file is an error on its line.
+
 The build compiles each source to SPIR-V with shaderc, once as written and
 once for each set of macros of the variants of the shaders that use it, and
 embeds the result in place of the source. A source can be shared by several

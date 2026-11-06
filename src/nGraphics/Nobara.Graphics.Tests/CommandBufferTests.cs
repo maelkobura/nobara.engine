@@ -160,6 +160,41 @@ public sealed class CommandBufferTests
     }
 
     [Fact]
+    public void Indirect_draws_with_a_count_need_the_feature_and_two_indirect_buffers()
+    {
+        var plain = new FakeDevice(GraphicsFeatures.DrawIndirect);
+        GpuBuffer plainArguments = plain.CreateBuffer(new BufferDescription(64, BufferUsage.Indirect));
+        GpuBuffer plainIndices = plain.CreateBuffer(new BufferDescription(64, BufferUsage.Index) { Dedicated = true });
+        CommandBuffer commands = plain.CreateCommandBuffer();
+        commands.Begin();
+        commands.BeginRenderPass(plain.Swapchain.Framebuffer, new RenderPassDescription());
+        commands.SetPipeline(Make.Pipeline(plain, Make.SwapchainOutputs));
+        commands.SetIndexBuffer(plainIndices, IndexFormat.UInt32);
+        Assert.Throws<NotSupportedException>(() => commands.DrawIndexedIndirectCount(plainArguments, 0, plainArguments, 0, 1));
+
+        var device = new FakeDevice(GraphicsFeatures.StorageBuffers | GraphicsFeatures.DrawIndirect | GraphicsFeatures.IndirectCount);
+        GpuBuffer arguments = device.CreateBuffer(new BufferDescription(100, BufferUsage.Indirect | BufferUsage.Storage));
+        GpuBuffer count = device.CreateBuffer(new BufferDescription(16, BufferUsage.Indirect | BufferUsage.Storage));
+        GpuBuffer storage = device.CreateBuffer(new BufferDescription(16, BufferUsage.Storage));
+        GpuBuffer indices = device.CreateBuffer(new BufferDescription(64, BufferUsage.Index) { Dedicated = true });
+        commands = device.CreateCommandBuffer();
+        commands.Begin();
+        commands.BeginRenderPass(device.Swapchain.Framebuffer, new RenderPassDescription());
+        commands.SetPipeline(Make.Pipeline(device, Make.SwapchainOutputs));
+        Assert.Throws<InvalidOperationException>(() => commands.DrawIndexedIndirectCount(arguments, 0, count, 0, 5));
+        commands.SetIndexBuffer(indices, IndexFormat.UInt32);
+        Assert.Throws<InvalidOperationException>(() => commands.DrawIndexedIndirectCount(arguments, 0, storage, 0, 5));
+        Assert.Throws<InvalidOperationException>(() => commands.DrawIndexedIndirectCount(arguments, 0, count, 2, 5));
+        Assert.Throws<ArgumentOutOfRangeException>(() => commands.DrawIndexedIndirectCount(arguments, 0, count, 0, -1));
+        commands.DrawIndexedIndirectCount(arguments, 0, count, 4, 5);
+
+        Command draw = commands.Commands[^1];
+        Assert.Equal(CommandKind.DrawIndexedIndirectCount, draw.Kind);
+        Assert.Same(count, commands.GetObject<GpuBuffer>(draw.Object2));
+        Assert.Equal((5, 4L), (draw.A, draw.Y));
+    }
+
+    [Fact]
     public void Dispatches_check_the_compute_pipeline_and_the_group_counts()
     {
         ResourceLayout layout = _device.CreateResourceLayout(new ResourceLayoutDescription([new(0, ResourceKind.ReadWriteStorageBuffer, ShaderStages.Compute)]));

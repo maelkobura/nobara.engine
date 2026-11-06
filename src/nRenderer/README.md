@@ -5,7 +5,8 @@ rendering of a frame. It describes what the module provides to other modules
 and the rules it enforces. Terms are defined in [the
 glossary](../../docs/explanation/glossary.md); the reasons for the design are
 in [the rendering layers](../../docs/explanation/rendering-layers.md) and [the
-frames of the renderer](../../docs/explanation/render-frames.md).
+frames of the renderer](../../docs/explanation/render-frames.md), and [GPU-driven chunk
+geometry](../../docs/explanation/chunk-geometry.md).
 
 ## Purpose
 
@@ -23,6 +24,10 @@ pipelines, which decide what a frame looks like:
 - it draws a view through the render graph that a pipeline declares, with the
   passes that modules insert at its insertion points, such as the user
   interface;
+- it keeps the geometry of chunks on the GPU, in buffers shared by every
+  chunk, culls it on the GPU against the view and the depth of the previous
+  frame and on the CPU with a visibility graph, sorts its transparent faces,
+  and draws it with a few indirect draws, for the passes of a pipeline;
 - it draws debug lines, boxes, and spheres for any module, in development
   mode.
 
@@ -70,6 +75,11 @@ other module sees the types of these libraries.
 | `RenderRegistration` | The handle of a registration; disposing it removes the registration. |
 | `RenderGraphStatistics`, `RenderGraphException` | What the last build of the graph produced, and why a graph cannot run. |
 | `IDebugDraw` | Debug drawing, resolved with `context.Resolve<IDebugDraw>()`. |
+| `ChunkGeometry` | The geometry of chunks on the GPU (`IRenderer.Chunks`, `RenderExtraction.Chunks`): groups and sections, settings, statistics, and the culling, draw, and depth pyramid functions of a pipeline. |
+| `ChunkGroupId`, `ChunkSectionId`, `SectionOrigin`, `ChunkSectionGeometry` | A group (a grid), a section (a chunk) and where it is in its group, and the geometry of a section. |
+| `ChunkVertex`, `ChunkNormal`, `ChunkLight` | The vertex of chunk geometry, in 16 bytes, and its fields. |
+| `ChunkCategory`, `SectionFace`, `SectionConnectivity` | The categories of faces, and which faces of a chunk see each other through it. |
+| `ChunkGeometryStatistics` | What the chunk geometry holds, and what the GPU drew of it. |
 | `IRenderResources` | The service of the resources, resolved with `context.Resolve<IRenderResources>()`: the texture arrays, textures, shaders, materials, and meshes of every loaded module, by identifier. |
 | `RenderTexture`, `TextureLocation`, `TextureArray` | A texture: its array and its layer, and the GPU texture and sampler of the array. |
 | `RenderShader`, `ShaderProgram` | A shader: its GPU shaders, one program per variant, the textures, parameters, and buffers it reads, and the layout of the resource set of its materials. |
@@ -343,6 +353,137 @@ vertices follow `RenderMesh.VertexLayout`: position, normal, texture
 coordinates, and tangent, 48 bytes. `Submeshes` has one part per material
 slot, with the range of its indices and its material.
 
+### Chunk geometry
+
+`ChunkGeometry` keeps the geometry of chunks on the GPU, for a mesher. A
+**group** is a grid: a `WorldTransform`, moved with `MoveGroup` (interpolated
+between ticks, like an object) or `TeleportGroup`. A **section** is the
+geometry of one chunk of a group, at the whole coordinates of the chunk
+(`SectionOrigin`, in chunks of 32 blocks): vertices, and three lists of
+triangles, opaque, cut-out, and transparent. Like the render world, it
+changes during extraction only.
+
+```csharp
+public void Extract(RenderExtraction extraction)
+{
+    ChunkGeometry chunks = extraction.Chunks;
+    _terrain ??= chunks.CreateGroup(WorldTransform.Identity);
+    foreach (MeshedChunk chunk in _mesher.Finished())
+    {
+        var geometry = new ChunkSectionGeometry(chunk.Vertices, chunk.Opaque, chunk.Cutout, chunk.Transparent)
+        {
+            Visibility = chunk.Connectivity,
+        };
+        if (chunk.Section.IsValid)
+        {
+            chunks.ReplaceSection(chunk.Section, geometry);
+        }
+        else
+        {
+            chunk.Section = chunks.AddSection(_terrain.Value, chunk.Origin, geometry);
+        }
+    }
+}
+```
+
+The geometry is copied, then sent to the GPU within `UploadBudget` bytes per
+frame (16 MiB by default), in order; a replaced section is drawn with its
+previous geometry until then (`IsUploaded`). A group has one section per
+origin. `RemoveSection` and `DestroyGroup` stop drawing at once.
+
+Every section shares one vertex buffer and one index buffer. A full buffer
+doubles; ranges freed in the middle are reused once no frame in flight reads
+them, and when the free space is fragmented beyond
+`DefragmentationThreshold`, sections are moved down, within
+`DefragmentationBudget` bytes per frame.
+
+#### Vertices
+
+A `ChunkVertex` is 16 bytes: its position in blocks from the corner of the
+chunk (from -16 to 48, steps of 1/1024), its texture coordinates (0 to 64, the
+same steps), its `TextureLocation` (arrays 0 to 31, layers 0 to 2047), its
+`ChunkNormal`, its `ChunkLight` (sky, and red, green, and blue of blocks, 0 to
+15.75 in quarters; `ChunkLight.Full` before the light is computed), and its
+ambient occlusion (0 to 3). Values outside their range are clamped. The four
+words are documented on the type.
+
+#### Culling
+
+Each frame, the CPU lists the candidate sections of the visible groups. With
+`VisibilityGraph` (on by default), it searches, from the chunk of the camera,
+through the faces of chunks, crossing a section only between faces that its
+`SectionConnectivity` joins (`ChunkSectionGeometry.Visibility`,
+`SectionConnectivity.All` by default) and never back toward the camera;
+chunks without a section are open, and a camera outside the box of the
+sections of a group sees them all. The culling pass then tests each candidate
+on the GPU against the view and, with `OcclusionCulling` (on by default),
+against the depth pyramid of the previous frame. On the first frame, after a
+frame without a depth pyramid, or for a section behind the previous camera,
+only the view culls. When the render resolution changes, the culling of the
+next frame still uses the pyramid of the previous one, with the camera it was
+built for, and the pyramid is built again at the new size. The figures of the GPU (`Statistics.Drawn`,
+`FrustumCulled`, `OcclusionCulled`) are read without waiting, a few frames
+late (`CulledFrame`).
+
+#### Transparent faces
+
+Each section keeps its transparent triangles on the CPU and sorts them from
+the farthest to the nearest, in jobs, when the direction from the section to
+the camera has turned by `TransparentResortAngle` degrees (5 by default),
+and the camera has moved by at least `TransparentResortDistance` blocks (0.5
+by default). Sections are drawn from the farthest to the nearest. Cut-out
+faces are not sorted.
+
+#### Drawing chunk geometry in a pipeline
+
+A pipeline declares the passes, in the order of the frame; each needs
+`ChunkGeometry.RequiredFeatures` (compute, storage buffers, indirect draws,
+and their counts in buffers):
+
+```csharp
+public void Build(RenderGraphBuilder graph)
+{
+    ChunkGeometry chunks = _renderer.Chunks;
+    chunks.AddCullingPass(graph);
+    graph.AddRasterPass("opaque", _opaque).Color(scene, LoadAction.Clear).Depth(depth, LoadAction.Clear);
+    chunks.AddDepthPyramidPass(graph, depth);
+}
+```
+
+In the raster pass, bind a graphics pipeline whose vertex buffers are
+`chunks.VertexLayouts` and whose resource layouts hold `chunks.DrawLayout`,
+then call `chunks.Draw(context, ChunkCategory.Opaque, slot)` with the slot of
+that layout: a few indirect draws for every visible section. The depth
+pyramid reads the depth texture: it is sampled, at the render resolution.
+Without a culling pass in the frame, `Draw` draws nothing, with a warning
+once.
+
+#### Shaders of chunk geometry
+
+A vertex shader includes the shader library of nRenderer:
+
+```glsl
+#version 460
+#include <nobara/renderer/chunk.glsl>
+
+layout(std140, binding = 0) uniform View { mat4 ViewProjection; };
+
+void main()
+{
+    NobaraChunkVertex v = nobara_chunkVertex();
+    gl_Position = ViewProjection * vec4(nobara_chunkPosition(nobara_ChunkSection, v.position), 1.0);
+}
+```
+
+The library declares the inputs at locations 0 (the vertex) and 1 (its
+section, per instance) and the storage buffer of the groups at binding 7
+(`ChunkGeometry.GroupsBinding`). `nobara_decodeChunkVertex` decodes a vertex,
+`nobara_chunkPosition` gives a position relative to the camera, computed from
+whole chunk coordinates so that it is as precise a billion blocks from the
+origin as at the origin, `nobara_chunkNormal` turns a normal with its group,
+and `nobara_chunkLight` combines the light of a vertex with a day and night
+multiplier.
+
 ## Events
 
 None.
@@ -414,8 +555,9 @@ warning and need a restart.
 - One view: nothing draws a second view, split screen, or a view to a
   texture with its own rate. The render scale is the only form of render
   resolution.
-- No culling and no sorting: every visible object is an item of the view,
-  and its transform seen from the camera is computed at every frame.
+- Objects of the render world are neither culled nor sorted: every visible
+  object is an item of the view, and its transform seen from the camera is
+  computed at every frame. Only chunk geometry is culled and sorted.
 - From 256 objects on, the transforms are computed by jobs. When the machine
   is busy, the first wait of the loop thread for a job may allocate once in
   the job system of the core.
@@ -433,9 +575,18 @@ warning and need a restart.
 - Every color attachment of a raster pass begins with the same load action
   and clear color, as nGraphics allows.
 - Debug drawing has no text.
-- The `transparent` mode is declared only: no pass draws or sorts
-  transparent materials.
-- GLSL `#include` is not supported.
+- The `transparent` mode of a material is declared only: no pass draws or
+  sorts transparent objects. Transparent faces of chunk geometry are sorted
+  and drawn by `ChunkGeometry.Draw`.
+- GLSL `#include` reads only the files of the shader library of nRenderer.
+- Chunk geometry: the shared buffers never shrink. Transparent faces are
+  sorted by the centers of their triangles, which does not order faces that
+  cross. The visibility graph covers the box of the sections of a group, one
+  chunk wider: a group spread over a huge box is slow to search (turn it off
+  with `VisibilityGraph`). The depth pyramid of the previous frame may hide,
+  for one frame, a section that the camera uncovers. No debug window shows
+  the statistics: nDebug depends on nRenderer, so nRenderer cannot have a
+  window of its own; read them with `ChunkGeometry.Statistics`.
 - Textures are PNG files only, uploaded uncompressed in RGBA 8 bits; there
   is no animated texture.
 - glTF animations, skins, morph targets, and the materials of the file are

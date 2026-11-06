@@ -24,6 +24,9 @@ public enum GraphicsFeatures
 
     /// <summary>Hardware ray tracing. No backend provides it yet.</summary>
     RayTracing = 8,
+
+    /// <summary>Indirect draws whose number of draws is read from a GPU buffer, such as a list that a compute shader fills. Requires <see cref="DrawIndirect"/>.</summary>
+    IndirectCount = 16,
 }
 
 /// <summary>What a device supports: its optional features and its limits.</summary>

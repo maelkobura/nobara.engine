@@ -250,6 +250,17 @@ internal sealed unsafe class GLDevice : GraphicsDevice
                     break;
                 }
 
+                case CommandKind.DrawIndexedIndirectCount:
+                {
+                    GpuBuffer arguments = commands.GetObject<GpuBuffer>(c.Object);
+                    GpuBuffer count = commands.GetObject<GpuBuffer>(c.Object2);
+                    ApplyVertexInput();
+                    GL.BindBuffer(GLEnum.DrawIndirectBuffer, ((GLMemoryBlock)arguments.Block).Handle);
+                    GL.BindBuffer(GLEnum.ParameterBuffer, ((GLMemoryBlock)count.Block).Handle);
+                    GL.MultiDrawElementsIndirectCount(_graphics!.Mode, _indexType, (void*)(arguments.Offset + c.X), (nint)(count.Offset + c.Y), (uint)c.A, (uint)c.B);
+                    break;
+                }
+
                 case CommandKind.Dispatch:
                     GL.DispatchCompute((uint)c.A, (uint)c.B, (uint)c.C);
                     break;
@@ -392,8 +403,8 @@ internal sealed unsafe class GLDevice : GraphicsDevice
 
         return new GraphicsCapabilities
         {
-            // OpenGL 4.6 core has compute shaders, storage buffers, and indirect draws.
-            Features = GraphicsFeatures.Compute | GraphicsFeatures.StorageBuffers | GraphicsFeatures.DrawIndirect,
+            // OpenGL 4.6 core has compute shaders, storage buffers, indirect draws, and their counts in buffers.
+            Features = GraphicsFeatures.Compute | GraphicsFeatures.StorageBuffers | GraphicsFeatures.DrawIndirect | GraphicsFeatures.IndirectCount,
             MaxTextureSize = Get(GLEnum.MaxTextureSize),
             MaxTextureArrayLayers = Get(GLEnum.MaxArrayTextureLayers),
             MaxTexture3DSize = Get(GLEnum.Max3DTextureSize),

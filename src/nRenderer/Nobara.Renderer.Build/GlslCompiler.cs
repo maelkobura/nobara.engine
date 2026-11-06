@@ -38,6 +38,12 @@ internal sealed unsafe partial class GlslCompiler : IDisposable
 
     public GlslResult Compile(byte[] source, string name, string stage, IReadOnlyList<string> defines)
     {
+        if (ExpandIncludes(source) is not { } expanded)
+        {
+            return new GlslResult(null, IncludeErrors(source));
+        }
+
+        source = expanded;
         CompileOptions* options = _shaderc.CompileOptionsInitialize();
         try
         {
@@ -99,6 +105,70 @@ internal sealed unsafe partial class GlslCompiler : IDisposable
         _shaderc.Dispose();
     }
 
+    /// <summary>
+    /// Replaces each line <c>#include &lt;nobara/renderer/name.glsl&gt;</c> by the
+    /// file of the shader library of nRenderer, once per file, followed by a
+    /// <c>#line</c> directive so the lines after it keep their numbers.
+    /// </summary>
+    /// <returns>The source, or <see langword="null"/> when an include names no file of the library.</returns>
+    internal static byte[]? ExpandIncludes(byte[] source)
+    {
+        string text = Encoding.UTF8.GetString(source);
+        if (!text.Contains("#include", StringComparison.Ordinal))
+        {
+            return source;
+        }
+
+        var included = new HashSet<string>(StringComparer.Ordinal);
+        var result = new StringBuilder(text.Length);
+        string[] lines = text.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            Match match = Include().Match(lines[i]);
+            if (!match.Success)
+            {
+                result.Append(lines[i]);
+                if (i < lines.Length - 1)
+                {
+                    result.Append('\n');
+                }
+
+                continue;
+            }
+
+            string path = match.Groups["path"].Value;
+            if (ShaderLibrary.Read(path) is not { } library)
+            {
+                return null;
+            }
+
+            if (included.Add(path))
+            {
+                result.Append(library.Replace("\r", string.Empty, StringComparison.Ordinal)).Append('\n');
+            }
+
+            result.Append(CultureInfo.InvariantCulture, $"#line {i + 2}\n");
+        }
+
+        return Encoding.UTF8.GetBytes(result.ToString());
+    }
+
+    private static List<GlslMessage> IncludeErrors(byte[] source)
+    {
+        var messages = new List<GlslMessage>();
+        string[] lines = Encoding.UTF8.GetString(source).Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            Match match = Include().Match(lines[i]);
+            if (match.Success && ShaderLibrary.Read(match.Groups["path"].Value) is null)
+            {
+                messages.Add(new GlslMessage(true, i + 1, $"'{match.Groups["path"].Value}' is not a file of the shader library: includes name a file of {ShaderLibrary.PathPrefix}, such as <{ShaderLibrary.PathPrefix}chunk.glsl>"));
+            }
+        }
+
+        return messages;
+    }
+
     // Lines such as "Shaders/lit.frag:12: error: 'x' : undeclared identifier".
     internal static List<GlslMessage> Parse(string log, string name)
     {
@@ -148,6 +218,9 @@ internal sealed unsafe partial class GlslCompiler : IDisposable
 
         throw new DllNotFoundException("The native library of shaderc (shaderc_shared) is not next to the renderer plugin: build the plugin again.");
     }
+
+    [GeneratedRegex(@"^\s*#\s*include\s*<(?<path>[^>]+)>\s*$")]
+    private static partial Regex Include();
 
     [GeneratedRegex(@"^(?<file>.+?):(?<line>\d+): (?<kind>error|warning): (?<text>.*)$")]
     private static partial Regex Located();

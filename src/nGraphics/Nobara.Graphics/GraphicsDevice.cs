@@ -407,7 +407,12 @@ public abstract class GraphicsDevice : IDisposable
         WriteTextureCore(texture, region, data);
     }
 
-    /// <summary>Reads bytes of a buffer back to the CPU. Waits for the GPU: for tests and tools, not for frames.</summary>
+    /// <summary>
+    /// Reads bytes of a buffer back to the CPU. Waits for the GPU: for tests and
+    /// tools, not for frames. A buffer that only frames already finished wrote,
+    /// such as a buffer of the slot of the frame read after <see cref="BeginFrame"/>
+    /// returned, is read without waiting.
+    /// </summary>
     /// <param name="buffer">The buffer.</param>
     /// <param name="offset">The first byte read.</param>
     /// <param name="destination">Receives the bytes; its length is the number of bytes read.</param>

@@ -19,10 +19,13 @@ internal sealed class FakeGraphicsBackend(string name) : IGraphicsBackend
 
     public Action<FakeDevice>? Created { get; set; }
 
+    /// <summary>Gets or sets the features of the devices it creates.</summary>
+    public GraphicsFeatures Features { get; set; } = GraphicsFeatures.Compute | GraphicsFeatures.StorageBuffers | GraphicsFeatures.DrawIndirect;
+
     public GraphicsDevice CreateDevice(IWindow window, in GraphicsDeviceOptions options)
     {
         Options = options;
-        Device = new FakeDevice(framesInFlight: options.FramesInFlight);
+        Device = new FakeDevice(Features, framesInFlight: options.FramesInFlight);
         Created?.Invoke(Device);
         return Device;
     }

@@ -52,7 +52,8 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
     {
         _context = context;
         _view = new RenderView("main", _world);
-        _extraction = new RenderExtraction(_world, _view);
+        Chunks = new ChunkGeometry(_world, context);
+        _extraction = new RenderExtraction(_world, _view, Chunks);
         Debug = new DebugDraw(context.DevelopmentMode);
     }
 
@@ -61,6 +62,8 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
     public RenderWorld World => _world;
 
     public RenderView MainView => _view;
+
+    public ChunkGeometry Chunks { get; }
 
     public IReadOnlyList<IRenderPipeline> Pipelines => [.. _pipelines.Select(p => p.Value)];
 
@@ -138,6 +141,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
         _compiler = new RenderGraphCompiler(device);
         _pass.Device = device;
         _pass.View = _view;
+        Chunks.Start(device);
         if (Debug.IsEnabled)
         {
             _debugPass = new DebugDrawPass(Debug, device);
@@ -150,6 +154,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
         _debugInsertion?.Dispose();
         _debugPass?.Dispose();
         _compiler?.Release();
+        Chunks.Release();
         _graph = null;
         _device = null;
     }
@@ -276,7 +281,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
 
         _view.SetCamera(alpha);
         PrepareItems(alpha);
-        Execute(device, graph, frame);
+        Execute(device, graph, frame, alpha);
     }
 
     private Entry<IRenderPipeline>? ChoosePipeline()
@@ -433,7 +438,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
         _view.SetItemCount(count);
     }
 
-    private void Execute(GraphicsDevice device, CompiledGraph graph, ulong frame)
+    private void Execute(GraphicsDevice device, CompiledGraph graph, ulong frame, float alpha)
     {
         CommandBuffer commands = _commands!;
         _pass.Commands = commands;
@@ -443,6 +448,7 @@ internal sealed class Renderer : IRenderer, IPhaseHandler
         GraphPass? current = null;
         try
         {
+            Chunks.PrepareFrame(commands, _view, alpha);
             foreach (CompiledGraph.Step step in graph.Steps)
             {
                 current = step.Pass;

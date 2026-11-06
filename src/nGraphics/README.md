@@ -128,7 +128,9 @@ in a render pass whose framebuffer has these formats.
 ### Command buffers
 
 A command buffer records a frame: render passes, pipelines, resource sets,
-vertex and index buffers, viewport, scissor, draws, indirect draws,
+vertex and index buffers, viewport, scissor, draws, indirect draws (with a
+number of draws read from a buffer, `DrawIndexedIndirectCount`, when the
+device has `IndirectCount`),
 dispatches, barriers, buffer writes and copies, mipmap generation, and debug
 groups and markers for capture tools. Each command is checked as it is
 recorded. Bindings do not carry over from one command buffer to the next.
@@ -196,7 +198,9 @@ does not start.
 
 nGraphics.OpenGL creates an OpenGL 4.6 core context on the window and needs a
 driver that loads SPIR-V. It creates and changes every object through direct
-state access. It replays each command buffer when it is submitted, ends each
+state access. It reports the features `Compute`, `StorageBuffers`, `DrawIndirect`, and
+`IndirectCount`, all part of OpenGL 4.6 core. It replays each command buffer
+when it is submitted, ends each
 frame with a fence, and draws the swapchain to the default framebuffer of
 the window. Clip space has depths from 0 to 1, as in the explicit APIs, and
 its origin at the bottom left: viewports, scissors, and texture rows count

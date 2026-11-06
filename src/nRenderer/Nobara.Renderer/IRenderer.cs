@@ -33,6 +33,9 @@ public interface IRenderer
     /// <summary>Gets the view that nRenderer draws.</summary>
     RenderView MainView { get; }
 
+    /// <summary>Gets the geometry of chunks on the GPU: its settings and statistics, and the passes that draw it. It changes during extraction only.</summary>
+    ChunkGeometry Chunks { get; }
+
     /// <summary>Gets the pipelines registered, in order.</summary>
     IReadOnlyList<IRenderPipeline> Pipelines { get; }
 
@@ -87,14 +90,18 @@ public interface IRenderExtractor
 /// <remarks>The object is reused at every frame: do not keep it.</remarks>
 public sealed class RenderExtraction
 {
-    internal RenderExtraction(RenderWorld world, RenderView view)
+    internal RenderExtraction(RenderWorld world, RenderView view, ChunkGeometry chunks)
     {
         World = world;
         MainView = view;
+        Chunks = chunks;
     }
 
     /// <summary>Gets the render world, writable during extraction.</summary>
     public RenderWorld World { get; }
+
+    /// <summary>Gets the geometry of chunks, writable during extraction.</summary>
+    public ChunkGeometry Chunks { get; }
 
     /// <summary>Gets the view, whose camera an extractor may move.</summary>
     public RenderView MainView { get; }
