@@ -452,6 +452,13 @@ Code of a module that copies what it draws to the [render
 world](#render-world) at every frame, before the frame is drawn: only what
 changed since its previous call. See [the frames of the renderer](render-frames.md#why-a-render-world-filled-by-extraction).
 
+### Face shade
+
+The factor by which the chunk shader of [UNGP](#ungp) darkens a face of
+chunk geometry by its direction: the top is brightest and the bottom
+darkest, so the shape of the terrain reads before there is lighting. See
+[the render pipelines](render-pipelines.md#why-chunk-faces-are-shaded-by-their-direction).
+
 ### Fixed phase
 
 A phase of the loop that runs once per tick due rather than once per frame,
@@ -846,6 +853,14 @@ and its references. See [the SDK page](../../tools/Nobara.Sdk/README.md).
 The identifier of a defined object, derived from its type, namespace, and
 name: `block:example.blocks.dirt`. See [the `.nof` reference](../reference/formats/nof.md#identifiers).
 
+### Occlusion culling
+
+Leaving out what other geometry hides from the camera, before drawing it.
+For chunk geometry, it combines the [depth pyramid](#depth-pyramid) of the
+previous frame and the [visibility graph](#visibility-graph); [UNGP](#ungp)
+turns both on or off with `IUngp.OcclusionCulling`. See [GPU-driven chunk
+geometry](chunk-geometry.md#occlusion-culling).
+
 ### Optional component
 
 A component of a definition marked `optional="true"`: it is ignored, without
@@ -1180,9 +1195,10 @@ module sheet](../../src/nRenderer/README.md#render-graph).
 ### UNGP
 
 The Universal Nobara Graphics Pipeline: the [render
-pipeline](#render-pipeline) of the engine, meant to run everywhere. It draws
-the scene in [HDR](#hdr) at a render resolution apart from the window, with
-passes that can be turned off. See [the UNGP module
+pipeline](#render-pipeline) of the engine, meant to run everywhere. It culls
+chunk geometry on the GPU and draws the scene in [HDR](#hdr) at a render
+resolution apart from the window, transparent geometry last, with passes
+that can be turned off. See [the UNGP module
 sheet](../../src/UNGP/README.md).
 
 ### Visibility graph

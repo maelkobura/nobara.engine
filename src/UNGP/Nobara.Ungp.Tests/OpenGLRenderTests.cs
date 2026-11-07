@@ -48,7 +48,7 @@ public sealed class OpenGLRenderTests : IDisposable
 
         byte[] pixels = Draw();
 
-        Assert.Equal(prepass ? 4 : 3, _harness.Render.LastGraph!.Passes.Count);
+        Assert.Equal(prepass ? 7 : 6, _harness.Render.LastGraph!.Passes.Count);
         AssertColor(SkyColor, pixels, 2, 2, "the sky in a corner");
         AssertColor(SkyColor, pixels, 32, 60, "the sky at the top");
         AssertColor(UngpHarness.Red, pixels, 17, 32, "the opaque square");

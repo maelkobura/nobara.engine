@@ -25,5 +25,6 @@ void main()
         discard;
     }
 #endif
-    outColor = vec4(color.rgb, 1.0);
+    // The alpha blends a transparent material; the opaque passes ignore it.
+    outColor = color;
 }

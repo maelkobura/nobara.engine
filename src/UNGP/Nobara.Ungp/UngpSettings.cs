@@ -19,6 +19,12 @@ public static class UngpSettings
     /// <summary>The factor applied to the HDR colors before tonemapping, from 0.0625 to 16. Scope <c>distribution</c>; applies at the next frame.</summary>
     public const string Exposure = "ungp.exposure";
 
+    /// <summary>The angle, in degrees from 0 to 90, that the direction from a chunk section to the camera turns before its transparent faces are sorted again. Scope <c>distribution</c>; applies at the next frame.</summary>
+    public const string TransparentResortAngle = "ungp.transparentResortAngle";
+
+    /// <summary>The distance, in blocks from 0 to 16, that the camera moves at least before the transparent faces of a chunk section are sorted again. Scope <c>distribution</c>; applies at the next frame.</summary>
+    public const string TransparentResortDistance = "ungp.transparentResortDistance";
+
     /// <summary>The default value of <see cref="SkyColor"/>.</summary>
     public const string DefaultSkyColor = "#87CEEB";
 

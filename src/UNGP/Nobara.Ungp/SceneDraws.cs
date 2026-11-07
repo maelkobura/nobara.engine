@@ -21,17 +21,46 @@ internal enum SceneDrawKind
 
     /// <summary>Color and depth, without a prepass.</summary>
     Full,
+
+    /// <summary>Color blended by alpha, tested against the depth without writing it.</summary>
+    Transparent,
 }
 
-/// <summary>A pass that draws the opaque and cut-out items of the view: the depth prepass, or the opaque pass.</summary>
-internal sealed class SceneGeometryPass(SceneDraws scene, SceneDrawKind kind) : IRenderPass
+/// <summary>
+/// A pass that draws the opaque and cut-out geometry of the view, objects and
+/// chunks: the depth prepass, or the opaque pass. Opaque geometry comes first,
+/// then cut-out geometry.
+/// </summary>
+internal sealed class SceneGeometryPass(SceneDraws scene, ChunkDraws chunks, SceneDrawKind kind) : IRenderPass
 {
     /// <summary>Gets or sets how the pass draws; the pipeline sets it when it builds the graph.</summary>
     public SceneDrawKind Kind { get; set; } = kind;
 
     public void Prepare(RenderPassContext context) => scene.Prepare(context);
 
-    public void Execute(RenderPassContext context) => scene.Draw(context, Kind);
+    public void Execute(RenderPassContext context)
+    {
+        scene.Draw(context, Kind, MaterialMode.Opaque);
+        chunks.Draw(context, Kind, ChunkCategory.Opaque);
+        scene.Draw(context, Kind, MaterialMode.Cutout);
+        chunks.Draw(context, Kind, ChunkCategory.Cutout);
+    }
+}
+
+/// <summary>
+/// The transparent pass: the transparent faces of chunks, from the farthest
+/// section to the nearest, then the transparent objects, from the farthest to
+/// the nearest, blended over the scene.
+/// </summary>
+internal sealed class TransparentPass(SceneDraws scene, ChunkDraws chunks) : IRenderPass
+{
+    public void Prepare(RenderPassContext context) => scene.Prepare(context);
+
+    public void Execute(RenderPassContext context)
+    {
+        chunks.Draw(context, SceneDrawKind.Transparent, ChunkCategory.Transparent);
+        scene.DrawTransparent(context);
+    }
 }
 
 /// <summary>
@@ -65,6 +94,8 @@ internal sealed class SceneDraws : IDisposable
     private readonly List<PipelineEntry> _pipelines = [];
     private readonly HashSet<RenderMaterial> _skipped = [];
     private Matrix4x4[] _staging = new Matrix4x4[256];
+    private float[] _sortKeys = new float[64];
+    private int[] _sortItems = new int[64];
     private ulong _preparedFrame = ulong.MaxValue;
 
     public SceneDraws(ModuleContext context, GraphicsDevice device)
@@ -84,6 +115,9 @@ internal sealed class SceneDraws : IDisposable
 
     /// <summary>Gets the number of graphics pipelines created for the materials drawn, for tests.</summary>
     internal int PipelineCount => _pipelines.Count;
+
+    /// <summary>Gets the uniform buffer of the view of a frame in flight, which <see cref="Prepare"/> writes.</summary>
+    public GpuBuffer ViewBuffer(int slot) => _viewBuffers[slot];
 
     /// <summary>Writes the view and the transforms of the items, once per frame, before the first geometry pass.</summary>
     public void Prepare(RenderPassContext context)
@@ -126,18 +160,57 @@ internal sealed class SceneDraws : IDisposable
         commands.UpdateBuffer(buffer, 0, MemoryMarshal.AsBytes(_staging.AsSpan(0, items.Length)));
     }
 
-    /// <summary>Draws the opaque items, then the cut-out ones; transparent items are left out.</summary>
-    public void Draw(RenderPassContext context, SceneDrawKind kind)
+    /// <summary>Draws the items of one mode, opaque or cut-out, in the order of the view.</summary>
+    public void Draw(RenderPassContext context, SceneDrawKind kind, MaterialMode mode)
     {
         ReadOnlySpan<RenderItem> items = context.View.Items;
-        if (items.Length == 0)
+        GpuBuffer? models = _models[context.FrameIndex];
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i].Material.Mode == mode)
+            {
+                DrawItem(context, items[i], i, models!, kind);
+            }
+        }
+    }
+
+    /// <summary>Draws the transparent items, from the farthest to the nearest: by the distance of their origin to the camera.</summary>
+    public void DrawTransparent(RenderPassContext context)
+    {
+        ReadOnlySpan<RenderItem> items = context.View.Items;
+        int count = 0;
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (items[i].Material.Mode != MaterialMode.Transparent)
+            {
+                continue;
+            }
+
+            if (count == _sortKeys.Length)
+            {
+                Array.Resize(ref _sortKeys, count * 2);
+                Array.Resize(ref _sortItems, count * 2);
+            }
+
+            // The transform is seen from the camera: its translation is the origin relative to the camera.
+            Matrix4x4 model = items[i].Model;
+            _sortKeys[count] = -((model.M41 * model.M41) + (model.M42 * model.M42) + (model.M43 * model.M43));
+            _sortItems[count] = i;
+            count++;
+        }
+
+        if (count == 0)
         {
             return;
         }
 
+        Array.Sort(_sortKeys, _sortItems, 0, count);
         GpuBuffer models = _models[context.FrameIndex]!;
-        DrawMode(context, items, models, kind, MaterialMode.Opaque);
-        DrawMode(context, items, models, kind, MaterialMode.Cutout);
+        for (int i = 0; i < count; i++)
+        {
+            int index = _sortItems[i];
+            DrawItem(context, items[index], index, models, SceneDrawKind.Transparent);
+        }
     }
 
     public void Dispose()
@@ -165,42 +238,29 @@ internal sealed class SceneDraws : IDisposable
         _viewBuffers.Dispose();
     }
 
-    private void DrawMode(RenderPassContext context, ReadOnlySpan<RenderItem> items, GpuBuffer models, SceneDrawKind kind, MaterialMode mode)
+    // The item is the instance of its transform in the buffer of the models.
+    private void DrawItem(RenderPassContext context, in RenderItem item, int index, GpuBuffer models, SceneDrawKind kind)
     {
-        CommandBuffer commands = context.Commands;
-        for (int i = 0; i < items.Length; i++)
+        RenderMaterial material = item.Material;
+        PipelineEntry entry = PipelineFor(material, kind, context.Framebuffer!);
+        if (entry.Pipeline is not { } pipeline)
         {
-            RenderItem item = items[i];
-            RenderMaterial material = item.Material;
-            if (material.Mode != mode)
-            {
-                if (material.Mode == MaterialMode.Transparent && FirstSkip(material))
-                {
-                    _context.Logger.Warning($"Material '{material.ObjectId}' is transparent, and UNGP does not draw transparent geometry yet: objects drawn with it are left out.");
-                }
-
-                continue;
-            }
-
-            PipelineEntry entry = PipelineFor(material, kind, context.Framebuffer!);
-            if (entry.Pipeline is not { } pipeline)
-            {
-                continue;
-            }
-
-            Submesh part = item.Mesh.Submeshes[item.Submesh];
-            commands.SetPipeline(pipeline);
-            commands.SetResourceSet(0, entry.View!.Sets[context.FrameIndex]);
-            if (entry.HasMaterialSet)
-            {
-                commands.SetResourceSet(1, material.ResourceSet!);
-            }
-
-            commands.SetVertexBuffer(0, item.Mesh.VertexBuffer);
-            commands.SetVertexBuffer(1, models);
-            commands.SetIndexBuffer(item.Mesh.IndexBuffer, IndexFormat.UInt32);
-            commands.DrawIndexed(part.IndexCount, 1, part.FirstIndex, 0, i);
+            return;
         }
+
+        CommandBuffer commands = context.Commands;
+        Submesh part = item.Mesh.Submeshes[item.Submesh];
+        commands.SetPipeline(pipeline);
+        commands.SetResourceSet(0, entry.View!.Sets[context.FrameIndex]);
+        if (entry.HasMaterialSet)
+        {
+            commands.SetResourceSet(1, material.ResourceSet!);
+        }
+
+        commands.SetVertexBuffer(0, item.Mesh.VertexBuffer);
+        commands.SetVertexBuffer(1, models);
+        commands.SetIndexBuffer(item.Mesh.IndexBuffer, IndexFormat.UInt32);
+        commands.DrawIndexed(part.IndexCount, 1, part.FirstIndex, 0, index);
     }
 
     // Whether a material is left out for the first time, so that the warning is written once.
@@ -252,6 +312,7 @@ internal sealed class SceneDraws : IDisposable
             ViewBinding view = ViewFor(binding);
             ResourceLayout? materialLayout = shader.MaterialLayout;
             bool cutout = material.Mode == MaterialMode.Cutout;
+            bool transparent = kind == SceneDrawKind.Transparent;
             GraphicsPipeline pipeline = _device.CreateGraphicsPipeline(new GraphicsPipelineDescription
             {
                 Name = $"nobara.ungp.{kind}.{shader.ObjectId}.{program.Variant}",
@@ -264,7 +325,8 @@ internal sealed class SceneDraws : IDisposable
 
                 // Cut-out geometry, such as leaves, is seen from both sides.
                 Rasterizer = new RasterizerState { CullMode = cutout ? CullMode.None : CullMode.Back },
-                Depth = new DepthState { TestEnabled = true, WriteEnabled = kind != SceneDrawKind.AfterPrepass, Compare = Camera.DepthCompare },
+                Depth = new DepthState { TestEnabled = true, WriteEnabled = kind is SceneDrawKind.DepthOnly or SceneDrawKind.Full, Compare = Camera.DepthCompare },
+                Blend = transparent ? BlendState.AlphaBlend : BlendState.Opaque,
                 Outputs = new OutputDescription([.. framebuffer.ColorFormats], framebuffer.DepthFormat),
             });
             entry = new PipelineEntry(program, shader, shader.Version, kind, material.Mode, pipeline, view, materialLayout is not null);

@@ -33,6 +33,21 @@ public interface IUngp
     /// <summary>Gets or sets whether the depth prepass runs: it writes the depth of opaque and cut-out geometry before the opaque pass, so that this pass shades each pixel once. On by default.</summary>
     bool DepthPrepass { get; set; }
 
+    /// <summary>
+    /// Gets or sets whether chunk sections hidden by other geometry are left
+    /// out: the pass <see cref="UngpPasses.DepthPyramid"/> builds the depth
+    /// pyramid that the culling of the next frame tests, and the visibility
+    /// graph of nRenderer leaves out the sections that closed chunks hide. On
+    /// by default. Off, the culling pass still leaves out the sections outside
+    /// the view; the image does not change, only the number of sections drawn.
+    /// </summary>
+    /// <remarks>
+    /// Setting it sets <see cref="ChunkGeometry.OcclusionCulling"/> and
+    /// <see cref="ChunkGeometry.VisibilityGraph"/> of <see cref="IRenderer.Chunks"/>,
+    /// which can still be set one by one afterward.
+    /// </remarks>
+    bool OcclusionCulling { get; set; }
+
     /// <summary>Gets or sets whether the sky pass runs: it fills the pixels where no geometry is with <see cref="SkyColor"/>. On by default; off, these pixels are black.</summary>
     bool Sky { get; set; }
 
@@ -55,14 +70,23 @@ public interface IUngp
 /// <summary>The names of the passes of UNGP, in the order they run, as <see cref="RenderGraphStatistics.Passes"/> lists them.</summary>
 public static class UngpPasses
 {
+    /// <summary>The culling pass, a compute pass: it tests the chunk sections against the view and the depth pyramid of the previous frame, and lists the draws of the visible ones.</summary>
+    public const string Culling = "nobara.ungp.culling";
+
     /// <summary>The depth prepass: the depth of opaque and cut-out geometry, without color.</summary>
     public const string DepthPrepass = "nobara.ungp.depth-prepass";
 
     /// <summary>The opaque pass: opaque, then cut-out geometry, to the HDR scene.</summary>
     public const string Opaque = "nobara.ungp.opaque";
 
+    /// <summary>The depth pyramid pass, a compute pass: from the depth of the scene, for the occlusion culling of the next frame. Absent when <see cref="IUngp.OcclusionCulling"/> is off.</summary>
+    public const string DepthPyramid = "nobara.ungp.depth-pyramid";
+
     /// <summary>The sky pass: the plain sky where no geometry is.</summary>
     public const string Sky = "nobara.ungp.sky";
+
+    /// <summary>The transparent pass: the transparent faces of chunks, then the transparent objects, each from the farthest to the nearest, blended over the scene.</summary>
+    public const string Transparent = "nobara.ungp.transparent";
 
     /// <summary>The output pass with tonemapping: from the HDR scene to the target of the view, scaled to the viewport.</summary>
     public const string Tonemap = "nobara.ungp.tonemap";

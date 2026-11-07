@@ -19,5 +19,7 @@
     <Setting key="ungp.renderScale" scope="user" type="float" min="0.25" max="2" default="1" side="client" />
     <Setting key="ungp.skyColor" scope="distribution" type="string" default="#87CEEB" side="client" />
     <Setting key="ungp.exposure" scope="distribution" type="float" min="0.0625" max="16" default="1" side="client" />
+    <Setting key="ungp.transparentResortAngle" scope="distribution" type="float" min="0" max="90" default="5" side="client" />
+    <Setting key="ungp.transparentResortDistance" scope="distribution" type="float" min="0" max="16" default="0.5" side="client" />
   </Settings>
 </NobaraModule>
