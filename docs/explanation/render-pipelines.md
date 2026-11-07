@@ -25,20 +25,22 @@ come later.
 
 | Pass | Version |
 | --- | --- |
-| Culling on the GPU | later |
+| Culling on the GPU | yes, chunk geometry only |
 | Depth prepass | yes, without normals |
 | Light clusters, shadows | later |
-| Opaque and cut-out geometry | yes, at full brightness |
+| Opaque and cut-out geometry | yes: objects at full brightness, chunks at the light of their vertices |
 | Sky | yes, one color |
-| Transparent geometry | later |
+| Transparent geometry | yes, sorted from back to front |
 | Fog, bloom, color grading | later |
 | Tonemapping | yes |
 | User interface | yes, through its insertion point |
 
-Every surface is drawn at full brightness, with the color of its texture:
-lighting comes with the lighting module. The passes of later versions
-already have their place in the order, so adding one does not move the
-others, nor the insertion points that other modules use.
+Objects are drawn at full brightness, with the color of their texture, and
+chunk faces with the light, the ambient occlusion, and the tint that the
+mesher writes in their vertices: lighting comes with the lighting module.
+The passes of later versions already have their place in the order, so
+adding one does not move the others, nor the insertion points that other
+modules use.
 
 ## Why the scene is drawn in HDR
 
@@ -87,6 +89,40 @@ a second drawing of the geometry, cheap without color; it pays off when
 shading is expensive, and later gives the depth that culling on the GPU and
 the clusters of lights need. It can be turned off, and the opaque pass then
 writes the depth itself.
+
+## Why culling runs in a pass of its own
+
+The culling pass runs first, on the GPU: it tests the box of each chunk
+section against the view, then against a depth pyramid built from the depth
+of the previous frame, and writes the list of the draws of the visible
+sections, which the prepass, the opaque pass, and the transparent pass then
+read. The CPU never waits for the result. Turning occlusion culling off
+keeps the test against the view, since the passes draw only what the list
+holds, and since it never changes the image: it only removes the depth
+pyramid and the visibility graph, which hide sections that other geometry
+covers. How chunk geometry is culled is explained in [GPU-driven chunk
+geometry](chunk-geometry.md#occlusion-culling).
+
+## Why transparent geometry comes after the sky
+
+A transparent surface blends its color with what lies behind it, so what
+lies behind must be drawn first: the opaque geometry, then the sky. The
+transparent pass then draws from the farthest surface to the nearest, and
+tests the depth without writing it, so that a pane of glass behind another
+one still shows through it. Chunk faces are sorted by nRenderer, section by
+section; objects are sorted by UNGP, by the distance of their origin. The
+order is exact for faces that do not cross, which is the common case of
+glass and water.
+
+## Why chunk faces are shaded by their direction
+
+Before lighting exists, faces that point in different directions would show
+the same color, and the shape of the terrain would be hard to read. The
+chunk shader darkens each face by its direction, the top brightest and the
+bottom darkest, as voxel games commonly do, and by the ambient occlusion
+that the mesher computes at each corner. These factors describe how bright
+the face looks on the screen, so the shader converts them to linear values
+before it multiplies the linear colors of the scene.
 
 ## Why passes can be turned off
 

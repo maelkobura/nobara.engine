@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using System.Numerics;
 using Nobara.Core;
 using Nobara.Core.Mathematics;
 using Nobara.Graphics;
@@ -28,7 +29,7 @@ public sealed class PipelineTests : IDisposable
 
         Assert.Same(_harness.Ungp.Pipeline, Assert.Single(_harness.Render.Pipelines));
         Assert.Equal(UngpModule.PipelineName, _harness.Ungp.Pipeline.Name);
-        Assert.Equal(GraphicsFeatures.None, _harness.Ungp.Pipeline.RequiredFeatures);
+        Assert.Equal(ChunkGeometry.RequiredFeatures, _harness.Ungp.Pipeline.RequiredFeatures);
 
         _engine!.MainContext.RunFrame();
 
@@ -65,7 +66,7 @@ public sealed class PipelineTests : IDisposable
         _engine!.MainContext.RunFrame();
 
         Assert.Equal(
-            [UngpPasses.DepthPrepass, UngpPasses.Opaque, "test.after-opaque", UngpPasses.Sky, "test.before-post", UngpPasses.Tonemap, "test.ui"],
+            [UngpPasses.Culling, UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.DepthPyramid, "test.after-opaque", UngpPasses.Sky, UngpPasses.Transparent, "test.before-post", UngpPasses.Tonemap, "test.ui"],
             render.LastGraph!.Passes);
         Assert.Empty(render.LastGraph.CulledPasses);
         Assert.Equal(1, ui.Runs);
@@ -79,10 +80,10 @@ public sealed class PipelineTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false, true, true, new[] { UngpPasses.Opaque, UngpPasses.Sky, UngpPasses.Tonemap })]
-    [InlineData(true, false, true, new[] { UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.Tonemap })]
-    [InlineData(true, true, false, new[] { UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.Sky, UngpPasses.Output })]
-    [InlineData(false, false, false, new[] { UngpPasses.Opaque, UngpPasses.Output })]
+    [InlineData(false, true, true, new[] { UngpPasses.Culling, UngpPasses.Opaque, UngpPasses.DepthPyramid, UngpPasses.Sky, UngpPasses.Transparent, UngpPasses.Tonemap })]
+    [InlineData(true, false, true, new[] { UngpPasses.Culling, UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.DepthPyramid, UngpPasses.Transparent, UngpPasses.Tonemap })]
+    [InlineData(true, true, false, new[] { UngpPasses.Culling, UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.DepthPyramid, UngpPasses.Sky, UngpPasses.Transparent, UngpPasses.Output })]
+    [InlineData(false, false, false, new[] { UngpPasses.Culling, UngpPasses.Opaque, UngpPasses.DepthPyramid, UngpPasses.Transparent, UngpPasses.Output })]
     public void TurningPassesOffChangesTheGraphWithoutBreakingIt(bool prepass, bool sky, bool tonemapping, string[] passes)
     {
         Start();
@@ -106,7 +107,7 @@ public sealed class PipelineTests : IDisposable
         // Turning the passes back on gives the first graph again.
         _harness.Ungp.DepthPrepass = _harness.Ungp.Sky = _harness.Ungp.Tonemapping = true;
         _engine.MainContext.RunFrame();
-        Assert.Equal([UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.Sky, UngpPasses.Tonemap], _harness.Render.LastGraph!.Passes);
+        Assert.Equal([UngpPasses.Culling, UngpPasses.DepthPrepass, UngpPasses.Opaque, UngpPasses.DepthPyramid, UngpPasses.Sky, UngpPasses.Transparent, UngpPasses.Tonemap], _harness.Render.LastGraph!.Passes);
     }
 
     [Fact]
@@ -196,7 +197,7 @@ public sealed class PipelineTests : IDisposable
     }
 
     [Fact]
-    public void TransparentMaterialsAreLeftOutWithOneWarning()
+    public void TransparentObjectsAreDrawnFromTheFarthestToTheNearestAfterTheSky()
     {
         Start();
         _harness.Render.AddExtractor(_harness.Context, new TestExtractor
@@ -204,20 +205,25 @@ public sealed class PipelineTests : IDisposable
             Next = e =>
             {
                 e.World.Create(_harness.Square("material:example.scene.glass", 0, 0, -3));
-                e.World.Create(_harness.Square("material:example.scene.glass", 1, 0, -3));
+                e.World.Create(_harness.Square("material:example.scene.glass", 1, 0, -8));
                 e.World.Create(_harness.Square("material:example.scene.leaf", -1, 0, -3));
+                e.World.Create(_harness.Square("material:example.scene.glass", -1, 0, -5));
             },
         });
+        _engine!.MainContext.RunFrame();
+        _harness.Fake.DrawnInstances.Clear();
+        _harness.Fake.Trace.Clear();
 
-        for (int i = 0; i < 3; i++)
-        {
-            _engine!.MainContext.RunFrame();
-        }
+        _engine.MainContext.RunFrame();
 
-        Assert.Single(_harness.Warnings, w => w.Contains("material:example.scene.glass", StringComparison.Ordinal));
-
-        // Only the cut-out square is drawn: by the prepass and the opaque pass, at each frame.
-        Assert.Equal(6, _harness.Fake.Executed.Count(k => k == CommandKind.DrawIndexed));
+        // The cut-out square (item 2) is drawn by the prepass and the opaque pass; the glass squares once, the farthest first.
+        Assert.Equal([2, 2, 1, 3, 0], _harness.Fake.DrawnInstances);
+        int sky = _harness.Fake.Trace.IndexOf($"pass {UngpPasses.Sky}");
+        int transparent = _harness.Fake.Trace.IndexOf($"pass {UngpPasses.Transparent}");
+        Assert.InRange(sky, 0, transparent - 1);
+        Assert.Equal(3, _harness.Fake.Trace.Skip(transparent).TakeWhile(t => !t.StartsWith("pass nobara.ungp.tonemap", StringComparison.Ordinal)).Count(t => t.StartsWith("draw ", StringComparison.Ordinal)));
+        Assert.DoesNotContain(_harness.Warnings, w => w.Contains("glass", StringComparison.Ordinal));
+        Assert.Empty(_harness.Errors);
     }
 
     [Fact]
@@ -226,6 +232,7 @@ public sealed class PipelineTests : IDisposable
         Start();
         var ids = new RenderObjectId[200];
         int frame = 0;
+        ChunkGroupId? group = null;
         RenderObjectDescription[] squares =
         [
             _harness.Square("material:example.scene.red", 0, 0, -10),
@@ -245,6 +252,20 @@ public sealed class PipelineTests : IDisposable
                 else if (e.IsNewTick)
                 {
                     e.World.Move(ids[i], transform);
+                }
+            }
+
+            if (group is null)
+            {
+                group = e.Chunks.CreateGroup(WorldTransform.Identity);
+                TextureLocation red = _harness.Resources.GetTexture("texture:example.scene.red").Location;
+                for (int i = 0; i < 4; i++)
+                {
+                    var faces = new ChunkFaces()
+                        .Box(ChunkCategory.Opaque, red, new Vector3(4, 4, 4), new Vector3(8, 8, 8))
+                        .Box(ChunkCategory.Cutout, red, new Vector3(10, 4, 4), new Vector3(12, 6, 6))
+                        .Box(ChunkCategory.Transparent, red, new Vector3(14, 4, 4), new Vector3(16, 6, 6));
+                    e.Chunks.AddSection(group.Value, new SectionOrigin(i - 2, 0, -1), faces.Geometry);
                 }
             }
 
@@ -274,6 +295,7 @@ public sealed class PipelineTests : IDisposable
 
         Assert.Equal(0, allocated);
         Assert.Equal(200, _harness.Render.MainView.Items.Length);
+        Assert.Equal(4, _harness.Render.Chunks.SectionCount);
         Assert.Empty(_harness.Errors);
     }
 

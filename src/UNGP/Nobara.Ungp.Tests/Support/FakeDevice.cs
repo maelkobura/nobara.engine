@@ -13,7 +13,10 @@ namespace Nobara.Ungp.Tests.Support;
 /// </summary>
 internal sealed class FakeDevice : GraphicsDevice
 {
-    public FakeDevice(GraphicsFeatures features = GraphicsFeatures.Compute | GraphicsFeatures.StorageBuffers | GraphicsFeatures.DrawIndirect, int framesInFlight = 2, long blockSize = 1024 * 1024)
+    /// <summary>The features of a fake device unless a test gives others: those of UNGP.</summary>
+    public const GraphicsFeatures DefaultFeatures = GraphicsFeatures.Compute | GraphicsFeatures.StorageBuffers | GraphicsFeatures.DrawIndirect | GraphicsFeatures.IndirectCount;
+
+    public FakeDevice(GraphicsFeatures features = DefaultFeatures, int framesInFlight = 2, long blockSize = 1024 * 1024)
         : base(new GraphicsDeviceInfo("fake", "Example", "Fake GPU", "1.0"), MakeCapabilities(features), framesInFlight, blockSize)
     {
         AttachSwapchain(new FakeFramebuffer(this, 1280, 720, [PixelFormat.Rgba8Unorm], PixelFormat.Depth24Stencil8, swapchain: true), VSyncMode.On);
@@ -24,6 +27,9 @@ internal sealed class FakeDevice : GraphicsDevice
 
     /// <summary>Gets the kinds of the commands executed.</summary>
     public List<CommandKind> Executed { get; } = [];
+
+    /// <summary>Gets the first instance of each indexed draw executed, in order: the index of the item drawn.</summary>
+    public List<int> DrawnInstances { get; } = [];
 
     /// <summary>Gets the names of the GPU objects destroyed, in order.</summary>
     public List<string> Destroyed { get; } = [];
@@ -132,6 +138,11 @@ internal sealed class FakeDevice : GraphicsDevice
                         break;
                     case CommandKind.Draw or CommandKind.DrawIndexed:
                         Trace.Add($"draw {command.A}");
+                        if (command.Kind == CommandKind.DrawIndexed)
+                        {
+                            DrawnInstances.Add(command.D);
+                        }
+
                         break;
                 }
             }
@@ -140,6 +151,12 @@ internal sealed class FakeDevice : GraphicsDevice
             {
                 GpuBuffer buffer = commands.GetObject<GpuBuffer>(command.Object);
                 WriteBufferCore(buffer.Block, buffer.Offset + command.X, commands.GetData(command.Y, command.A));
+            }
+            else if (command.Kind == CommandKind.CopyBuffer)
+            {
+                GpuBuffer source = commands.GetObject<GpuBuffer>(command.Object);
+                GpuBuffer destination = commands.GetObject<GpuBuffer>(command.Object2);
+                Contents[source.Block].AsSpan((int)(source.Offset + command.X), (int)command.Y).CopyTo(Contents[destination.Block].AsSpan((int)(destination.Offset + command.Z)));
             }
         }
     }

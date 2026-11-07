@@ -13,8 +13,9 @@ namespace Nobara.Ungp;
 
 /// <summary>
 /// The module of the universal pipeline: it registers the render pipeline
-/// <see cref="PipelineName"/> with nRenderer, provides the standard shader
-/// and the default material, and publishes <see cref="IUngp"/>.
+/// <see cref="PipelineName"/> with nRenderer, provides the standard shader,
+/// the chunk shader, and the default material, and publishes
+/// <see cref="IUngp"/>.
 /// </summary>
 public sealed class UngpModule : IModule
 {
@@ -29,6 +30,9 @@ public sealed class UngpModule : IModule
 
     /// <summary>The variant of the standard shader for cut-out materials: it discards the texels whose alpha is under the parameter <c>AlphaCutoff</c>.</summary>
     public const string CutoutVariant = "Cutout";
+
+    /// <summary>The identifier of the chunk shader: chunk geometry, with the texture arrays of nRenderer, and the tint, light, and ambient occlusion of each vertex. Its variant <see cref="CutoutVariant"/> draws cut-out faces.</summary>
+    public const string ChunkShader = "shader:nobara.ungp.chunk";
 
     /// <summary>The identifier of the default material: the standard shader, white, opaque.</summary>
     public const string DefaultMaterial = "material:nobara.ungp.default";

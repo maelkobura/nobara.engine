@@ -23,6 +23,23 @@
     </Content>
   </Shader>
 
+  <!--
+    The geometry of chunks: block textures from the texture arrays, which the
+    pipeline binds, times the tint, light, and ambient occlusion of each
+    vertex; the variant Cutout discards the texels whose alpha is under 0.5.
+  -->
+  <Shader>
+    <Name>Chunk</Name>
+    <Content>
+      <Vertex>Shaders/chunk.vert</Vertex>
+      <Fragment>Shaders/chunk.frag</Fragment>
+      <Variant name="Cutout">
+        <Define>UNGP_CUTOUT</Define>
+      </Variant>
+      <Uniform name="View" binding="0" />
+    </Content>
+  </Shader>
+
   <!-- The plain sky, drawn where no geometry is. -->
   <Shader>
     <Name>Sky</Name>

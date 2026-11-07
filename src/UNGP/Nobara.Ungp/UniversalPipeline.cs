@@ -20,11 +20,14 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
     private readonly ModuleContext _context;
     private IRenderer? _renderer;
     private SceneDraws? _scene;
+    private ChunkDraws? _chunks;
     private SceneGeometryPass? _prepass;
     private SceneGeometryPass? _opaque;
+    private TransparentPass? _transparent;
     private SkyPass? _sky;
     private OutputPass? _output;
     private bool _depthPrepass = true;
+    private bool _occlusionCulling = true;
     private bool _skyEnabled = true;
     private bool _tonemapping = true;
     private ColorF _skyColor;
@@ -43,8 +46,8 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
 
     public string Name => UngpModule.PipelineName;
 
-    // UNGP needs no optional feature of the device in this version: no compute, no storage buffers, no indirect draws.
-    public GraphicsFeatures RequiredFeatures => GraphicsFeatures.None;
+    // The culling and the chunk geometry run on the GPU: compute, storage buffers, and indirect draws with a count.
+    public GraphicsFeatures RequiredFeatures => ChunkGeometry.RequiredFeatures;
 
     public IRenderPipeline Pipeline => this;
 
@@ -55,6 +58,20 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
     {
         get => _depthPrepass;
         set => SetPass(ref _depthPrepass, value);
+    }
+
+    public bool OcclusionCulling
+    {
+        get => _occlusionCulling;
+        set
+        {
+            if (_occlusionCulling != value && _renderer is not null)
+            {
+                ApplyOcclusion(_renderer.Chunks, value);
+            }
+
+            SetPass(ref _occlusionCulling, value);
+        }
     }
 
     public bool Sky
@@ -115,17 +132,26 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
     public void Initialize(IRenderer renderer)
     {
         _renderer = renderer;
+        if (!_occlusionCulling)
+        {
+            ApplyOcclusion(renderer.Chunks, false);
+        }
+
         SettingChanged(UngpSettings.RenderScale);
         SettingChanged(UngpSettings.SkyColor);
         SettingChanged(UngpSettings.Exposure);
+        SettingChanged(UngpSettings.TransparentResortAngle);
+        SettingChanged(UngpSettings.TransparentResortDistance);
     }
 
     /// <summary>Creates the GPU objects of the passes from the shaders of the module.</summary>
     public void Start(GraphicsDevice device, IRenderResources resources)
     {
         _scene = new SceneDraws(_context, device);
-        _prepass = new SceneGeometryPass(_scene, SceneDrawKind.DepthOnly);
-        _opaque = new SceneGeometryPass(_scene, SceneDrawKind.Full);
+        _chunks = new ChunkDraws(_context, device, _renderer!.Chunks, resources, _scene);
+        _prepass = new SceneGeometryPass(_scene, _chunks, SceneDrawKind.DepthOnly);
+        _opaque = new SceneGeometryPass(_scene, _chunks, SceneDrawKind.Full);
+        _transparent = new TransparentPass(_scene, _chunks);
         _sky = new SkyPass(this, device, resources.GetShader(SkyPass.ShaderId));
         _output = new OutputPass(this, device, resources.GetShader(OutputPass.ShaderId));
     }
@@ -140,7 +166,9 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
         RenderGraphTexture scene = graph.CreateTexture("nobara.ungp.scene", new RenderGraphTextureDescription(SceneFormat));
         RenderGraphTexture depth = graph.CreateTexture("nobara.ungp.depth", new RenderGraphTextureDescription(DepthFormat));
 
-        // Later: culling of chunks and objects on the GPU.
+        // The culling lists the draws of the visible sections; without occlusion culling, it still tests them against the view.
+        ChunkGeometry chunks = _renderer!.Chunks;
+        chunks.AddCullingPass(graph, UngpPasses.Culling);
         if (_depthPrepass)
         {
             graph.AddRasterPass(UngpPasses.DepthPrepass, _prepass!).Depth(depth, LoadAction.Clear);
@@ -151,6 +179,11 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
         graph.AddRasterPass(UngpPasses.Opaque, _opaque)
             .Color(scene, LoadAction.Clear, new ColorF(0, 0, 0, 1))
             .Depth(depth, _depthPrepass ? LoadAction.Load : LoadAction.Clear);
+        if (_occlusionCulling)
+        {
+            chunks.AddDepthPyramidPass(graph, depth, UngpPasses.DepthPyramid);
+        }
+
         graph.InsertionPoint(RenderInsertionPoints.AfterOpaque, scene, depth);
 
         if (_skyEnabled)
@@ -158,7 +191,7 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
             graph.AddRasterPass(UngpPasses.Sky, _sky!).Color(scene).Depth(depth, write: false);
         }
 
-        // Later: transparent geometry, sorted.
+        graph.AddRasterPass(UngpPasses.Transparent, _transparent!).Color(scene).Depth(depth, write: false);
         graph.InsertionPoint(RenderInsertionPoints.BeforePostProcess, scene, depth);
 
         // Later: fog, bloom, and color grading, before tonemapping.
@@ -192,6 +225,12 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
                 }
 
                 break;
+            case UngpSettings.TransparentResortAngle when _renderer is not null:
+                _renderer.Chunks.TransparentResortAngle = (float)_context.Settings.GetFloat(UngpSettings.TransparentResortAngle);
+                break;
+            case UngpSettings.TransparentResortDistance when _renderer is not null:
+                _renderer.Chunks.TransparentResortDistance = (float)_context.Settings.GetFloat(UngpSettings.TransparentResortDistance);
+                break;
         }
     }
 
@@ -199,7 +238,15 @@ internal sealed class UniversalPipeline : IRenderPipeline, IUngp, IDisposable
     {
         _output?.Dispose();
         _sky?.Dispose();
+        _chunks?.Dispose();
         _scene?.Dispose();
+    }
+
+    // The occlusion of UNGP is both the depth pyramid and the visibility graph of nRenderer.
+    private static void ApplyOcclusion(ChunkGeometry chunks, bool value)
+    {
+        chunks.OcclusionCulling = value;
+        chunks.VisibilityGraph = value;
     }
 
     private void SetPass(ref bool field, bool value)

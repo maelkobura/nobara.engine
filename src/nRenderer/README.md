@@ -586,9 +586,10 @@ warning and need a restart.
 - Every color attachment of a raster pass begins with the same load action
   and clear color, as nGraphics allows.
 - Debug drawing has no text.
-- The `transparent` mode of a material is declared only: no pass draws or
-  sorts transparent objects. Transparent faces of chunk geometry are sorted
-  and drawn by `ChunkGeometry.Draw`.
+- nRenderer does not sort transparent objects: the pipeline that draws them
+  does, as [UNGP](../UNGP/README.md#transparent-geometry) does. Transparent
+  faces of chunk geometry are sorted by nRenderer and drawn by
+  `ChunkGeometry.Draw`.
 - GLSL `#include` reads only the files of the shader library of nRenderer.
 - Chunk geometry: the shared buffers never shrink. Transparent faces are
   sorted by the centers of their triangles, which does not order faces that

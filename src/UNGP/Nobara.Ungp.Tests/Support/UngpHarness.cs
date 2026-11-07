@@ -109,7 +109,7 @@ internal sealed class UngpHarness : IDisposable
         // A distribution gives the value of its own keys, and the default of the keys of the player.
         foreach ((string key, string value) in Settings)
         {
-            F.SettingValue.Types.Operation operation = key is UngpSettings.SkyColor or UngpSettings.Exposure ? F.SettingValue.Types.Operation.Set : F.SettingValue.Types.Operation.Default;
+            F.SettingValue.Types.Operation operation = key is UngpSettings.RenderScale ? F.SettingValue.Types.Operation.Default : F.SettingValue.Types.Operation.Set;
             distribution.Settings.Add(new F.SettingValue { Key = key, Operation = operation, Value = value });
         }
 
