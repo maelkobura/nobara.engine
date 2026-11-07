@@ -18,6 +18,10 @@ public sealed class VoxelModule : IModule
     private ShapeRegistry? _shapes;
     private MultiBlockRegistry? _multiBlocks;
     private VoxelBatches? _batches;
+    private ChunkLoader? _loader;
+    private HeightMaps? _heightMaps;
+    private BlockTicks? _ticks;
+    private VoxelQueries? _queries;
 
     /// <inheritdoc/>
     public void Register(ModuleContext context)
@@ -32,6 +36,15 @@ public sealed class VoxelModule : IModule
         context.Publish<IMultiBlockRegistry>(_multiBlocks);
         _batches = new VoxelBatches(context, _worlds);
         context.Publish<IVoxelBatches>(_batches);
+        _loader = new ChunkLoader(context, _worlds);
+        _worlds.AttachLoader(_loader);
+        context.Publish<IChunkLoading>(_loader);
+        _heightMaps = new HeightMaps();
+        context.Publish<IHeightMaps>(_heightMaps);
+        _ticks = new BlockTicks(_loader);
+        context.Publish<IBlockTicks>(_ticks);
+        _queries = new VoxelQueries(_worlds, _loader);
+        context.Publish<IVoxelQueries>(_queries);
     }
 
     /// <inheritdoc/>
@@ -45,6 +58,12 @@ public sealed class VoxelModule : IModule
             context.Resolve<ITickSchedule>(),
             context.Resolve<Nobara.Items.IItemUsage>());
         _worlds.AttachBatches(_batches);
+        Nobara.Blocks.IBlockRegistry blocks = context.Resolve<Nobara.Blocks.IBlockRegistry>();
+        ITickSchedule schedule = context.Resolve<ITickSchedule>();
+        IGameTime time = context.Resolve<IGameTime>();
+        _loader!.Initialize(_batches, _heightMaps!, _multiBlocks!, blocks, time, context.Resolve<IWorldSessions>(), schedule);
+        _batches.AttachLoading(_loader, _loader, _heightMaps!);
+        _ticks!.Initialize(context, _worlds, context.Resolve<Nobara.Blocks.IBlockHooks>(), time, schedule);
     }
 
     /// <inheritdoc/>
@@ -53,6 +72,8 @@ public sealed class VoxelModule : IModule
         Nobara.Blocks.IBlockRegistry blocks = context.Resolve<Nobara.Blocks.IBlockRegistry>();
         _shapes!.Freeze(blocks);
         _multiBlocks!.Initialize(blocks);
+        _heightMaps!.Start(_shapes, blocks);
+        _queries!.Start(_shapes, _multiBlocks);
     }
 
     /// <inheritdoc/>

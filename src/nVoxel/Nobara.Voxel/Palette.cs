@@ -41,7 +41,11 @@ public sealed class Palette : IDisposable
     public bool IsUniform => _values is null;
 
     /// <summary>Gets the number of distinct entries in the palette.</summary>
-    public int Count => _count;
+    public int Count
+    {
+        [HotPath]
+        get => _count;
+    }
 
     /// <summary>Gets the number of bits used by each index, or 0 in uniform mode.</summary>
     public int BitsPerIndex => _bits;

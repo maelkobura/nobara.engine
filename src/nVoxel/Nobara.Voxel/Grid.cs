@@ -54,6 +54,9 @@ public sealed class GridOptions
 
     /// <summary>Gets or initializes whether this is the terrain grid of its dimension.</summary>
     public bool IsTerrain { get; init; }
+
+    /// <summary>Gets or initializes where the chunks live; <see langword="null"/> gives <see cref="GridResidency.Tickets"/> to a terrain grid and <see cref="GridResidency.Kept"/> to another grid.</summary>
+    public GridResidency? Residency { get; init; }
 }
 
 /// <summary>Identifies a voxel grid storage instance.</summary>
@@ -106,9 +109,10 @@ public sealed class Grid : IDisposable
         Handle = handle;
         _transformComponent = transformComponent;
         _index = index;
-        Storage = new GridStorage(options.Bounds, chunkDataFactory);
+        Storage = new GridStorage(this, options.Bounds, chunkDataFactory);
         Bounds = options.Bounds;
         IsTerrain = options.IsTerrain;
+        Residency = options.Residency ?? (options.IsTerrain ? GridResidency.Tickets : GridResidency.Kept);
         UpdateSpatialIndex();
     }
 
@@ -116,7 +120,11 @@ public sealed class Grid : IDisposable
     public string OwnerModuleId { get; }
 
     /// <summary>Gets the dimension containing the grid.</summary>
-    public DimensionId Dimension => _world.Dimension;
+    public DimensionId Dimension
+    {
+        [HotPath]
+        get => _world.Dimension;
+    }
 
     /// <summary>Gets the ECS entity of the grid.</summary>
     public EntityId Entity { get; }
@@ -125,13 +133,27 @@ public sealed class Grid : IDisposable
     public GridHandle Handle { get; }
 
     /// <summary>Gets the neutral identifier used by block positions.</summary>
-    public ulong Identifier => (uint)Handle.Index;
+    public ulong Identifier
+    {
+        [HotPath]
+        get => (uint)Handle.Index;
+    }
 
     /// <summary>Gets whether this is the terrain grid.</summary>
     public bool IsTerrain { get; }
 
     /// <summary>Gets the optional local bounds.</summary>
     public GridBounds? Bounds { get; }
+
+    /// <summary>Gets where the chunks live: loaded by tickets, or kept while the grid exists.</summary>
+    public GridResidency Residency { get; }
+
+    /// <summary>Gets whether the grid is destroyed.</summary>
+    public bool IsDestroyed
+    {
+        [HotPath]
+        get => _disposed;
+    }
 
     /// <summary>Gets the chunk storage.</summary>
     public GridStorage Storage { get; }
@@ -178,14 +200,19 @@ public sealed class GridStorage : IDisposable
     private readonly Dictionary<ChunkCoordinate, Chunk> _chunks = [];
     private readonly GridBounds? _bounds;
     private readonly Func<ChunkCoordinate, JobData> _chunkDataFactory;
+    private readonly Grid _grid;
     private bool _disposed;
 
-    internal GridStorage(GridBounds? bounds, Func<ChunkCoordinate, JobData> chunkDataFactory) => (_bounds, _chunkDataFactory) = (bounds, chunkDataFactory);
+    internal GridStorage(Grid grid, GridBounds? bounds, Func<ChunkCoordinate, JobData> chunkDataFactory) => (_grid, _bounds, _chunkDataFactory) = (grid, bounds, chunkDataFactory);
+
+    /// <summary>Called on the loop thread when a chunk becomes resident, unless it is being filled by a provider.</summary>
+    internal IChunkResidencyObserver? Observer { get; set; }
 
     /// <summary>Gets the number of resident chunks.</summary>
     public int ChunkCount => _chunks.Count;
 
     /// <summary>Gets a resident chunk without creating it.</summary>
+    [HotPath]
     public bool TryGetChunk(ChunkCoordinate coordinate, out Chunk? chunk) => _chunks.TryGetValue(coordinate, out chunk);
 
     /// <summary>Gets or creates a resident chunk.</summary>
@@ -232,6 +259,19 @@ public sealed class GridStorage : IDisposable
     [HotPath]
     public uint GetState(BlockCoordinate coordinate) => TryGetState(coordinate, out uint state) ? state : 0;
 
+    /// <summary>Tells whether a chunk coordinate has cells inside the bounds of the grid.</summary>
+    [HotPath]
+    public bool Overlaps(ChunkCoordinate coordinate)
+    {
+        if (_bounds is not { } bounds) return true;
+        long minX = (long)coordinate.X * VoxelCoordinates.ChunkSize;
+        long minY = (long)coordinate.Y * VoxelCoordinates.ChunkSize;
+        long minZ = (long)coordinate.Z * VoxelCoordinates.ChunkSize;
+        return minX <= bounds.Maximum.X && minX + VoxelCoordinates.ChunkSize > bounds.Minimum.X
+            && minY <= bounds.Maximum.Y && minY + VoxelCoordinates.ChunkSize > bounds.Minimum.Y
+            && minZ <= bounds.Maximum.Z && minZ + VoxelCoordinates.ChunkSize > bounds.Minimum.Z;
+    }
+
     /// <summary>Copies a resident chunk with requested neighbor borders.</summary>
     public ChunkSnapshot CopyFrozen(ChunkCoordinate coordinate, params ChunkCoordinate[] borders)
     {
@@ -254,9 +294,27 @@ public sealed class GridStorage : IDisposable
 
     private Chunk AddChunk(ChunkCoordinate coordinate)
     {
+        Chunk chunk = AddChunkSilently(coordinate);
+        Observer?.OnResident(_grid, chunk);
+        return chunk;
+    }
+
+    /// <summary>Adds an empty chunk without telling the observer, for a provider result that tells it once filled.</summary>
+    internal Chunk AddChunkSilently(ChunkCoordinate coordinate)
+    {
+        RequireAlive();
         Chunk chunk = new(coordinate, _chunkDataFactory(coordinate));
         _chunks.Add(coordinate, chunk);
         return chunk;
+    }
+
+    /// <summary>Removes and releases a resident chunk.</summary>
+    internal bool RemoveChunk(ChunkCoordinate coordinate)
+    {
+        RequireAlive();
+        if (!_chunks.Remove(coordinate, out Chunk? chunk)) return false;
+        chunk.Dispose();
+        return true;
     }
 
     [HotPath]

@@ -172,6 +172,10 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     private readonly Func<ulong, Grid?> _resolveGridCallback;
     private ItemHandlerHandle? _placeableHandler;
     private ulong _nextMultiBlock = 1;
+    private readonly List<IVoxelChangeObserver> _observers = [];
+    private readonly List<PendingBatch> _waiting = [];
+    private readonly Action<Grid, Chunk, List<VoxelBlockChange>?> _notifyFillCallback;
+    private ChunkLoader? _loader;
 
     public VoxelBatches(ModuleContext context, VoxelWorlds worlds)
     {
@@ -181,7 +185,17 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
         _placeOneCallback = PlaceOne;
         _orientCallback = Orient;
         _resolveGridCallback = worlds.ResolveOrNull;
+        _notifyFillCallback = NotifyFill;
     }
+
+    internal void AttachLoading(ChunkLoader loader, params IVoxelChangeObserver[] observers)
+    {
+        _loader = loader;
+        _observers.AddRange(observers);
+    }
+
+    /// <summary>Queues the result of a chunk provider, applied in the order of batches as a technical batch of cause generation.</summary>
+    internal void SubmitFill(ProductionSlot slot) => _pending.Add(new PendingBatch(null!, true, BatchAction.Fill, null!, slot));
 
     public void Initialize(IBlockRegistry blocks, IBlockHooks hooks, IMultiBlockRegistry multiBlocks, ITickSchedule schedule, IItemUsage usage)
     {
@@ -339,8 +353,35 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     {
         int count = _pending.Count;
         ProcessNeighbors();
-        for (int i = 0; i < count; i++) Process(_pending[i]);
+        for (int i = 0; i < count; i++)
+        {
+            PendingBatch pending = _pending[i];
+
+            // A batch that writes in a chunk a provider is producing waits for it, so it applies over the generated blocks.
+            if (pending.Fill is null && WaitsForLoading(pending.Batch)) _waiting.Add(pending);
+            else Process(pending);
+        }
+
         if (count > 0) _pending.RemoveRange(0, count);
+        if (_waiting.Count > 0)
+        {
+            _pending.InsertRange(0, _waiting);
+            _waiting.Clear();
+        }
+    }
+
+    private bool WaitsForLoading(BlockBatch batch)
+    {
+        if (_loader is null || batch.IsCancelled) return false;
+        ReadOnlySpan<BlockChange> changes = batch.Changes;
+        for (int i = 0; i < changes.Length; i++)
+        {
+            if (batch.IsRemoved(i) || !worlds.TryResolve(changes[i].Position.Grid, out Grid? grid) || grid!.Residency != GridResidency.Tickets) continue;
+            ChunkCoordinate chunk = VoxelCoordinates.ToChunk(new BlockCoordinate(changes[i].Position.X, changes[i].Position.Y, changes[i].Position.Z));
+            if (!grid.Storage.TryGetChunk(chunk, out _) && _loader.TryGetEntry(grid, chunk, out ChunkEntry? entry) && entry!.State == ChunkLoadState.Loading) return true;
+        }
+
+        return false;
     }
 
     internal void Revoke(NotificationSubscription subscription) => subscription.Revoked = true;
@@ -349,7 +390,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     {
         ArgumentNullException.ThrowIfNull(batch);
         var handle = new VoxelBatchHandle(batch);
-        _pending.Add(new PendingBatch(batch, technical, action, handle));
+        _pending.Add(new PendingBatch(batch, technical, action, handle, null));
         return handle;
     }
 
@@ -358,6 +399,12 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
 
     private void Process(PendingBatch pending)
     {
+        if (pending.Fill is { } fill)
+        {
+            _loader!.ApplyFill(fill, HasSubscriptions() ? new List<VoxelBlockChange>() : null, _notifyFillCallback);
+            return;
+        }
+
         BlockBatch batch = pending.Batch;
         if (batch.IsCancelled || batch.RemainingCount == 0)
         {
@@ -421,6 +468,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
                     }
                 }
 
+                foreach (IVoxelChangeObserver observer in _observers) observer.OnApplied(operation.Grid, operation.Chunk, operation.Changes);
                 Notify(operation, batch, pending.Technical);
                 QueueNeighbors(operation);
             }
@@ -464,7 +512,28 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     {
         if (operation.Changes.Count == 0) return;
         operation.Changes.Sort((left, right) => left.LocalIndex.CompareTo(right.LocalIndex));
-        var notification = new VoxelBatchNotification(operation.Grid, operation.Chunk.Coordinate, operation.Changes, batch.Cause, technical);
+        Notify(new VoxelBatchNotification(operation.Grid, operation.Chunk.Coordinate, operation.Changes, batch.Cause, technical));
+    }
+
+    private bool HasSubscriptions()
+    {
+        foreach (NotificationSubscription subscription in _subscriptions)
+        {
+            if (!subscription.Revoked) return true;
+        }
+
+        return false;
+    }
+
+    // A provider result: the cells it changed, already in local-index order.
+    private void NotifyFill(Grid grid, Chunk chunk, List<VoxelBlockChange>? changes)
+    {
+        if (changes is null || changes.Count == 0) return;
+        Notify(new VoxelBatchNotification(grid, chunk.Coordinate, changes, BlockCause.Generation, technical: true));
+    }
+
+    private void Notify(VoxelBatchNotification notification)
+    {
         foreach (NotificationSubscription subscription in _subscriptions)
         {
             if (subscription.Revoked) continue;
@@ -554,9 +623,10 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
         Placing,
         Breaking,
         Technical,
+        Fill,
     }
 
-    private readonly record struct PendingBatch(BlockBatch Batch, bool Technical, BatchAction Action, VoxelBatchHandle Handle);
+    private readonly record struct PendingBatch(BlockBatch Batch, bool Technical, BatchAction Action, VoxelBatchHandle Handle, ProductionSlot? Fill);
 
     private readonly record struct PendingCell(int BatchIndex, int LocalIndex, BlockChange Change);
 
