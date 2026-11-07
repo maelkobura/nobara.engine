@@ -16,21 +16,22 @@ public sealed class ChunkVertexTests
     [Fact]
     public void EveryFieldReadsBackAsItWasEncoded()
     {
-        var vertex = new ChunkVertex(new Vector3(-3.5f, 12.25f, 47.5f), new Vector2(31.75f, 0.0625f), new TextureLocation(17, 1234), ChunkNormal.NegativeZ, new ChunkLight(15, 2.25f, 7.5f, 15.75f), 2);
+        var vertex = new ChunkVertex(new Vector3(-3.5f, 12.25f, 47.5f), new Vector2(31.75f, 0.0625f), new TextureLocation(17, 1234), ChunkNormal.NegativeZ, new ChunkLight(15, 2.5f, 7.5f, 15.5f), 2, 101);
 
         Assert.Equal(new Vector3(-3.5f, 12.25f, 47.5f), vertex.Position);
         Assert.Equal(new Vector2(31.75f, 0.0625f), vertex.TextureCoordinates);
         Assert.Equal(new TextureLocation(17, 1234), vertex.Texture);
         Assert.Equal(ChunkNormal.NegativeZ, vertex.Normal);
-        Assert.Equal(new ChunkLight(15, 2.25f, 7.5f, 15.75f), vertex.Light);
+        Assert.Equal(new ChunkLight(15, 2.5f, 7.5f, 15.5f), vertex.Light);
         Assert.Equal(2, vertex.AmbientOcclusion);
+        Assert.Equal(101, vertex.Tint);
         Assert.Equal(vertex, ChunkVertex.FromWords(vertex.Word0, vertex.Word1, vertex.Word2, vertex.Word3));
     }
 
     [Fact]
     public void PositionsRoundToTheNearestStepAndValuesOutsideTheirRangeAreClamped()
     {
-        var vertex = new ChunkVertex(new Vector3(1.0004f, -20, 100), new Vector2(-1, 70), default, ChunkNormal.None, new ChunkLight(-2, 20, 3.1f, 0));
+        var vertex = new ChunkVertex(new Vector3(1.0004f, -20, 100), new Vector2(-1, 70), default, ChunkNormal.None, new ChunkLight(-2, 20, 3.2f, 0));
 
         Assert.Equal(1, vertex.Position.X, 1e-6);
         Assert.Equal(ChunkVertex.MinPosition, vertex.Position.Y);
@@ -38,6 +39,7 @@ public sealed class ChunkVertexTests
         Assert.Equal(0, vertex.TextureCoordinates.X);
         Assert.Equal(ChunkVertex.MaxTextureCoordinate - ChunkVertex.PositionStep, vertex.TextureCoordinates.Y, 1e-6);
         Assert.Equal(new ChunkLight(0, ChunkVertex.MaxLight, 3, 0), vertex.Light);
+        Assert.Equal(0, vertex.Tint);
     }
 
     [Fact]
@@ -51,11 +53,12 @@ public sealed class ChunkVertexTests
     }
 
     [Fact]
-    public void ATextureOrAnOcclusionOutsideTheFormatIsRefused()
+    public void ATextureAnOcclusionOrATintOutsideTheFormatIsRefused()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkVertex(default, default, new TextureLocation(32, 0), ChunkNormal.PositiveY, ChunkLight.Full));
         Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkVertex(default, default, new TextureLocation(0, 2048), ChunkNormal.PositiveY, ChunkLight.Full));
         Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkVertex(default, default, default, ChunkNormal.PositiveY, ChunkLight.Full, 4));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ChunkVertex(default, default, default, ChunkNormal.PositiveY, ChunkLight.Full, 0, 128));
     }
 
     [Fact]

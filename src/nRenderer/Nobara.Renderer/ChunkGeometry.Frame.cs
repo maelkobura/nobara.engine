@@ -68,6 +68,10 @@ public sealed partial class ChunkGeometry
 
     private ResourceLayout? _drawLayout;
     private ResourceSet? _drawSet;
+    private GpuBuffer? _tintBuffer;
+    private readonly Vector3[] _tints = CreateTints();
+    private readonly Vector4[] _tintRecords = CreateTintRecords();
+    private bool _tintsChanged = true;
     private ResourceLayout? _cullLayout;
     private ResourceSet? _cullSet;
     private Shader? _cullShader;
@@ -95,6 +99,9 @@ public sealed partial class ChunkGeometry
     private long _defragmented;
     private ChunkGeometryStatistics _gpuStatistics;
 
+    /// <summary>Gets whether the palette of tints waits for the next frame to reach the GPU, for tests and tools.</summary>
+    internal bool TintsPending => _tintsChanged;
+
     /// <summary>Gets the shared vertex buffer, for tests and tools.</summary>
     internal GpuBuffer? VertexBuffer => _vertexBuffer;
 
@@ -115,8 +122,9 @@ public sealed partial class ChunkGeometry
 
     /// <summary>
     /// Gets the resource layout of the set that <see cref="Draw"/> binds: the
-    /// storage buffer of the groups at <see cref="GroupsBinding"/>, read by the
-    /// vertex and fragment stages. A graphics pipeline that draws chunk
+    /// storage buffers of the groups at <see cref="GroupsBinding"/> and of the
+    /// tints at <see cref="TintsBinding"/>, read by the vertex and fragment
+    /// stages. A graphics pipeline that draws chunk
     /// geometry has it at the slot it gives to <see cref="Draw"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException">nRenderer did not start.</exception>
@@ -228,7 +236,13 @@ public sealed partial class ChunkGeometry
             return;
         }
 
-        _drawLayout = device.CreateResourceLayout(new ResourceLayoutDescription([new ResourceLayoutEntry(GroupsBinding, ResourceKind.ReadOnlyStorageBuffer, ShaderStages.Vertex | ShaderStages.Fragment)]) { Name = "nobara.renderer.chunks.draw" });
+        _drawLayout = device.CreateResourceLayout(new ResourceLayoutDescription(
+        [
+            new ResourceLayoutEntry(GroupsBinding, ResourceKind.ReadOnlyStorageBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
+            new ResourceLayoutEntry(TintsBinding, ResourceKind.ReadOnlyStorageBuffer, ShaderStages.Vertex | ShaderStages.Fragment),
+        ]) { Name = "nobara.renderer.chunks.draw" });
+        _tintBuffer = device.CreateBuffer(new BufferDescription((long)TintCount * 16, BufferUsage.Storage) { Name = "nobara.renderer.chunks.tints" });
+        _tintsChanged = true;
         _cullLayout = device.CreateResourceLayout(new ResourceLayoutDescription(
         [
             new ResourceLayoutEntry(0, ResourceKind.UniformBuffer, ShaderStages.Compute),
@@ -280,6 +294,7 @@ public sealed partial class ChunkGeometry
         }
 
         _drawSet?.Dispose();
+        _tintBuffer?.Dispose();
         _cullSet?.Dispose();
         _levelParameters?.Dispose();
         _pyramid?.Dispose();
@@ -341,6 +356,12 @@ public sealed partial class ChunkGeometry
         if (_candidateCount > 0)
         {
             commands.UpdateBuffer(_candidateBuffer!, 0, MemoryMarshal.AsBytes(_candidates.AsSpan(0, _candidateCount)));
+        }
+
+        if (_tintsChanged)
+        {
+            commands.UpdateBuffer(_tintBuffer!, 0, MemoryMarshal.AsBytes(_tintRecords.AsSpan()));
+            _tintsChanged = false;
         }
 
         WriteFrame(commands, view);
@@ -986,6 +1007,20 @@ public sealed partial class ChunkGeometry
         _drawSet = null;
     }
 
+    private static Vector3[] CreateTints()
+    {
+        var tints = new Vector3[TintCount];
+        tints.AsSpan().Fill(Vector3.One);
+        return tints;
+    }
+
+    private static Vector4[] CreateTintRecords()
+    {
+        var records = new Vector4[TintCount];
+        records.AsSpan().Fill(Vector4.One);
+        return records;
+    }
+
     private void EnsureCullSet()
     {
         _cullSet ??= _device!.CreateResourceSet(new ResourceSetDescription(
@@ -1002,7 +1037,7 @@ public sealed partial class ChunkGeometry
     }
 
     private void EnsureDrawSet() =>
-        _drawSet ??= _device!.CreateResourceSet(new ResourceSetDescription(_drawLayout!, [BoundResource.Of(_groupBuffer!)]) { Name = "nobara.renderer.chunks.draw" });
+        _drawSet ??= _device!.CreateResourceSet(new ResourceSetDescription(_drawLayout!, [BoundResource.Of(_groupBuffer!), BoundResource.Of(_tintBuffer!)]) { Name = "nobara.renderer.chunks.draw" });
 
     [HotPath]
     private void WriteFrame(CommandBuffer commands, RenderView view)

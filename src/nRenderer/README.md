@@ -75,7 +75,7 @@ other module sees the types of these libraries.
 | `RenderRegistration` | The handle of a registration; disposing it removes the registration. |
 | `RenderGraphStatistics`, `RenderGraphException` | What the last build of the graph produced, and why a graph cannot run. |
 | `IDebugDraw` | Debug drawing, resolved with `context.Resolve<IDebugDraw>()`. |
-| `ChunkGeometry` | The geometry of chunks on the GPU (`IRenderer.Chunks`, `RenderExtraction.Chunks`): groups and sections, settings, statistics, and the culling, draw, and depth pyramid functions of a pipeline. |
+| `ChunkGeometry` | The geometry of chunks on the GPU (`IRenderer.Chunks`, `RenderExtraction.Chunks`): groups and sections, the palette of tints, settings, statistics, and the culling, draw, and depth pyramid functions of a pipeline. |
 | `ChunkGroupId`, `ChunkSectionId`, `SectionOrigin`, `ChunkSectionGeometry` | A group (a grid), a section (a chunk) and where it is in its group, and the geometry of a section. |
 | `ChunkVertex`, `ChunkNormal`, `ChunkLight` | The vertex of chunk geometry, in 16 bytes, and its fields. |
 | `ChunkCategory`, `SectionFace`, `SectionConnectivity` | The categories of faces, and which faces of a chunk see each other through it. |
@@ -85,7 +85,7 @@ other module sees the types of these libraries.
 | `RenderShader`, `ShaderProgram` | A shader: its GPU shaders, one program per variant, the textures, parameters, and buffers it reads, and the layout of the resource set of its materials. |
 | `ShaderTextureBinding`, `ShaderParameterBlock`, `ShaderParameterInfo`, `ShaderBufferBinding` | What a shader reads, by name and binding. |
 | `RenderMaterial`, `MaterialMode` | A material: its shader and variant, its textures, its parameters in a uniform buffer, its resource set, and its render mode. |
-| `RenderMesh`, `Submesh` | A mesh: its vertex and index buffers, its parts with their materials, and its bounds. |
+| `RenderMesh`, `Submesh`, `MeshGeometry` | A mesh: its vertex and index buffers, its parts with their materials, its bounds, and its triangles on the CPU. |
 | `TextureFilter`, `TextureColorSpace`, `ShaderParameterType`, `TextureFallback` | The settings of the resources. |
 | `RenderResourceException` | Resources that cannot be used together, such as a material that names a texture its shader does not declare. |
 | `RendererModule` | The identifier of the module and the type prefixes `shader`, `material`, `mesh`, and `texture`. |
@@ -351,7 +351,10 @@ buffer of the parameters. `Mode` tells the pipeline in which pass to draw.
 A mesh has one vertex buffer and one index buffer of 32-bit indices. Its
 vertices follow `RenderMesh.VertexLayout`: position, normal, texture
 coordinates, and tangent, 48 bytes. `Submeshes` has one part per material
-slot, with the range of its indices and its material.
+slot, with the range of its indices and its material. `Geometry` keeps the
+triangles on the CPU, positions, normals, texture coordinates, and indices in
+the ranges of the parts, for a module that builds geometry of its own from a
+mesh, such as the meshing of blocks.
 
 ### Chunk geometry
 
@@ -403,9 +406,14 @@ A `ChunkVertex` is 16 bytes: its position in blocks from the corner of the
 chunk (from -16 to 48, steps of 1/1024), its texture coordinates (0 to 64, the
 same steps), its `TextureLocation` (arrays 0 to 31, layers 0 to 2047), its
 `ChunkNormal`, its `ChunkLight` (sky, and red, green, and blue of blocks, 0 to
-15.75 in quarters; `ChunkLight.Full` before the light is computed), and its
-ambient occlusion (0 to 3). Values outside their range are clamped. The four
-words are documented on the type.
+15.5 in halves; `ChunkLight.Full` before the light is computed), its
+ambient occlusion (0 to 3), and its tint (0 to 127). Values outside their
+range are clamped. The four words are documented on the type.
+
+The tint of a vertex is an index into the palette of `SetTints`: 128 linear
+colors, white by default, that multiply the texture in the shader. Index 0
+stays white, the tint of vertices without one. The palette reaches the GPU
+with the next frame.
 
 #### Culling
 
@@ -476,8 +484,11 @@ void main()
 ```
 
 The library declares the inputs at locations 0 (the vertex) and 1 (its
-section, per instance) and the storage buffer of the groups at binding 7
-(`ChunkGeometry.GroupsBinding`). `nobara_decodeChunkVertex` decodes a vertex,
+section, per instance), the storage buffer of the groups at binding 7
+(`ChunkGeometry.GroupsBinding`), and the storage buffer of the tints at
+binding 8 (`ChunkGeometry.TintsBinding`), which the resource set of
+`DrawLayout` binds. `nobara_decodeChunkVertex` decodes a vertex,
+`nobara_chunkTint` gives the color of its tint,
 `nobara_chunkPosition` gives a position relative to the camera, computed from
 whole chunk coordinates so that it is as precise a billion blocks from the
 origin as at the origin, `nobara_chunkNormal` turns a normal with its group,

@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Nobara.Voxel.Tests" />
+    <InternalsVisibleTo Include="Nobara.Voxel.Renderer.Tests" />
   </ItemGroup>
 
 </Project>

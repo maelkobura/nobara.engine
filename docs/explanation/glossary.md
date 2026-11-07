@@ -5,6 +5,12 @@ has one meaning; the documentation does not use a second word for it.
 
 ## Terms
 
+### Ambient occlusion
+
+The darkening of the corners where blocks meet, computed by the mesher for
+each vertex from the blocks beside its corner. See [the meshing of
+chunks](chunk-meshing.md#ambient-occlusion).
+
 ### Archetype
 
 The set of components that some entities of a world have in common. Entities
@@ -498,6 +504,12 @@ The object of nGraphics that talks to the GPU through a
 [frames in flight](#frame-in-flight). See [the nGraphics module
 sheet](../../src/nGraphics/README.md).
 
+### Greedy meshing
+
+The meshing of cubes that covers each slice of a chunk with the largest
+rectangles of equal visible faces, so a flat floor of a chunk is one quad.
+See [the meshing of chunks](chunk-meshing.md#greedy-meshing-of-cubes).
+
 ### Grid
 
 A set of voxels organized in chunks, such as a world dimension. A grid is an
@@ -702,6 +714,12 @@ of the glTF file. The `Mesh` resource gives a material to each slot. See [the
 A resource of type `Mesh` that wraps a glTF binary file: static triangles in
 one vertex buffer and one index buffer, split in [material
 slots](#material-slot). See [the `Mesh` reference](../reference/formats/mesh.md).
+
+### Mesher
+
+The code that turns the blocks of one shape into chunk geometry. nVoxel.Renderer
+meshes cubes and models; a module that adds a shape registers its mesher. See
+[the meshing of chunks](chunk-meshing.md#a-mesher-per-shape).
 
 ### Multi-draw indirect
 
@@ -910,6 +928,12 @@ module sheet](../../src/nFrames/README.md#raw-input).
 The code that the module that defines a resource type registers to apply
 reloaded resources of that type, or to refuse what needs a restart. See [the
 core page](../../src/Core/README.md#reloading-resources).
+
+### Remesh
+
+Building the geometry of a chunk again, in a background job, after its blocks
+changed or it loaded. A chunk is remeshed at most once per frame. See [the
+meshing of chunks](chunk-meshing.md#copy-then-result).
 
 ### Render graph
 

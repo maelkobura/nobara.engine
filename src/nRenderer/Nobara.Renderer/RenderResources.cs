@@ -868,6 +868,7 @@ internal sealed class RenderResources : IRenderResources
         mesh.VertexCount = state.Mesh.Vertices.Length;
         mesh.IndexCount = state.Mesh.Indices.Length;
         mesh.Submeshes = state.Submeshes;
+        mesh.Geometry = state.Mesh.Geometry;
         mesh.BoundsMin = state.Mesh.BoundsMin;
         mesh.BoundsMax = state.Mesh.BoundsMax;
     }

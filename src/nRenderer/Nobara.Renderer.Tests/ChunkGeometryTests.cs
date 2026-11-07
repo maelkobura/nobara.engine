@@ -17,6 +17,24 @@ public sealed class ChunkGeometryTests : IDisposable
     public void Dispose() => _scene.Dispose();
 
     [Fact]
+    public void ThePaletteOfTintsIsWhiteUntilSetAndReachesTheGpuWithTheNextFrame()
+    {
+        Assert.Equal(ChunkGeometry.TintCount, _scene.Chunks.Tints.Length);
+        Assert.All(_scene.Chunks.Tints.ToArray(), t => Assert.Equal(Vector3.One, t));
+        _scene.Frame();
+        Assert.False(_scene.Chunks.TintsPending);
+
+        _scene.Chunks.SetTints([Vector3.One, new Vector3(0.2f, 0.5f, 0.1f)]);
+
+        Assert.Equal(new Vector3(0.2f, 0.5f, 0.1f), _scene.Chunks.Tints[1]);
+        Assert.Equal(Vector3.One, _scene.Chunks.Tints[2]);
+        Assert.True(_scene.Chunks.TintsPending);
+        _scene.Frame();
+        Assert.False(_scene.Chunks.TintsPending);
+        Assert.Throws<ArgumentException>(() => _scene.Chunks.SetTints(new Vector3[ChunkGeometry.TintCount + 1]));
+    }
+
+    [Fact]
     public void GeometryChangesDuringExtractionOnly()
     {
         Assert.Throws<InvalidOperationException>(() => _scene.Chunks.CreateGroup(WorldTransform.Identity));

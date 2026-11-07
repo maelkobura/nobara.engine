@@ -299,6 +299,12 @@ public sealed class RenderMesh
     /// <summary>Gets the parts, one per material slot, in the order of the slots in the file.</summary>
     public IReadOnlyList<Submesh> Submeshes { get; internal set; } = [];
 
+    /// <summary>
+    /// Gets the triangles of the mesh on the CPU, for modules that build
+    /// geometry of their own from it, such as the meshing of blocks.
+    /// </summary>
+    public MeshGeometry Geometry { get; internal set; } = MeshGeometry.Empty;
+
     /// <summary>Gets the smallest corner of the box around the vertices.</summary>
     public Vector3 BoundsMin { get; internal set; }
 
@@ -310,4 +316,41 @@ public sealed class RenderMesh
 
     /// <inheritdoc/>
     public override string ToString() => ObjectId;
+}
+
+/// <summary>
+/// The triangles of a mesh on the CPU: the position, normal, and texture
+/// coordinates of each vertex, and three indices per triangle, in the order
+/// of the parts of <see cref="RenderMesh.Submeshes"/>.
+/// </summary>
+/// <remarks>The arrays are shared and must not be changed.</remarks>
+public sealed class MeshGeometry
+{
+    private readonly Vector3[] _positions;
+    private readonly Vector3[] _normals;
+    private readonly Vector2[] _textureCoordinates;
+    private readonly uint[] _indices;
+
+    internal MeshGeometry(Vector3[] positions, Vector3[] normals, Vector2[] textureCoordinates, uint[] indices)
+    {
+        _positions = positions;
+        _normals = normals;
+        _textureCoordinates = textureCoordinates;
+        _indices = indices;
+    }
+
+    /// <summary>Gets a mesh without triangles.</summary>
+    public static MeshGeometry Empty { get; } = new([], [], [], []);
+
+    /// <summary>Gets the positions of the vertices, in the units of the file.</summary>
+    public ReadOnlySpan<Vector3> Positions => _positions;
+
+    /// <summary>Gets the normals of the vertices, of length 1.</summary>
+    public ReadOnlySpan<Vector3> Normals => _normals;
+
+    /// <summary>Gets the texture coordinates of the vertices; (0, 0) is the first texel of the first row of the image.</summary>
+    public ReadOnlySpan<Vector2> TextureCoordinates => _textureCoordinates;
+
+    /// <summary>Gets the indices, three per triangle; the parts of <see cref="RenderMesh.Submeshes"/> give their ranges.</summary>
+    public ReadOnlySpan<uint> Indices => _indices;
 }

@@ -213,6 +213,42 @@ public sealed class Chunk : IDisposable
         return _blockData.TryGetValue(new BlockDataKey(localIndex, type), out object? value) ? (T)value : default!;
     }
 
+    /// <summary>Gets a view of the block data of a cell, which reads the chunk as it is when the view is read.</summary>
+    /// <param name="localIndex">The local index of the cell.</param>
+    /// <returns>The view.</returns>
+    public BlockDataView GetBlockDataView(int localIndex)
+    {
+        RequireAlive();
+        if ((uint)localIndex >= Volume) throw new ArgumentOutOfRangeException(nameof(localIndex));
+        return new BlockDataView(this, localIndex);
+    }
+
+    /// <summary>
+    /// Copies the block data of a cell into a frozen view, which a background
+    /// job may read while the chunk changes: each value is serialized and
+    /// deserialized by its type, so the copy shares nothing with the chunk.
+    /// </summary>
+    /// <param name="localIndex">The local index of the cell.</param>
+    /// <returns>The copy, or <see cref="BlockDataView.Empty"/> when the cell has no block data.</returns>
+    /// <remarks>It allocates: copy only the cells that a consumer needs, such as those of instance-dependent shapes.</remarks>
+    public BlockDataView CopyBlockData(int localIndex)
+    {
+        RequireAlive();
+        if ((uint)localIndex >= Volume) throw new ArgumentOutOfRangeException(nameof(localIndex));
+        _access?.CheckRead();
+        List<BlockDataEntry>? entries = null;
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        foreach ((BlockDataKey key, object value) in _blockData)
+        {
+            if (key.LocalIndex != localIndex) continue;
+            buffer.ResetWrittenCount();
+            key.Type.Serialize(value, buffer);
+            (entries ??= []).Add(new BlockDataEntry(key.Type, key.Type.Deserialize(buffer.WrittenSpan)));
+        }
+
+        return entries is null ? BlockDataView.Empty : new BlockDataView([.. entries]);
+    }
+
     /// <summary>Attaches or replaces block data on a cell.</summary>
     /// <returns><see langword="true"/> when the stored value changed.</returns>
     internal bool SetBlockData<T>(BlockDataType<T> type, int localIndex, T value)

@@ -65,6 +65,25 @@ internal sealed class ShapeRegistry : IShapeRegistry
         return Evaluate(state, type, shape, data);
     }
 
+    public Matrix4x4 GetOrientation(uint state)
+    {
+        if (!IsFrozen || _blocks is null) throw new InvalidOperationException("Voxel shapes are not initialized.");
+        if (state >= (uint)_cache.Length) throw new ArgumentOutOfRangeException(nameof(state));
+        BlockType type = _blocks.TypeOf(state);
+        int orientation = type.TryGetProperty("orientation", out StateProperty? property) ? _blocks.GetValue(state, property) : 0;
+        if (orientation == 0) return Matrix4x4.Identity;
+        Matrix3 m = OrientationMatrices.Get(type.Orientations, orientation);
+
+        // The rows of a System.Numerics matrix multiply row vectors: the transpose of the columns of Matrix3.
+        var rotation = new Matrix4x4(
+            m.M00, m.M10, m.M20, 0,
+            m.M01, m.M11, m.M21, 0,
+            m.M02, m.M12, m.M22, 0,
+            0, 0, 0, 1);
+        var center = new Vector3(0.5f);
+        return Matrix4x4.CreateTranslation(-center) * rotation * Matrix4x4.CreateTranslation(center);
+    }
+
     internal void RegisterNative(IBlockShape shape)
     {
         if (IsFrozen) throw new InvalidOperationException("Voxel shapes are already frozen.");

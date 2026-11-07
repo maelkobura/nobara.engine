@@ -36,7 +36,7 @@ public enum ChunkNormal
 
 /// <summary>
 /// The light of a vertex of chunk geometry, from 0 (dark) to
-/// <see cref="ChunkVertex.MaxLight"/>, in steps of a quarter: the light of
+/// <see cref="ChunkVertex.MaxLight"/>, in steps of a half: the light of
 /// the sky, and the light of blocks in red, green, and blue.
 /// </summary>
 /// <param name="Sky">The light of the sky.</param>
@@ -64,7 +64,7 @@ public readonly record struct ChunkLight(float Sky, float Red, float Green, floa
 /// <summary>
 /// A vertex of chunk geometry, in 16 bytes: its position in the chunk, its
 /// texture coordinates, its texture (array and layer), its normal, its light,
-/// and its ambient occlusion. The shader library of nRenderer decodes it
+/// its ambient occlusion, and its tint. The shader library of nRenderer decodes it
 /// (<c>#include &lt;nobara/renderer/chunk.glsl&gt;</c>).
 /// </summary>
 /// <remarks>
@@ -73,7 +73,7 @@ public readonly record struct ChunkLight(float Sky, float Red, float Green, floa
 /// <item><term>0</term><description>X (16 bits), Y (16 bits)</description></item>
 /// <item><term>1</term><description>Z (16 bits), U (16 bits)</description></item>
 /// <item><term>2</term><description>V (16 bits), layer (11 bits), array (5 bits)</description></item>
-/// <item><term>3</term><description>normal (3 bits), ambient occlusion (2 bits), sky light (6 bits), red, green, and blue light of blocks (6 bits each), 3 bits reserved, 0</description></item>
+/// <item><term>3</term><description>normal (3 bits), ambient occlusion (2 bits), sky light (5 bits), red, green, and blue light of blocks (5 bits each), tint (7 bits)</description></item>
 /// </list>
 /// <para>
 /// Positions are in blocks from the corner of the chunk, from
@@ -82,7 +82,9 @@ public readonly record struct ChunkLight(float Sky, float Red, float Green, floa
 /// Texture coordinates are from 0 to <see cref="MaxTextureCoordinate"/>
 /// (excluded), in the same steps, so a merged face may repeat its texture
 /// over a whole chunk. A value outside its range is clamped; the encoding
-/// rounds to the nearest step.
+/// rounds to the nearest step. The tint is an index in the palette of
+/// <see cref="ChunkGeometry.SetTints"/>: 0 is white, which leaves the texture
+/// as it is.
 /// </para>
 /// </remarks>
 [StructLayout(LayoutKind.Sequential)]
@@ -109,11 +111,14 @@ public readonly struct ChunkVertex : IEquatable<ChunkVertex>
     /// <summary>The highest layer of a texture array.</summary>
     public const int MaxTextureLayer = 2047;
 
-    /// <summary>The highest level of light: 15.75.</summary>
-    public const float MaxLight = 63f / 4;
+    /// <summary>The highest level of light: 15.5.</summary>
+    public const float MaxLight = 31f / 2;
 
     /// <summary>The highest ambient occlusion: 3, a corner surrounded by blocks.</summary>
     public const int MaxAmbientOcclusion = 3;
+
+    /// <summary>The highest index of a tint, in the palette of <see cref="ChunkGeometry.SetTints"/>.</summary>
+    public const int MaxTint = 127;
 
     private const float Scale = 1024;
 
@@ -124,9 +129,10 @@ public readonly struct ChunkVertex : IEquatable<ChunkVertex>
     /// <param name="normal">The normal.</param>
     /// <param name="light">The light.</param>
     /// <param name="ambientOcclusion">The ambient occlusion, from 0 (none) to <see cref="MaxAmbientOcclusion"/>.</param>
-    /// <exception cref="ArgumentOutOfRangeException">The texture is beyond <see cref="MaxTextureArray"/> or <see cref="MaxTextureLayer"/>, or the occlusion is outside 0 to 3.</exception>
+    /// <param name="tint">The index of the tint in the palette, from 0 (white) to <see cref="MaxTint"/>.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The texture is beyond <see cref="MaxTextureArray"/> or <see cref="MaxTextureLayer"/>, the occlusion is outside 0 to 3, or the tint outside 0 to 127.</exception>
     [HotPath]
-    public ChunkVertex(Vector3 position, Vector2 textureCoordinates, TextureLocation texture, ChunkNormal normal, ChunkLight light, int ambientOcclusion = 0)
+    public ChunkVertex(Vector3 position, Vector2 textureCoordinates, TextureLocation texture, ChunkNormal normal, ChunkLight light, int ambientOcclusion = 0, int tint = 0)
     {
         if ((uint)texture.Array > MaxTextureArray || (uint)texture.Layer > MaxTextureLayer)
         {
@@ -138,15 +144,21 @@ public readonly struct ChunkVertex : IEquatable<ChunkVertex>
             throw new ArgumentOutOfRangeException(nameof(ambientOcclusion), "A chunk vertex holds an ambient occlusion from 0 to 3 and a normal of ChunkNormal.");
         }
 
+        if ((uint)tint > MaxTint)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tint), "A chunk vertex holds a tint from 0 to 127.");
+        }
+
         Word0 = EncodePosition(position.X) | (EncodePosition(position.Y) << 16);
         Word1 = EncodePosition(position.Z) | (Coordinate(textureCoordinates.X) << 16);
         Word2 = Coordinate(textureCoordinates.Y) | ((uint)texture.Layer << 16) | ((uint)texture.Array << 27);
         Word3 = (uint)normal
             | ((uint)ambientOcclusion << 3)
             | (EncodeLight(light.Sky) << 5)
-            | (EncodeLight(light.Red) << 11)
-            | (EncodeLight(light.Green) << 17)
-            | (EncodeLight(light.Blue) << 23);
+            | (EncodeLight(light.Red) << 10)
+            | (EncodeLight(light.Green) << 15)
+            | (EncodeLight(light.Blue) << 20)
+            | ((uint)tint << 25);
     }
 
     [HotPath]
@@ -167,7 +179,7 @@ public readonly struct ChunkVertex : IEquatable<ChunkVertex>
     /// <summary>Gets the third word: V, the layer, and the array.</summary>
     public uint Word2 { get; }
 
-    /// <summary>Gets the fourth word: the normal, the occlusion, and the light.</summary>
+    /// <summary>Gets the fourth word: the normal, the occlusion, the light, and the tint.</summary>
     public uint Word3 { get; }
 
     /// <summary>Gets the position, in blocks from the corner of the chunk, as the shader decodes it.</summary>
@@ -191,7 +203,11 @@ public readonly struct ChunkVertex : IEquatable<ChunkVertex>
 
     /// <summary>Gets the light.</summary>
     [HotPath]
-    public ChunkLight Light => new(((Word3 >> 5) & 63) / 4f, ((Word3 >> 11) & 63) / 4f, ((Word3 >> 17) & 63) / 4f, ((Word3 >> 23) & 63) / 4f);
+    public ChunkLight Light => new(((Word3 >> 5) & 31) / 2f, ((Word3 >> 10) & 31) / 2f, ((Word3 >> 15) & 31) / 2f, ((Word3 >> 20) & 31) / 2f);
+
+    /// <summary>Gets the index of the tint in the palette, from 0 (white) to 127.</summary>
+    [HotPath]
+    public int Tint => (int)(Word3 >> 25);
 
     /// <summary>Gets the layout of a vertex buffer of chunk vertices: the four words as an unsigned integer vector at a location.</summary>
     /// <param name="location">The input location in the vertex shader; 0 in the shader library.</param>
@@ -248,8 +264,8 @@ public readonly struct ChunkVertex : IEquatable<ChunkVertex>
     [HotPath]
     private static uint EncodeLight(float level)
     {
-        float scaled = MathF.Round(level * 4);
-        return scaled <= 0 || float.IsNaN(scaled) ? 0 : scaled >= 63 ? 63 : (uint)scaled;
+        float scaled = MathF.Round(level * 2);
+        return scaled <= 0 || float.IsNaN(scaled) ? 0 : scaled >= 31 ? 31 : (uint)scaled;
     }
 
     [HotPath]

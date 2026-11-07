@@ -214,23 +214,46 @@ public readonly struct ContactMasks : IEquatable<ContactMasks>
     }
 }
 
-/// <summary>A read-only view of block data at one cell.</summary>
+/// <summary>
+/// A read-only view of block data at one cell: of the cell of a chunk, read as
+/// it is now (<see cref="Chunk.GetBlockDataView"/>), or of a frozen copy that
+/// a background job may read (<see cref="Chunk.CopyBlockData"/>).
+/// </summary>
 public readonly struct BlockDataView
 {
     private readonly Chunk? _chunk;
     private readonly int _localIndex;
+    private readonly BlockDataEntry[]? _entries;
 
-    internal BlockDataView(Chunk chunk, int localIndex) => (_chunk, _localIndex) = (chunk, localIndex);
+    internal BlockDataView(Chunk chunk, int localIndex) => (_chunk, _localIndex, _entries) = (chunk, localIndex, null);
+
+    internal BlockDataView(BlockDataEntry[] entries) => (_chunk, _localIndex, _entries) = (null, 0, entries);
 
     /// <summary>Gets an empty view used for type-only shape evaluation.</summary>
     public static BlockDataView Empty => default;
+
+    /// <summary>Gets whether the view is a frozen copy, which reads nothing of its chunk.</summary>
+    public bool IsCopy => _entries is not null;
 
     /// <summary>Reads a typed value, or the default value when none is attached.</summary>
     /// <typeparam name="T">The block-data value type.</typeparam>
     /// <param name="type">The declared data type.</param>
     /// <returns>The attached value, or its default.</returns>
     [HotPath]
-    public T Get<T>(BlockDataType<T> type) => _chunk is null ? default! : _chunk.GetBlockData(type, _localIndex);
+    public T Get<T>(BlockDataType<T> type)
+    {
+        if (_entries is not null)
+        {
+            for (int i = 0; i < _entries.Length; i++)
+            {
+                if (ReferenceEquals(_entries[i].Type, type)) return (T)_entries[i].Value;
+            }
+
+            return default!;
+        }
+
+        return _chunk is null ? default! : _chunk.GetBlockData(type, _localIndex);
+    }
 }
 
 /// <summary>The input supplied to a block shape.</summary>
@@ -332,4 +355,17 @@ public interface IShapeRegistry
     /// <returns>The oriented evaluation.</returns>
     /// <exception cref="ArgumentOutOfRangeException">The state is unknown.</exception>
     ShapeEvaluation Get(uint state, in BlockDataView data);
+
+    /// <summary>
+    /// Gets the orientation of a block state: the rotation that turns the
+    /// block as its shape is described, in the reference orientation, into the
+    /// block of this state. It acts on positions in the cell, from (0, 0, 0)
+    /// to (1, 1, 1), and turns them around the center of the cell; the
+    /// collision and the face opacity of <see cref="Get"/> are turned by it.
+    /// </summary>
+    /// <param name="state">The nBlocks state index.</param>
+    /// <returns>The matrix, for row vectors (<see cref="Vector3.Transform(Vector3, Matrix4x4)"/>); the identity for a state without orientation.</returns>
+    /// <exception cref="InvalidOperationException">nVoxel did not start.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The state is unknown.</exception>
+    Matrix4x4 GetOrientation(uint state);
 }
