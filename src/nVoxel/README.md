@@ -1,10 +1,14 @@
 # nVoxel
 
-nVoxel stores voxel worlds in dimensions, ECS-backed grids, resident 32³ chunks, compact palettes, and extensible block metadata.
+nVoxel stores voxel worlds in dimensions, ECS-backed grids, resident 32³ chunks, compact palettes, and extensible block metadata. Its client extension nVoxel.Renderer meshes the chunks into the chunk geometry of [nRenderer](../nRenderer/README.md).
+
+The reasons for the design of the meshing are in [the meshing of chunks](../../docs/explanation/chunk-meshing.md).
 
 ## Purpose
 
 nVoxel owns the dimensions of a context and stores the terrain and other voxel grids of each world session. It also applies block batches at the World tick, expands multiblocks, reports chunk notifications, and exposes split/merge operations. It loads chunks through tickets and a chain of chunk providers, runs scheduled and random block ticks, keeps height maps, and answers spatial queries. It remains independent of rendering, meshing, and persistence.
+
+nVoxel.Renderer, on the client, turns the blocks of every grid into chunk geometry: cubes merged face by face with hidden faces removed, models placed and turned with their block, shapes of other modules through their meshers, and ambient occlusion at each vertex. It remeshes chunks in background jobs, nearest the camera first, when their blocks change or they load.
 
 ## Status
 
@@ -12,11 +16,21 @@ nVoxel owns the dimensions of a context and stores the terrain and other voxel g
 
 ## Level
 
+nVoxel:
+
 <!-- nobara:generated:begin level -->
 Platform module, on the client and on the server.
 <!-- nobara:generated:end -->
 
+nVoxel.Renderer:
+
+<!-- nobara:generated:begin level nobara.voxel.renderer -->
+Platform module, on the client.
+<!-- nobara:generated:end -->
+
 ## Dependencies
+
+nVoxel:
 
 <!-- nobara:generated:begin dependencies -->
 | Module | Versions | Kind |
@@ -28,6 +42,21 @@ Platform module, on the client and on the server.
 | `nobara.items` | `^1.0` | Required |
 <!-- nobara:generated:end -->
 
+nVoxel.Renderer:
+
+<!-- nobara:generated:begin dependencies nobara.voxel.renderer -->
+| Module | Versions | Kind |
+| --- | --- | --- |
+| `nobara.blocks` | `^1.0` | Required |
+| `nobara.context` | `^1.0` | Required |
+| `nobara.renderer` | `^1.0` | Required |
+| `nobara.voxel` | `^1.0` | Required |
+<!-- nobara:generated:end -->
+
+nVoxel.Renderer reads the blocks of nBlocks and nVoxel, and gives its geometry
+to nRenderer. It declares no dependency toward a lighting module: until one
+exists, chunks are meshed at full light.
+
 ## Entry points
 
 | Member | Use |
@@ -36,8 +65,9 @@ Platform module, on the client and on the server.
 | `BlockCoordinate`, `ChunkCoordinate`, `LocalBlockCoordinate`, `VoxelCoordinates` | Overflow-checked grid coordinates and 32³ chunk indexing. |
 | `Grid`, `GridStorage`, `GridBounds` | ECS-backed grids and their resident chunk tables. |
 | `Chunk`, `ChunkSnapshot`, `Palette` | Palette storage, versions, frozen copies, and compact native memory. |
+| `BlockDataView` | The block data of a cell, read live (`Chunk.GetBlockDataView`) or from a frozen copy that a job may read (`Chunk.CopyBlockData`). |
 | `DenseChannelDefinition`, `BlockDataType<T>` | Lazy dense channels and serializable block data declarations. |
-| `IShapeRegistry`, `IBlockShape`, `ShapeEvaluation` | Shape registration, cached oriented collision, face opacity, contact masks, and instance-dependent queries. |
+| `IShapeRegistry`, `IBlockShape`, `ShapeEvaluation` | Shape registration, cached oriented collision, face opacity, contact masks, instance-dependent queries, and the rotation of the orientation of a state (`GetOrientation`). |
 | `IMultiBlockRegistry`, `MultiBlockCell` | Rotated footprints, part indices, and calculated origins. |
 | `BlockRotation` | Quarter-turn transformations for block states and block-data values. |
 | `IVoxelBatches` | Tick-aligned placement, breaking, interaction, technical batches, and chunk notifications. |
@@ -48,6 +78,27 @@ Platform module, on the client and on the server.
 | `IBlockTicks` | Scheduled ticks in a queue per chunk, on the dimension clock. Random ticks need no call: subscribe to `RandomTick`. |
 | `IHeightMaps` | The highest opaque block known in a column of blocks. |
 | `IVoxelQueries` | Block reads in grid coordinates, and raycasts, boxes, and spheres in the world. |
+
+nVoxel.Renderer:
+
+| Member | Use |
+| --- | --- |
+| `IVoxelMeshing` | The meshing of chunks: the registration of meshers, the visual of each state, whether a chunk is meshed, and statistics. |
+| `IBlockMesher`, `BlockMeshContext`, `BlockMeshWriter` | The mesher of a shape added by a module: it receives a block of the frozen copy of its chunk, with its neighbors and its block data, and writes vertices and triangles. |
+| `BlockVisual` | The visual of a state: the texture of each face after its orientation, its tint, its category, and its orientation. |
+| `VoxelMeshingStatistics` | The chunks followed, waiting, and running, the sections, and the remeshes started, applied, and discarded. |
+| `BlockVisualException` | A visual that cannot be used, such as a texture that no module provides. |
+| `VoxelRendererModule` | The identifier of the module. |
+
+A module that adds a shape to nVoxel registers its mesher while it registers
+or initializes, from its client side:
+
+```csharp
+public void Initialize(ModuleContext context)
+{
+    context.Resolve<IVoxelMeshing>().RegisterMesher(context, "shape:example.sculpted", new SculptedMesher(_carving));
+}
+```
 
 Resolve the services with `context.Resolve<IVoxelWorlds>()` and the like. Every context has its own dimensions, entity worlds, grids, chunks, tickets, providers, and spatial index.
 
@@ -88,7 +139,27 @@ is loaded, so a session without such a ticket becomes active one frame after
 it starts. A provider that fails for one of these chunks fails the task, and
 the session.
 
+nVoxel.Renderer listens to the notifications of batches and to the chunks
+that load and unload, and marks the chunks to remesh: the chunk itself, and
+its neighbors when a change touches its border or when a neighbor loads.
+During the extraction of nRenderer, at every frame, it applies the remeshes
+that finished, then starts the next ones, chunks changed by a player first,
+then the nearest the camera, at most `IVoxelMeshing.MaxRunning` at once. A
+chunk has at most one remesh at a time, and is remeshed at most once per
+frame, however many batches changed it. A remesh whose chunk changed while it
+ran is discarded, and the chunk is remeshed again. A change made by an action
+batch shows at the next frame: its remesh is waited for if needed.
+
+During `SessionStarting`, nVoxel.Renderer adds the loading task "meshed
+chunks of the simulation area": it completes once the loading task of nVoxel
+completed and every chunk held by an active ticket is meshed. At
+`SessionEnded`, it waits for its remeshes and forgets its chunks; their
+sections leave the chunk geometry at the next frame. Its world state counter,
+"meshed chunks", counts the chunks it follows and its remeshes.
+
 ## Configuration
+
+nVoxel:
 
 <!-- nobara:generated:begin configuration -->
 | Key | Scope | Type | Default | Values | Side |
@@ -115,11 +186,57 @@ the session.
 The keys are read when a world session starts, except the view and
 simulation areas, which `AddViewer` reads when it is called.
 
+nVoxel.Renderer:
+
+<!-- nobara:generated:begin configuration nobara.voxel.renderer -->
+None.
+<!-- nobara:generated:end -->
+
 ## Resources
 
-None. Block state indices are supplied by nBlocks and are never persisted by nVoxel in this version.
+nVoxel: none. Block state indices are supplied by nBlocks and are never persisted by nVoxel in this version.
+
+nVoxel.Renderer reads free properties of the `Block` resources, which it
+declares, variants applied, when it starts:
+
+| Property | Type | Effect |
+| --- | --- | --- |
+| `RenderTexture` | resource identifier of a `Texture` | The texture of every face of the block. |
+| `RenderTextureSide`, `RenderTextureTop`, `RenderTextureBottom` | the same | The texture of the four sides, of the top, or of the bottom, over `RenderTexture`. |
+| `RenderTextureNorth`, `RenderTextureEast`, `RenderTextureSouth`, `RenderTextureWest` | the same | The texture of one side, over `RenderTextureSide`. |
+| `RenderModel` | resource identifier of a `Mesh` | The model of a block of the shape `shape:nobara.model`. |
+| `RenderTint` | `#RRGGBB`, in sRGB | A color that multiplies the textures of the block; white without it. |
+
+```xml
+<Block>
+  <Name>Grass</Name>
+  <Content><Shape>shape:nobara.cube</Shape></Content>
+  <Properties>
+    <RenderTexture>texture://Example/Blocks/Dirt</RenderTexture>
+    <RenderTextureTop>texture://Example/Blocks/GrassTop</RenderTextureTop>
+    <RenderTint>#7CBD6B</RenderTint>
+  </Properties>
+</Block>
+```
+
+Faces are named as the block is drawn in its reference orientation, north
+toward -Z: an oriented state turns them with it. The textures are those of
+nRenderer, in its texture arrays, one per size and settings: a block may mix
+textures of several sizes, each face in its own array. A model is placed with
+its origin at the center of the bottom of its cell, then turned with the
+orientation of the state around the center of the cell; a multi-block draws
+its model from its origin cell only. Each part of a model takes the `Albedo`
+texture of the material of its slot, or else the `RenderTexture` of the
+block. The category of the faces comes from the `Opacity` of the state:
+`opaque`, `cutout`, or `translucent`. A texture or a mesh that no module
+provides, a tint that is not a color, or more than 127 tints stop the start
+with a `BlockVisualException`; a cube without texture, a model without
+`RenderModel`, and a shape without mesher are drawn by nothing, with a
+warning.
 
 ## Constraints
+
+nVoxel:
 
 - Grid and chunk state belongs to a world session and is created on the context loop thread.
 - Chunk reads use native palette and channel memory and do not allocate.
@@ -130,6 +247,13 @@ None. Block state indices are supplied by nBlocks and are never persisted by nVo
 - Linked tickets keep a multi-block whole: while the chunk of its origin is held by a ticket, the other chunks of its footprint are held loaded. A chunk held only by a linked ticket does not hold others.
 - A tick allocates nothing once the chunks are loaded; loading and unloading do.
 
+nVoxel.Renderer:
+
+- Client only; use `IVoxelMeshing` on the loop thread of the client context.
+- Remeshes run in background jobs on a frozen copy of the chunk and of a border of one cell from its 26 neighbors, made on the loop thread during extraction; the result returns to the loop thread. A mesher reads nothing else, and is checked as hot path code: the mesher allocates nothing once its scratch memory has grown to the largest chunk.
+- A neighboring chunk that is not loaded hides the faces next to it, in a grid that loads its chunks with tickets; in other grids, an absent chunk is air.
+- Meshers are registered before nVoxel.Renderer starts. The visual of every state is built once, when it starts.
+
 ## Memory notes
 
 The native palette payload is 0 bytes for a uniform chunk, 320 bytes for a
@@ -138,7 +262,14 @@ entries. The 4-bit payload is 576,000 bytes (562.5 KiB) for 1,800 chunks.
 These figures exclude managed object and dictionary overhead; the chunk mix and
 metadata determine the final client footprint.
 
+A remesh of nVoxel.Renderer keeps a frozen copy of 34³ states (154 KiB) and
+its geometry, which grows to the largest chunk it meshed and is kept; there
+are at most `IVoxelMeshing.MaxRunning` of them, twice the number of workers
+by default. The tables of the visual hold about 100 bytes per block state.
+
 ## Known limitations
+
+nVoxel:
 
 - Model shapes use a full unit-block collision fallback; a renderer supplies the visual mesh separately.
 - Chunk serialization is not implemented yet: an unloaded chunk loses its changes, its scheduled ticks, and its block data; its column of the height map is released once none of its chunks is in memory.
@@ -149,3 +280,12 @@ metadata determine the final client footprint.
 - Random ticks draw cells uniformly: a block of a subscribed type is ticked about `voxel.randomTicksPerChunk` / 32,768 times per tick, whatever the other blocks of its chunk.
 - Grid transforms are updated explicitly; nPhysics is not yet the movement authority.
 - An unbounded grid is always a candidate in the spatial index; finite grids use transformed axis-aligned bounds.
+
+nVoxel.Renderer:
+
+- No light is computed: every vertex is at full light, with ambient occlusion only.
+- The texture of a face of an oriented block is not turned in the face: a log lying on its side shows its side texture with the grain along the world axes.
+- Models do not hide the faces of their neighbors and cast no ambient occlusion. A model is read when the module starts: a mesh changed by a hot reload is meshed again only after a restart.
+- A multi-block whose origin is in a chunk that is not loaded is not drawn.
+- When a chunk loads, its loaded neighbors are remeshed, so the chunks of an area that loads are remeshed several times.
+- Ambient occlusion is cast by blocks that hide all their faces; quads whose corners differ in occlusion are not merged.

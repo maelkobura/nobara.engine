@@ -43,6 +43,12 @@ public sealed partial class ChunkGeometry
     /// <summary>The binding of the storage buffer of the groups, that the resource set of <see cref="DrawLayout"/> binds for vertex shaders.</summary>
     public const int GroupsBinding = 7;
 
+    /// <summary>The binding of the storage buffer of the palette of tints (<see cref="SetTints"/>), that the resource set of <see cref="DrawLayout"/> binds.</summary>
+    public const int TintsBinding = 8;
+
+    /// <summary>The number of tints of the palette: indices 0 to <see cref="ChunkVertex.MaxTint"/>.</summary>
+    public const int TintCount = ChunkVertex.MaxTint + 1;
+
     /// <summary>The default name of the culling pass.</summary>
     public const string CullingPassName = "nobara.renderer.chunk-culling";
 
@@ -156,6 +162,34 @@ public sealed partial class ChunkGeometry
     {
         get => _defragmentationThreshold;
         set => _defragmentationThreshold = value is >= 0 and <= 1 ? value : throw new ArgumentOutOfRangeException(nameof(value), value, "The threshold is from 0 to 1.");
+    }
+
+    /// <summary>Gets the palette of tints, in linear colors: index 0 is white unless <see cref="SetTints"/> changed it.</summary>
+    public ReadOnlySpan<Vector3> Tints => _tints;
+
+    /// <summary>
+    /// Sets the palette of tints that the vertices name by index
+    /// (<see cref="ChunkVertex.Tint"/>): linear colors that multiply the
+    /// texture in the shader (<c>nobara_chunkTint</c>). Indices beyond the
+    /// colors given are white. The palette reaches the GPU with the next frame.
+    /// </summary>
+    /// <param name="colors">The colors, from index 0; at most <see cref="TintCount"/>. Index 0 should stay white, the tint of vertices without one.</param>
+    /// <exception cref="ArgumentException">There are more than <see cref="TintCount"/> colors.</exception>
+    public void SetTints(ReadOnlySpan<Vector3> colors)
+    {
+        if (colors.Length > TintCount)
+        {
+            throw new ArgumentException($"The palette of tints holds at most {TintCount} colors.", nameof(colors));
+        }
+
+        _tints.AsSpan().Fill(Vector3.One);
+        colors.CopyTo(_tints);
+        for (int i = 0; i < TintCount; i++)
+        {
+            _tintRecords[i] = new Vector4(_tints[i], 1);
+        }
+
+        _tintsChanged = true;
     }
 
     /// <summary>Creates a group: a grid whose sections share its transform.</summary>

@@ -52,10 +52,13 @@ of 1/1024 block from -16 to 48 blocks, so models may overhang their chunk;
 its texture coordinates on 16 bits each, up to 64, so a merged face may repeat
 its texture over a chunk; its texture array and layer; its normal as one of
 the six directions or none; its sky light and the red, green, and blue light
-of blocks, from 0 to 15.75 in quarters, which smoothed light needs; and its
-ambient occlusion on 2 bits. Positions are local to the chunk: no large
-coordinate is ever stored in a vertex. The shader library of nRenderer
-decodes it, so every shader reads the format the same way.
+of blocks, from 0 to 15.5 in halves, enough for smoothed light; its ambient
+occlusion on 2 bits; and its tint, an index on 7 bits into a palette of 128
+colors that the mesher gives once, so grass and leaves can share a texture
+in shades of their own without a color in every vertex. Positions are local
+to the chunk: no large coordinate is ever stored in a vertex. The shader
+library of nRenderer decodes it, so every shader reads the format the same
+way.
 
 ## Precision far from the origin
 

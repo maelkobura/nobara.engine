@@ -32,6 +32,7 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
                 vec4 uv;
                 vec4 light;
                 uvec4 texture;
+                vec4 tint;
             };
 
             layout(std430, binding = 0) writeonly buffer Out { Decoded decoded[]; };
@@ -39,7 +40,7 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
             void main()
             {
                 NobaraChunkVertex v = nobara_chunkVertex();
-                decoded[gl_VertexID] = Decoded(vec4(v.position, 0.0), vec4(v.normal, 0.0), vec4(v.uv, 0.0, 0.0), vec4(v.skyLight, v.blockLight), uvec4(v.textureArray, v.textureLayer, v.face, v.occlusion));
+                decoded[gl_VertexID] = Decoded(vec4(v.position, 0.0), vec4(v.normal, 0.0), vec4(v.uv, 0.0, 0.0), vec4(v.skyLight, v.blockLight), uvec4(v.textureArray, v.textureLayer, v.face, v.occlusion), vec4(nobara_chunkTint(v), float(v.tint)));
                 gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
                 gl_PointSize = 1.0;
             }
@@ -58,15 +59,28 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
                 new TextureLocation(random.Next(32), random.Next(2048)),
                 (ChunkNormal)random.Next(7),
                 new ChunkLight(random.Next(64) / 4f, random.Next(64) / 4f, random.Next(64) / 4f, random.Next(64) / 4f),
-                random.Next(4));
+                random.Next(4),
+                random.Next(ChunkGeometry.TintCount));
+        }
+
+        // A palette of distinct colors, as ChunkGeometry keeps it at TintsBinding.
+        var tints = new Vector4[ChunkGeometry.TintCount];
+        for (int i = 0; i < tints.Length; i++)
+        {
+            tints[i] = new Vector4(i / 128f, 1 - (i / 128f), (i % 7) / 7f, 1);
         }
 
         using Shader vertex = device.CreateShader(new ShaderDescription(ShaderStages.Vertex, ChunkDrawPass.Compile(Source, "vertex")));
         using Shader fragment = device.CreateShader(new ShaderDescription(ShaderStages.Fragment, ChunkDrawPass.Compile(Fragment, "fragment")));
-        using ResourceLayout layout = device.CreateResourceLayout(new ResourceLayoutDescription([new ResourceLayoutEntry(0, ResourceKind.ReadWriteStorageBuffer, ShaderStages.Vertex)]));
+        using ResourceLayout layout = device.CreateResourceLayout(new ResourceLayoutDescription(
+        [
+            new ResourceLayoutEntry(0, ResourceKind.ReadWriteStorageBuffer, ShaderStages.Vertex),
+            new ResourceLayoutEntry(ChunkGeometry.TintsBinding, ResourceKind.ReadOnlyStorageBuffer, ShaderStages.Vertex),
+        ]));
         using GpuBuffer input = device.CreateBuffer(new BufferDescription(vertices.Length * ChunkVertex.Size, BufferUsage.Vertex));
-        using GpuBuffer result = device.CreateBuffer(new BufferDescription(vertices.Length * 80, BufferUsage.Storage));
-        using ResourceSet set = device.CreateResourceSet(new ResourceSetDescription(layout, [BoundResource.Of(result)]));
+        using GpuBuffer result = device.CreateBuffer(new BufferDescription(vertices.Length * 96, BufferUsage.Storage));
+        using GpuBuffer palette = device.CreateBuffer(new BufferDescription(tints.Length * 16, BufferUsage.Storage));
+        using ResourceSet set = device.CreateResourceSet(new ResourceSetDescription(layout, [BoundResource.Of(result), BoundResource.Of(palette)]));
         using Texture target = device.CreateTexture(TextureDescription.Texture2D(PixelFormat.Rgba8Unorm, 1, 1, TextureUsage.RenderTarget));
         using Framebuffer framebuffer = device.CreateFramebuffer(new FramebufferDescription([new FramebufferAttachment(target)]));
         using GraphicsPipeline pipeline = device.CreateGraphicsPipeline(new GraphicsPipelineDescription
@@ -79,6 +93,7 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
             Outputs = new OutputDescription([PixelFormat.Rgba8Unorm]),
         });
         device.UpdateBuffer(input, 0, MemoryMarshal.AsBytes(vertices.AsSpan()));
+        device.UpdateBuffer(palette, 0, MemoryMarshal.AsBytes(tints.AsSpan()));
         CommandBuffer commands = device.CreateCommandBuffer();
         Assert.True(device.BeginFrame());
         commands.Begin();
@@ -91,13 +106,13 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
         commands.End();
         device.Submit(commands);
         device.EndFrame();
-        var read = new float[vertices.Length * 20];
+        var read = new float[vertices.Length * 24];
         device.ReadBuffer(result, 0, MemoryMarshal.AsBytes(read.AsSpan()));
 
         for (int i = 0; i < vertices.Length; i++)
         {
             ChunkVertex v = vertices[i];
-            int o = i * 20;
+            int o = i * 24;
             Assert.Equal(v.Position, new Vector3(read[o], read[o + 1], read[o + 2]));
             Vector3 normal = v.Normal == ChunkNormal.None ? Vector3.UnitY : NormalOf(v.Normal);
             Assert.Equal(normal, new Vector3(read[o + 4], read[o + 5], read[o + 6]));
@@ -105,6 +120,8 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output)
             Assert.Equal(v.Light, new ChunkLight(read[o + 12], read[o + 13], read[o + 14], read[o + 15]));
             uint[] words = [.. read.AsSpan(o + 16, 4).ToArray().Select(BitConverter.SingleToUInt32Bits)];
             Assert.Equal(((uint)v.Texture.Array, (uint)v.Texture.Layer, (uint)v.Normal, (uint)v.AmbientOcclusion), (words[0], words[1], words[2], words[3]));
+            Assert.Equal(v.Tint, (int)read[o + 23]);
+            Assert.Equal(new Vector3(tints[v.Tint].X, tints[v.Tint].Y, tints[v.Tint].Z), new Vector3(read[o + 20], read[o + 21], read[o + 22]));
         }
     }
 

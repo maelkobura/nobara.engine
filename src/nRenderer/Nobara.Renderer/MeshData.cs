@@ -37,7 +37,21 @@ internal sealed class MeshData
         Parts = parts;
         BoundsMin = min;
         BoundsMax = max;
+        var positions = new Vector3[vertices.Length];
+        var normals = new Vector3[vertices.Length];
+        var coordinates = new Vector2[vertices.Length];
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            positions[i] = vertices[i].Position;
+            normals[i] = vertices[i].Normal;
+            coordinates[i] = vertices[i].TexCoord;
+        }
+
+        Geometry = new MeshGeometry(positions, normals, coordinates, indices);
     }
+
+    /// <summary>Gets the triangles on the CPU, shared by every context.</summary>
+    public MeshGeometry Geometry { get; }
 
     public MeshVertex[] Vertices { get; }
 

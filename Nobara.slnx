@@ -63,6 +63,8 @@
   </Folder>
   <Folder Name="/src/nVoxel/">
     <Project Path="src/nVoxel/Nobara.Voxel/Nobara.Voxel.csproj" />
+    <Project Path="src/nVoxel/Nobara.Voxel.Renderer/Nobara.Voxel.Renderer.csproj" />
+    <Project Path="src/nVoxel/Nobara.Voxel.Renderer.Tests/Nobara.Voxel.Renderer.Tests.csproj" />
     <Project Path="src/nVoxel/Nobara.Voxel.Tests/Nobara.Voxel.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
