@@ -144,6 +144,8 @@ public interface IVoxelBatches
     VoxelBatchHandle SubmitTechnical(BlockBatch batch);
 
     /// <summary>Queues a placing action, expanding multi-blocks atomically.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">A cell of a block is outside the bounds of the grid.</exception>
+    /// <exception cref="InvalidOperationException">A cell of a block does not hold air, or two blocks share a cell.</exception>
     VoxelBatchHandle Place(Grid grid, BlockActor actor, BlockCause cause, IReadOnlyList<BlockPlacement> placements);
 
     /// <summary>Queues a breaking action, expanding multi-blocks atomically.</summary>
@@ -169,6 +171,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     private readonly Action _runCallback;
     private readonly Action<Grid, BlockActor, BlockCause, BlockPlacement> _placeOneCallback;
     private readonly Func<uint, ItemBlockFace, uint> _orientCallback;
+    private readonly Func<Grid, BlockCoordinate, uint, bool> _canPlaceCallback;
     private readonly Func<ulong, Grid?> _resolveGridCallback;
     private ItemHandlerHandle? _placeableHandler;
     private ulong _nextMultiBlock = 1;
@@ -184,6 +187,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
         _runCallback = ProcessTick;
         _placeOneCallback = PlaceOne;
         _orientCallback = Orient;
+        _canPlaceCallback = CanPlace;
         _resolveGridCallback = worlds.ResolveOrNull;
         _notifyFillCallback = NotifyFill;
     }
@@ -233,9 +237,33 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
             _ => position,
         };
         uint state = _orientCallback(use.Value.State, use.Target.Face);
+
+        // A player can aim at a cell that cannot take the block: the use does nothing instead of throwing.
+        if (!_canPlaceCallback(grid, placement, state)) return UseResult.Pass;
         _placeOneCallback(grid, BlockActor.OfEntity(use.Actor.Entity), BlockCause.Hand, new BlockPlacement(placement, state));
         return UseResult.Handled;
     }
+
+    /// <summary>Tells whether every cell of the block, in the bounds of the grid, holds air.</summary>
+    private bool CanPlace(Grid grid, BlockCoordinate position, uint state)
+    {
+        if (!multiBlocks.IsMultiBlock(state)) return IsFree(grid, position);
+        IReadOnlyList<BlockCell> footprint = multiBlocks.GetFootprint(state);
+        for (int part = 0; part < footprint.Count; part++)
+        {
+            BlockCell offset = footprint[part];
+            long x = (long)position.X + offset.X;
+            long y = (long)position.Y + offset.Y;
+            long z = (long)position.Z + offset.Z;
+            if (x is < int.MinValue or > int.MaxValue || y is < int.MinValue or > int.MaxValue || z is < int.MinValue or > int.MaxValue) return false;
+            if (!IsFree(grid, new BlockCoordinate((int)x, (int)y, (int)z))) return false;
+        }
+
+        return true;
+    }
+
+    private bool IsFree(Grid grid, BlockCoordinate position) =>
+        (grid.Bounds is not { } bounds || bounds.Contains(position)) && grid.GetBlock(position) == blocks.Air.DefaultState;
 
     private void PlaceOne(Grid grid, BlockActor actor, BlockCause cause, BlockPlacement placement) => Place(grid, actor, cause, [placement]);
 

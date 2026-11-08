@@ -283,6 +283,45 @@ public sealed class BatchTests : IDisposable
         Assert.Equal(orientation.IndexOf("east"), _harness.Owner.Blocks.GetValue(placed, orientation));
     }
 
+    [Theory]
+    [InlineData(2, ItemBlockFace.East)]
+    [InlineData(0, ItemBlockFace.Up)]
+    public void PlaceableItemPassesOnACellThatCannotTakeTheBlock(int x, ItemBlockFace face)
+    {
+        // The grid spans -2 to 2: (3, 0, 0) is outside it; (0, 1, 0) is taken.
+        _harness.OwnerResources = Bundle("<Block><Name>Cube</Name><Content><Shape>shape:nobara.cube</Shape><CreateItem/></Content></Block>");
+        using Engine engine = _harness.Start();
+        _harness.Tick(engine, 2);
+        Grid grid = _harness.Owner.CreatedGrids[0];
+        BlockType cube = _harness.Owner.Blocks.Get("block:example.batches.cube");
+        ItemType item = _harness.Owner.Items.Get("item:example.batches.cube");
+        _harness.Owner.Batches.Place(grid, BlockActor.OfCommand("test"), BlockCause.Hand, [new BlockPlacement(new BlockCoordinate(x, 0, 0), cube.DefaultState), new BlockPlacement(new BlockCoordinate(0, 1, 0), cube.DefaultState)]);
+        _harness.Tick(engine);
+
+        UseOutcome outcome = _harness.Owner.Usage.UseItem(new ItemActor(42, DimensionId.Default), new ItemStackView(item), _harness.Owner.Usage.UseOnBlock, UseTarget.OnBlock(grid.Identifier, x, 0, 0, face));
+        _harness.Tick(engine);
+
+        Assert.Equal(UseOutcome.NotHandled, outcome);
+        Assert.DoesNotContain(_harness.Log.Entries, e => e.Level >= Nobara.Core.Logging.LogLevel.Error);
+    }
+
+    [Fact]
+    public void PlaceableItemPassesWhenAMultiBlockWouldLeaveTheGrid()
+    {
+        _harness.OwnerResources = Bundle("<Block><Name>Door</Name><Content><Shape>shape:nobara.cube</Shape><Footprint><Cell x=\"1\"/></Footprint><CreateItem/></Content></Block>");
+        using Engine engine = _harness.Start();
+        _harness.Tick(engine, 2);
+        Grid grid = _harness.Owner.CreatedGrids[0];
+        ItemType item = _harness.Owner.Items.Get("item:example.batches.door");
+
+        // The origin (2, 1, 0) is in the grid, the second cell (3, 1, 0) is not.
+        UseOutcome outcome = _harness.Owner.Usage.UseItem(new ItemActor(42, DimensionId.Default), new ItemStackView(item), _harness.Owner.Usage.UseOnBlock, UseTarget.OnBlock(grid.Identifier, 2, 0, 0, ItemBlockFace.Up));
+        _harness.Tick(engine);
+
+        Assert.Equal(UseOutcome.NotHandled, outcome);
+        Assert.Equal(0u, grid.GetBlock(new BlockCoordinate(2, 1, 0)));
+    }
+
     private static byte[] Bundle(string body)
     {
         string root = Path.Combine(Path.GetTempPath(), "nobara-batch-tests", Guid.NewGuid().ToString("N"));
