@@ -215,7 +215,7 @@ internal sealed class MeshingHarness : IDisposable
             {
                 Directory.Delete(folder, recursive: true);
             }
-            catch (IOException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 // A file still open; the temporary folder is left behind.
             }

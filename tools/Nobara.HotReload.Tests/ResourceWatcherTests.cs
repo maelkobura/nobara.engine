@@ -48,7 +48,7 @@ public sealed class ResourceWatcherTests : IDisposable
         {
             Directory.Delete(_root, recursive: true);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // A watcher may still hold the folder; it is disposable.
         }

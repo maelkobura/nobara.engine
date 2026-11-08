@@ -206,7 +206,7 @@ internal sealed class RendererHarness : IDisposable
             {
                 Directory.Delete(folder, recursive: true);
             }
-            catch (IOException)
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 // A file still open by a watcher; the temporary folder is left behind.
             }

@@ -77,7 +77,7 @@ internal sealed class TestModule : IDisposable
         {
             Directory.Delete(Root, recursive: true);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // The folder is in the temporary directory.
         }
