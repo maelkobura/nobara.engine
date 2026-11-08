@@ -54,3 +54,8 @@ completes.
 The item usage handler supplied by nVoxel turns a placeable block item into a
 `Place` request on the face adjacent to the targeted block. If the block has
 an orientation property, the face selects its matching orientation value.
+When a cell of the block is outside the bounds of the grid or does not hold
+air, the handler returns `Pass` instead of submitting the request, so
+`UseItem` reports that nothing handled the use and the game goes on. `Place`
+called directly still throws for such a cell: game code checks the cells
+before it places a block.
