@@ -320,6 +320,7 @@ public sealed class BatchTests : IDisposable
 
         Assert.Equal(UseOutcome.NotHandled, outcome);
         Assert.Equal(0u, grid.GetBlock(new BlockCoordinate(2, 1, 0)));
+        Assert.DoesNotContain(_harness.Log.Entries, e => e.Level >= Nobara.Core.Logging.LogLevel.Error);
     }
 
     private static byte[] Bundle(string body)

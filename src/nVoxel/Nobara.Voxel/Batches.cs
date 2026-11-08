@@ -225,17 +225,21 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     {
         Grid? grid = use.Target.Kind == UseTargetKind.Block ? _resolveGridCallback(use.Target.Grid) : null;
         if (grid is null) return UseResult.Pass;
-        BlockCoordinate position = new(use.Target.X, use.Target.Y, use.Target.Z);
-        BlockCoordinate placement = use.Target.Face switch
+        long x = use.Target.X;
+        long y = use.Target.Y;
+        long z = use.Target.Z;
+        switch (use.Target.Face)
         {
-            ItemBlockFace.Down => new(position.X, checked(position.Y - 1), position.Z),
-            ItemBlockFace.Up => new(position.X, checked(position.Y + 1), position.Z),
-            ItemBlockFace.North => new(position.X, position.Y, checked(position.Z - 1)),
-            ItemBlockFace.South => new(position.X, position.Y, checked(position.Z + 1)),
-            ItemBlockFace.West => new(checked(position.X - 1), position.Y, position.Z),
-            ItemBlockFace.East => new(checked(position.X + 1), position.Y, position.Z),
-            _ => position,
-        };
+            case ItemBlockFace.Down: y--; break;
+            case ItemBlockFace.Up: y++; break;
+            case ItemBlockFace.North: z--; break;
+            case ItemBlockFace.South: z++; break;
+            case ItemBlockFace.West: x--; break;
+            case ItemBlockFace.East: x++; break;
+        }
+
+        if (!FitsInt(x) || !FitsInt(y) || !FitsInt(z)) return UseResult.Pass;
+        BlockCoordinate placement = new((int)x, (int)y, (int)z);
         uint state = _orientCallback(use.Value.State, use.Target.Face);
 
         // A player can aim at a cell that cannot take the block: the use does nothing instead of throwing.
@@ -255,12 +259,15 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
             long x = (long)position.X + offset.X;
             long y = (long)position.Y + offset.Y;
             long z = (long)position.Z + offset.Z;
-            if (x is < int.MinValue or > int.MaxValue || y is < int.MinValue or > int.MaxValue || z is < int.MinValue or > int.MaxValue) return false;
+            if (!FitsInt(x) || !FitsInt(y) || !FitsInt(z)) return false;
             if (!IsFree(grid, new BlockCoordinate((int)x, (int)y, (int)z))) return false;
         }
 
         return true;
     }
+
+    [HotPath]
+    private static bool FitsInt(long value) => value is >= int.MinValue and <= int.MaxValue;
 
     private bool IsFree(Grid grid, BlockCoordinate position) =>
         (grid.Bounds is not { } bounds || bounds.Contains(position)) && grid.GetBlock(position) == blocks.Air.DefaultState;
