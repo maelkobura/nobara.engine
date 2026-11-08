@@ -143,7 +143,7 @@ internal sealed class SdkWorkspace : IDisposable
         {
             Directory.Delete(Root, recursive: true);
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             // A build server may still hold a file; the temp directory is disposable.
         }
