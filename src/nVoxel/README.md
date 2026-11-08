@@ -204,14 +204,14 @@ declares, variants applied, when it starts:
 | `RenderTexture` | resource identifier of a `Texture` | The texture of every face of the block. |
 | `RenderTextureSide`, `RenderTextureTop`, `RenderTextureBottom` | the same | The texture of the four sides, of the top, or of the bottom, over `RenderTexture`. |
 | `RenderTextureNorth`, `RenderTextureEast`, `RenderTextureSouth`, `RenderTextureWest` | the same | The texture of one side, over `RenderTextureSide`. |
+| `RenderModel` | resource identifier of a `Mesh` | The model of a block of the shape `shape:nobara.model`. |
+| `RenderTint` | `#RRGGBB`, in sRGB | A color that multiplies the textures of the block; white without it. |
 
 Each property of a texture takes an optional attribute `turn`, `0`, `90`,
 `180`, or `270`: the texture is turned by that many degrees in the face,
 clockwise seen from the front of the face, such as
 `<RenderTextureEast turn="90">`. On a property that several faces use, it
 turns the texture of each of them.
-| `RenderModel` | resource identifier of a `Mesh` | The model of a block of the shape `shape:nobara.model`. |
-| `RenderTint` | `#RRGGBB`, in sRGB | A color that multiplies the textures of the block; white without it. |
 
 ```xml
 <Block>
@@ -228,9 +228,10 @@ turns the texture of each of them.
 Faces are named as the block is drawn in its reference orientation, north
 toward -Z: an oriented state turns them with it, each texture turned in its
 face as the block turns. A block with `facing` orientations, such as a log,
-lies along Z in its reference orientation: give its east and west faces its
-side texture with `turn="90"`, so that the bark runs along the log in every
-orientation. The textures are those of
+lies along Z in its reference orientation: give its east face its side
+texture with `turn="90"` and its west face with `turn="270"`, so that the
+bark runs along the log in every orientation, and stands upright on every
+side of a standing log. The textures are those of
 nRenderer, in its texture arrays, one per size and settings: a block may mix
 textures of several sizes, each face in its own array. A model is placed with
 its origin at the center of the bottom of its cell, then turned with the

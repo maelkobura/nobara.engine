@@ -323,11 +323,12 @@ public sealed class MeshingTests : IDisposable
     }
 
     [Fact]
-    public void AStandingLogShowsItsSideTexturesUprightWithATurnOnItsEastFace()
+    public void AStandingLogShowsItsSideTexturesUprightWithTurnsOnItsEastAndWestFaces()
     {
-        // The reference log lies along Z, its bark turned on its east face; standing up, the east face shows it upright.
-        _harness.Blocks = MeshingHarness.StandardBlocks + "<Block><Name>Log</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>facing</Orientations></Content><Properties><RenderTexture>texture://Example/World/Stone</RenderTexture><RenderTextureEast turn=\"90\">texture://Example/World/Stone</RenderTextureEast></Properties></Block>";
+        // The reference log lies along Z, its bark turned on its east and west faces; standing up, both show it upright.
+        _harness.Blocks = MeshingHarness.StandardBlocks + "<Block><Name>Log</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>facing</Orientations></Content><Properties><RenderTexture>texture://Example/World/Stone</RenderTexture><RenderTextureEast turn=\"90\">texture://Example/World/Stone</RenderTextureEast><RenderTextureWest turn=\"270\">texture://Example/World/Stone</RenderTextureWest></Properties></Block>";
         var east = new List<ChunkVertex>();
+        var west = new List<ChunkVertex>();
         _harness.Start();
         _harness.Settle();
         _harness.Remesher.Applied = (_, chunk, output) =>
@@ -335,6 +336,7 @@ public sealed class MeshingTests : IDisposable
             if (chunk == new ChunkCoordinate(0, 0, 0))
             {
                 east.AddRange(output.Vertices.ToArray().Where(v => v.Normal == ChunkNormal.PositiveX && v.Position.Y > -0.5f));
+                west.AddRange(output.Vertices.ToArray().Where(v => v.Normal == ChunkNormal.NegativeX && v.Position.Y > -0.5f));
             }
         };
         BlockType log = _harness.Probe.Blocks.Get("block:example.world.log");
@@ -342,9 +344,11 @@ public sealed class MeshingTests : IDisposable
         _harness.Place(_harness.Terrain, (new BlockCoordinate(4, 0, 4), _harness.Probe.Blocks.With(log.DefaultState, property, property.IndexOf("up"))));
         _harness.Frame(2);
 
-        // As on a block that is not turned: U toward -Z, V down.
+        // As on a block that is not turned: U toward -Z on the east face, toward +Z on the west face, V down.
         Assert.Equal(4, east.Count);
         Assert.All(east, v => Assert.Equal(new Vector2(5 - v.Position.Z, 1 - v.Position.Y), v.TextureCoordinates));
+        Assert.Equal(4, west.Count);
+        Assert.All(west, v => Assert.Equal(new Vector2(v.Position.Z - 4, 1 - v.Position.Y), v.TextureCoordinates));
     }
 
     [Fact]

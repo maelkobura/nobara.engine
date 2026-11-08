@@ -26,7 +26,7 @@ A chunk of 32³ blocks has up to 196,608 faces of cubes. Most of them are
 hidden by a neighbor, and most visible ones lie next to an equal face in the
 same plane. The mesher walks the chunk slice by slice, in each of the six
 directions: it marks the visible faces of the slice, each with what makes it
-look the way it does (texture, tint, category, and ambient occlusion), then
+look the way it does (texture and its quarter turn in the face, tint, category, and ambient occlusion), then
 covers the slice with the largest rectangles of equal faces. This is
 [greedy meshing](glossary.md#greedy-meshing): a flat floor of a chunk is one
 quad instead of 1,024. The texture coordinates of a quad count in blocks, and

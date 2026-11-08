@@ -59,11 +59,10 @@ public sealed class MesherTests(ITestOutputHelper output)
         Fill(input, 0, 0, 0, 2, 1, 1, Stone);
         BlockVisuals visuals = Visuals();
         visuals.FaceTurns[(Dirt * 6) + 3] = 1;
+        visuals.TypeIndices[Dirt] = visuals.TypeIndices[Stone];
         for (int face = 0; face < 6; face++)
         {
             visuals.FaceTextures[(Dirt * 6) + face] = visuals.FaceTextures[(Stone * 6) + face];
-            visuals.OccludeMasks[Dirt] = visuals.OccludeMasks[Stone];
-            visuals.TypeIndices[Dirt] = visuals.TypeIndices[Stone];
         }
 
         _mesher.Mesh(input, visuals, _output);
