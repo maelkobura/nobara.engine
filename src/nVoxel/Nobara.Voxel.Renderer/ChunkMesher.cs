@@ -254,11 +254,13 @@ internal sealed class ChunkMesher
                         if (texture != 0)
                         {
                             int occlusion = Occlusion(input, visuals, cell + step, axis, out bool uniform);
+                            // Faces whose texture is turned differently do not merge.
                             key = 1UL
                                 | ((ulong)texture << 1)
                                 | ((ulong)visuals.TintOf(state) << 18)
                                 | ((ulong)visuals.CategoryOf(state) << 25)
                                 | ((ulong)occlusion << 27)
+                                | ((ulong)visuals.FaceTurn(state, direction) << 35)
                                 | (uniform ? Mergeable : 0);
                             any = true;
                         }
@@ -374,6 +376,7 @@ internal sealed class ChunkMesher
         int tint = (int)((key >> 18) & 0x7F);
         var category = (ChunkCategory)((key >> 25) & 3);
         int occlusion = (int)((key >> 27) & 0xFF);
+        int turn = (int)((key >> 35) & 3);
         bool positive = (direction & 1) != 0;
         float plane = slice + (positive ? 1 : 0);
         var normal = (ChunkNormal)direction;
@@ -388,7 +391,7 @@ internal sealed class ChunkMesher
             int cu = corner is 1 or 2 ? width : 0;
             int cv = corner >= 2 ? height : 0;
             Vector3 position = Point(axis, plane, u + cu, v + cv);
-            Vector2 uv = TextureCoordinates(direction, cu, cv, width, height);
+            Vector2 uv = Turn(TextureCoordinates(direction, cu, cv, width, height), turn, width, height);
             int ao = (occlusion >> (corner * 2)) & 3;
             output.AddVertex(new ChunkVertex(position, uv, texture, normal, ChunkLight.Full, ao, tint));
         }
@@ -421,6 +424,17 @@ internal sealed class ChunkMesher
         3 => new Vector2(cu, cv),
         4 => new Vector2(width - cu, height - cv),
         _ => new Vector2(cu, height - cv),
+    };
+
+    // Turns texture coordinates in the quad by quarter turns, keeping them positive:
+    // the texture repeats every block, so any whole offset draws the same.
+    [HotPath]
+    private static Vector2 Turn(Vector2 uv, int turn, int width, int height) => turn switch
+    {
+        1 => new Vector2(uv.Y, width - uv.X),
+        2 => new Vector2(width - uv.X, height - uv.Y),
+        3 => new Vector2(height - uv.Y, uv.X),
+        _ => uv,
     };
 
     // The axes of a slice: the slice along the axis of the face, U and V in it.
