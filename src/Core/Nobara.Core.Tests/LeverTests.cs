@@ -180,6 +180,17 @@ public sealed class LeverTests : IDisposable
     }
 
     [Fact]
+    public void Lists_the_declared_modules_that_the_target_does_not_install()
+    {
+        DistributionInfo? info = null;
+        _distribution.Configure = d => d.DeclaredModules.AddRange([new Nobara.Formats.DeclaredModule { Id = "example.flow" }, new Nobara.Formats.DeclaredModule { Id = "example.renderer" }]);
+        using Engine engine = _distribution.Module("example.flow", behavior: m => m.OnInitialize = c => info = c.Distribution).Load(Side.Server);
+        engine.MainContext.Start();
+
+        Assert.Equal(["example.flow", "example.renderer"], info!.Modules);
+    }
+
+    [Fact]
     public void An_intercepted_stop_request_reaches_the_module_at_the_next_frame_and_the_context_goes_on()
     {
         ModuleContext flow = null!;

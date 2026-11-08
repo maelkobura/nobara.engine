@@ -118,6 +118,19 @@ message DistributionManifest {
   // The third-party libraries of lib/, which the core checks before it loads
   // any of them.
   repeated LibraryFile libraries = 14;
+  // The identifiers of every module that the distribution declares or that
+  // the resolution brings in, installed for the target or not: a module of
+  // the other side, or one that the target disables, is listed here but not
+  // in modules. Empty in a manifest written before this field: modules then
+  // stands for it.
+  repeated DeclaredModule declared_modules = 15;
+}
+
+// A module that the distribution declares, installed for the target or not.
+message DeclaredModule {
+  string id = 1;
+  // The short name of the module, or empty when it has none.
+  string short_name = 2;
 }
 
 message DistributionModule {

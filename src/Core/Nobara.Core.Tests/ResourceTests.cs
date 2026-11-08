@@ -344,6 +344,18 @@ public sealed class ResourceTests : IDisposable
     }
 
     [Fact]
+    public void Accepts_a_qualifier_of_a_declared_module_that_the_target_does_not_install()
+    {
+        WithBlocks("<Block><Name>Dirt</Name><Content><DisplayName>Dirt</DisplayName></Content><Properties><Render.Tint>1</Render.Tint></Properties></Block>");
+        _distribution.Configure = d => d.DeclaredModules.Add(new F.DeclaredModule { Id = "example.render", ShortName = "Render" });
+
+        using Engine engine = _distribution.Load(Side.Server);
+        engine.MainContext.Start();
+
+        Assert.Equal(ContextState.Running, engine.MainContext.State);
+    }
+
+    [Fact]
     public void Lets_a_module_read_the_types_of_its_own_and_of_its_dependencies_only()
     {
         Exception? undeclared = null;

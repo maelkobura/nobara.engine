@@ -98,6 +98,7 @@ public sealed class EndToEndTests : IClassFixture<ReleaseBuild>
         Assert.Contains("speed 3", server.Output, StringComparison.Ordinal);
         Assert.Contains("stopping after 5 ticks", server.Output, StringComparison.Ordinal);
         Assert.Contains("profiler off", server.Output, StringComparison.Ordinal);
+        Assert.Contains("declared modules example.ticker, example.clock", server.Output, StringComparison.Ordinal);
     }
 
     [Fact]

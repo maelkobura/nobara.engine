@@ -68,7 +68,10 @@ spaces, and its `Program.g.cs`, which holds the `main()` of the client and of
 the server. Each calls `Engine.Run`. A build of a target writes
 `obj/nobara/entry/target.props`, imported by the project, with the platform,
 the `main()` of the side of the target, the modules of the target, and the
-distribution manifest to embed as `nobara/distribution.pb`.
+distribution manifest to embed as `nobara/distribution.pb`. The manifest
+lists the modules that the target installs, with their hashes, and,
+separately, every module of the distribution, including those of the other
+side and those that the target disables.
 
 ### The installed game
 

@@ -170,8 +170,11 @@ module is active.
 It returns the diagnostics, the modules that the target ships in load order,
 and the required modules. `ManifestCompiler` then compiles the distribution
 manifest from them, with the SHA-256 of each module assembly and of each file
-of `lib/` that the caller computed; [the command-line
-tool](../Nobara.Cli/README.md) does it when it builds a target.
+of `lib/` that the caller computed. Given every module of the distribution,
+it also lists them, with their short names, as declared modules: a module
+that the target does not ship, of the other side or disabled, is still
+declared. [The command-line tool](../Nobara.Cli/README.md) does it when it
+builds a target.
 
 ## Diagnostics
 
