@@ -124,7 +124,7 @@ internal sealed class TargetBuilder
         // Step 8: hashes, distribution manifest, entry assembly that embeds it.
         var hashes = installed.Modules.ToDictionary(m => m.Key, m => SHA256.HashData(File.ReadAllBytes(Path.Combine(output, m.Value))), StringComparer.OrdinalIgnoreCase);
         var libraries = installed.Libraries.ToDictionary(l => l, l => SHA256.HashData(File.ReadAllBytes(Path.Combine(output, l))), StringComparer.Ordinal);
-        F.DistributionManifest manifest = ManifestCompiler.Compile(_files.Project, _files.Engine!, active, check.RequiredModules, hashes, _files.Root, libraries, _resolution.Modules.Select(m => m.Id).ToList());
+        F.DistributionManifest manifest = ManifestCompiler.Compile(_files.Project, _files.Engine!, active, check.RequiredModules, hashes, _files.Root, libraries, _resolution.Modules.Select(m => m.Manifest).ToList());
         string manifestFile = Path.Combine(staging, "distribution.pb");
         File.WriteAllBytes(manifestFile, manifest.ToByteArray());
         string entryPublish = Path.Combine(staging, "entry");

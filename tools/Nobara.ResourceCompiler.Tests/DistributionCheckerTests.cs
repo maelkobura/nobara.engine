@@ -377,7 +377,7 @@ public sealed class DistributionCheckerTests
     public void Lists_the_modules_a_target_does_not_install_as_declared()
     {
         Module("nobara.game", required: true)
-            .Module("nobara.renderer", Depends("nobara.game"), side: "client")
+            .Module("nobara.renderer", Depends("nobara.game") + "<ShortName>Render</ShortName>", side: "client")
             .Module("nobara.tools", Depends("nobara.game"));
         _build = "<Target name=\"server\"><Platform>win-x64</Platform><Side>server</Side><Disable module=\"nobara.tools\" /></Target>";
         DistributionCheckResult result = Check("server");
@@ -385,10 +385,11 @@ public sealed class DistributionCheckerTests
         ProjectManifest project = ProjectManifestReader.Read($"<NobaraProject format=\"1\"><Id>example</Id><Name>Example</Name><Version>1.0.0</Version><Modules>{string.Concat(_entries)}</Modules></NobaraProject>", Path.Combine(Root, "project.nobara"), diagnostics)!;
         EngineManifest engine = EngineManifestReader.Read("<NobaraEngine format=\"1\" />", Path.Combine(Root, "engine.nobara"), diagnostics)!;
 
-        F.DistributionManifest compiled = ManifestCompiler.Compile(project, engine, result.ActiveModules, result.RequiredModules, null, Root, declaredModules: _modules.Select(m => m.Id).ToList());
+        F.DistributionManifest compiled = ManifestCompiler.Compile(project, engine, result.ActiveModules, result.RequiredModules, null, Root, declaredModules: _modules);
 
         Assert.Equal(["nobara.game"], compiled.Modules.Select(m => m.Id));
-        Assert.Equal(["nobara.game", "nobara.renderer", "nobara.tools"], compiled.DeclaredModules);
+        Assert.Equal(["nobara.game", "nobara.renderer", "nobara.tools"], compiled.DeclaredModules.Select(m => m.Id));
+        Assert.Equal(["", "Render", ""], compiled.DeclaredModules.Select(m => m.ShortName));
     }
 
     [Fact]
@@ -402,6 +403,6 @@ public sealed class DistributionCheckerTests
 
         F.DistributionManifest compiled = ManifestCompiler.Compile(project, engine, result.ActiveModules, result.RequiredModules, null, Root);
 
-        Assert.Equal(["nobara.game"], compiled.DeclaredModules);
+        Assert.Equal(["nobara.game"], compiled.DeclaredModules.Select(m => m.Id));
     }
 }

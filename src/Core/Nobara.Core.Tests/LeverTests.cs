@@ -183,7 +183,7 @@ public sealed class LeverTests : IDisposable
     public void Lists_the_declared_modules_that_the_target_does_not_install()
     {
         DistributionInfo? info = null;
-        _distribution.Configure = d => d.DeclaredModules.AddRange(["example.flow", "example.renderer"]);
+        _distribution.Configure = d => d.DeclaredModules.AddRange([new Nobara.Formats.DeclaredModule { Id = "example.flow" }, new Nobara.Formats.DeclaredModule { Id = "example.renderer" }]);
         using Engine engine = _distribution.Module("example.flow", behavior: m => m.OnInitialize = c => info = c.Distribution).Load(Side.Server);
         engine.MainContext.Start();
 

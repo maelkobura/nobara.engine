@@ -100,6 +100,9 @@ internal sealed class Distribution
 
     public DistributionInfo Info { get; }
 
+    /// <summary>Gets the short names of the declared modules that have one, installed or not.</summary>
+    public IEnumerable<string> DeclaredShortNames => Manifest.DeclaredModules.Select(m => m.ShortName).Where(n => n.Length > 0);
+
     /// <exception cref="ModuleCompositionException">The bytes are not a supported distribution manifest.</exception>
     public static Distribution Read(ReadOnlyMemory<byte> bytes)
     {
@@ -137,7 +140,7 @@ internal sealed class Distribution
 
     // A manifest written before declared_modules lists only its installed modules.
     private static string[] DeclaredModules(F.DistributionManifest manifest) =>
-        manifest.DeclaredModules.Count > 0 ? manifest.DeclaredModules.ToArray() : manifest.Modules.Select(m => m.Id).ToArray();
+        manifest.DeclaredModules.Count > 0 ? manifest.DeclaredModules.Select(m => m.Id).ToArray() : manifest.Modules.Select(m => m.Id).ToArray();
 
     public ModuleInfo CreateInfo(F.ModuleManifest manifest, bool required)
     {

@@ -335,7 +335,8 @@ public sealed class Engine : IDisposable
             IReadOnlyList<ModuleInfo> discovered = engine.LoadModules(distribution, options.ModuleSource ?? new AssemblyModuleSource(install), options.Side);
             engine.Settings = SettingStore.Create(engine.Modules, distribution.Manifest, paths, engine.Logger);
             engine._catalogModules = engine.Loaded.Select(e => new CatalogModule(e.Info, e.Module.OpenResource)).ToArray();
-            engine._shortNames = discovered.Select(m => m.ShortName).ToArray();
+            // A qualified property may target a module that this target does not install.
+            engine._shortNames = discovered.Select(m => m.ShortName).Concat(distribution.DeclaredShortNames).Where(n => n.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
             engine.Resources = ResourceCatalog.Build(engine._catalogModules, engine._shortNames, distribution.ProtectedNamespaces, engine.Logger);
             engine.MainContext = engine.CreateContext(options.Side);
             return engine;

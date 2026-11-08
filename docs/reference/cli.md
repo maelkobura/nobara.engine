@@ -63,7 +63,8 @@ target. It runs `generate` first, then, for each target:
 1. checks the modules of the target and [`engine.nobara`](formats/engine-nobara.md);
 2. compiles and publishes the modules of the target and the entry assembly;
 3. arranges the installed game in `out/<target>/`;
-4. records the hash of each module and library in the distribution manifest;
+4. records the hash of each module and library in the distribution manifest,
+   with the list of every module of the distribution, installed or not;
 5. packs `out/<target>.zip`.
 
 A client target ships the modules of both sides, since a client hosts an

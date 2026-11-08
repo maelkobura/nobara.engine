@@ -82,8 +82,8 @@ public static class ManifestCompiler
     /// or <see langword="null"/>.
     /// </param>
     /// <param name="declaredModules">
-    /// The identifiers of every module of the distribution, installed for the
-    /// target or not, in resolution order, or <see langword="null"/> when
+    /// Every module of the distribution, installed for the target or not, in
+    /// resolution order, or <see langword="null"/> when
     /// every module is installed (<paramref name="modules"/> is then used).
     /// </param>
     /// <returns>The compiled distribution manifest.</returns>
@@ -95,7 +95,7 @@ public static class ManifestCompiler
         IReadOnlyDictionary<string, byte[]>? hashes,
         string relativeTo,
         IReadOnlyDictionary<string, byte[]>? libraries = null,
-        IReadOnlyList<string>? declaredModules = null)
+        IReadOnlyList<ModuleManifest>? declaredModules = null)
     {
         var result = new F.DistributionManifest
         {
@@ -120,7 +120,7 @@ public static class ManifestCompiler
             result.Modules.Add(entry);
         }
 
-        result.DeclaredModules.AddRange(declaredModules ?? modules.Select(m => m.Id).ToList());
+        result.DeclaredModules.AddRange((declaredModules ?? modules).Select(m => new F.DeclaredModule { Id = m.Id, ShortName = m.ShortName ?? string.Empty }));
 
         foreach ((string path, byte[] hash) in (libraries ?? new Dictionary<string, byte[]>()).OrderBy(l => l.Key, StringComparer.Ordinal))
         {

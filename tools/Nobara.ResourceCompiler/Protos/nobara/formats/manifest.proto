@@ -123,7 +123,14 @@ message DistributionManifest {
   // the other side, or one that the target disables, is listed here but not
   // in modules. Empty in a manifest written before this field: modules then
   // stands for it.
-  repeated string declared_modules = 15;
+  repeated DeclaredModule declared_modules = 15;
+}
+
+// A module that the distribution declares, installed for the target or not.
+message DeclaredModule {
+  string id = 1;
+  // The short name of the module, or empty when it has none.
+  string short_name = 2;
 }
 
 message DistributionModule {
