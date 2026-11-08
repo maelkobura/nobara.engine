@@ -30,7 +30,7 @@ public interface IItemUsage
     /// <summary>Gets the standard kind <c>Use</c>: a use in the air, without target.</summary>
     InteractionKind Use { get; }
 
-    /// <summary>Gets the standard kind <c>UseOnBlock</c>: a use on a block, given by its grid, position, and face.</summary>
+    /// <summary>Gets the standard kind <c>UseOnBlock</c>: a use on a block, given by its grid, position, and face, and optionally the direction of the ray that hit it.</summary>
     InteractionKind UseOnBlock { get; }
 
     /// <summary>Gets the standard kind <c>UseOnEntity</c>: a use on an entity.</summary>

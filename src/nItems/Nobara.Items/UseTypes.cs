@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using System.Numerics;
 using Nobara.Core;
 using Nobara.Game;
 
@@ -120,13 +121,13 @@ public enum BlockFace : byte
 
 /// <summary>
 /// What an item is used on, in a neutral form: nothing, a block given by its
-/// grid, its position, and the face that was hit, or an entity given by its
-/// identifier. nItems depends on no world module.
+/// grid, its position, the face that was hit, and optionally the direction of
+/// the ray that hit it, or an entity given by its identifier. nItems depends on no world module.
 /// </summary>
 public readonly struct UseTarget
 {
     [HotPath]
-    private UseTarget(UseTargetKind kind, ulong grid, int x, int y, int z, BlockFace face, ulong entity, System.Numerics.Vector3 direction = default)
+    private UseTarget(UseTargetKind kind, ulong grid, int x, int y, int z, BlockFace face, ulong entity, Vector3 direction = default)
     {
         Direction = direction;
         Kind = kind;
@@ -174,7 +175,7 @@ public readonly struct UseTarget
     /// The handler of a block item uses it to turn a block toward the actor
     /// when the face that was hit gives no direction for it.
     /// </remarks>
-    public System.Numerics.Vector3 Direction { get; }
+    public Vector3 Direction { get; }
 
     /// <summary>Creates the target of a use on a block.</summary>
     /// <param name="grid">The identifier of the entity of the grid.</param>
@@ -195,7 +196,7 @@ public readonly struct UseTarget
     /// <param name="direction">The direction of the ray, in world space; it need not be normalized.</param>
     /// <returns>The target.</returns>
     [HotPath]
-    public static UseTarget OnBlock(ulong grid, int x, int y, int z, BlockFace face, System.Numerics.Vector3 direction) => new(UseTargetKind.Block, grid, x, y, z, face, 0, direction);
+    public static UseTarget OnBlock(ulong grid, int x, int y, int z, BlockFace face, Vector3 direction) => new(UseTargetKind.Block, grid, x, y, z, face, 0, direction);
 
     /// <summary>Creates the target of a use on an entity.</summary>
     /// <param name="entity">The identifier of the entity.</param>
