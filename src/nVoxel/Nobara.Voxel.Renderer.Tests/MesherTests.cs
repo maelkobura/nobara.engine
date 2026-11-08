@@ -53,6 +53,30 @@ public sealed class MesherTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void FacesWhoseTextureIsTurnedDifferentlyDoNotMerge()
+    {
+        MeshInput input = Air();
+        Fill(input, 0, 0, 0, 2, 1, 1, Stone);
+        BlockVisuals visuals = Visuals();
+        visuals.FaceTurns[(Dirt * 6) + 3] = 1;
+        for (int face = 0; face < 6; face++)
+        {
+            visuals.FaceTextures[(Dirt * 6) + face] = visuals.FaceTextures[(Stone * 6) + face];
+            visuals.OccludeMasks[Dirt] = visuals.OccludeMasks[Stone];
+            visuals.TypeIndices[Dirt] = visuals.TypeIndices[Stone];
+        }
+
+        _mesher.Mesh(input, visuals, _output);
+        int merged = _output.Vertices.ToArray().Count(v => v.Normal == ChunkNormal.PositiveY);
+        Set(input, 1, 0, 0, Dirt);
+        _mesher.Mesh(input, visuals, _output);
+        int split = _output.Vertices.ToArray().Count(v => v.Normal == ChunkNormal.PositiveY);
+
+        Assert.Equal(4, merged);
+        Assert.Equal(8, split);
+    }
+
+    [Fact]
     public void FacesOfDifferentTexturesDoNotMerge()
     {
         MeshInput input = Air();

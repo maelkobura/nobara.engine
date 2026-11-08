@@ -281,6 +281,83 @@ public sealed class MeshingTests : IDisposable
         Assert.Contains("texture://Example/World/Missing", Assert.Single(visual.Problems), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("north", "", 0)]
+    [InlineData("east", "", 1)]
+    [InlineData("north", " turn=\"90\"", 1)]
+    [InlineData("east", " turn=\"270\"", 0)]
+    public void TheTextureOfAFaceTurnsWithTheBlockAndItsAttribute(string orientation, string attribute, int quarterTurns)
+    {
+        // A quarter turn clockwise seen from above turns the top face too: its texture follows, then the attribute adds to it.
+        _harness.Blocks = MeshingHarness.StandardBlocks + $"<Block><Name>Log</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>facing</Orientations></Content><Properties><RenderTexture>texture://Example/World/Stone</RenderTexture><RenderTextureTop{attribute}>texture://Example/World/Dirt</RenderTextureTop></Properties></Block>";
+        var top = new List<ChunkVertex>();
+        _harness.Start();
+        _harness.Settle();
+        _harness.Remesher.Applied = (_, chunk, output) =>
+        {
+            if (chunk == new ChunkCoordinate(0, 0, 0))
+            {
+                top.AddRange(output.Vertices.ToArray().Where(v => v.Normal == ChunkNormal.PositiveY && v.Position.Y > 0.5f));
+            }
+        };
+        BlockType log = _harness.Probe.Blocks.Get("block:example.world.log");
+        StateProperty property = log.GetProperty("orientation");
+        _harness.Place(_harness.Terrain, (new BlockCoordinate(4, 0, 4), _harness.Probe.Blocks.With(log.DefaultState, property, property.IndexOf(orientation))));
+        _harness.Frame(2);
+
+        // Without a turn, U follows X and V follows Z; each quarter turn, clockwise seen from above, turns them.
+        Assert.Equal(4, top.Count);
+        Assert.All(top, v =>
+        {
+            float u = v.Position.X - 4;
+            float w = v.Position.Z - 4;
+            Vector2 expected = quarterTurns switch
+            {
+                0 => new Vector2(u, w),
+                1 => new Vector2(w, 1 - u),
+                2 => new Vector2(1 - u, 1 - w),
+                _ => new Vector2(1 - w, u),
+            };
+            Assert.Equal(expected, v.TextureCoordinates);
+        });
+    }
+
+    [Fact]
+    public void AStandingLogShowsItsSideTexturesUprightWithATurnOnItsEastFace()
+    {
+        // The reference log lies along Z, its bark turned on its east face; standing up, the east face shows it upright.
+        _harness.Blocks = MeshingHarness.StandardBlocks + "<Block><Name>Log</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>facing</Orientations></Content><Properties><RenderTexture>texture://Example/World/Stone</RenderTexture><RenderTextureEast turn=\"90\">texture://Example/World/Stone</RenderTextureEast></Properties></Block>";
+        var east = new List<ChunkVertex>();
+        _harness.Start();
+        _harness.Settle();
+        _harness.Remesher.Applied = (_, chunk, output) =>
+        {
+            if (chunk == new ChunkCoordinate(0, 0, 0))
+            {
+                east.AddRange(output.Vertices.ToArray().Where(v => v.Normal == ChunkNormal.PositiveX && v.Position.Y > -0.5f));
+            }
+        };
+        BlockType log = _harness.Probe.Blocks.Get("block:example.world.log");
+        StateProperty property = log.GetProperty("orientation");
+        _harness.Place(_harness.Terrain, (new BlockCoordinate(4, 0, 4), _harness.Probe.Blocks.With(log.DefaultState, property, property.IndexOf("up"))));
+        _harness.Frame(2);
+
+        // As on a block that is not turned: U toward -Z, V down.
+        Assert.Equal(4, east.Count);
+        Assert.All(east, v => Assert.Equal(new Vector2(5 - v.Position.Z, 1 - v.Position.Y), v.TextureCoordinates));
+    }
+
+    [Fact]
+    public void AnInvalidTurnOfATextureStopsTheStart()
+    {
+        _harness.Blocks = "<Block><Name>Odd</Name><Content><Shape>shape:nobara.cube</Shape></Content><Properties><RenderTexture turn=\"45\">texture://Example/World/Stone</RenderTexture></Properties></Block>";
+
+        Exception error = Assert.ThrowsAny<Exception>(() => _harness.Start());
+
+        BlockVisualException visual = Assert.IsType<BlockVisualException>(Unwrap(error));
+        Assert.Contains("is '45'; it is 0, 90, 180, or 270", Assert.Single(visual.Problems), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AShapeWithoutAMesherIsReported()
     {

@@ -204,6 +204,12 @@ declares, variants applied, when it starts:
 | `RenderTexture` | resource identifier of a `Texture` | The texture of every face of the block. |
 | `RenderTextureSide`, `RenderTextureTop`, `RenderTextureBottom` | the same | The texture of the four sides, of the top, or of the bottom, over `RenderTexture`. |
 | `RenderTextureNorth`, `RenderTextureEast`, `RenderTextureSouth`, `RenderTextureWest` | the same | The texture of one side, over `RenderTextureSide`. |
+
+Each property of a texture takes an optional attribute `turn`, `0`, `90`,
+`180`, or `270`: the texture is turned by that many degrees in the face,
+clockwise seen from the front of the face, such as
+`<RenderTextureEast turn="90">`. On a property that several faces use, it
+turns the texture of each of them.
 | `RenderModel` | resource identifier of a `Mesh` | The model of a block of the shape `shape:nobara.model`. |
 | `RenderTint` | `#RRGGBB`, in sRGB | A color that multiplies the textures of the block; white without it. |
 
@@ -220,7 +226,11 @@ declares, variants applied, when it starts:
 ```
 
 Faces are named as the block is drawn in its reference orientation, north
-toward -Z: an oriented state turns them with it. The textures are those of
+toward -Z: an oriented state turns them with it, each texture turned in its
+face as the block turns. A block with `facing` orientations, such as a log,
+lies along Z in its reference orientation: give its east and west faces its
+side texture with `turn="90"`, so that the bark runs along the log in every
+orientation. The textures are those of
 nRenderer, in its texture arrays, one per size and settings: a block may mix
 textures of several sizes, each face in its own array. A model is placed with
 its origin at the center of the bottom of its cell, then turned with the
@@ -284,8 +294,8 @@ nVoxel:
 nVoxel.Renderer:
 
 - No light is computed: every vertex is at full light, with ambient occlusion only.
-- The texture of a face of an oriented block is not turned in the face: a log lying on its side shows its side texture with the grain along the world axes.
 - Models do not hide the faces of their neighbors and cast no ambient occlusion. A model is read when the module starts: a mesh changed by a hot reload is meshed again only after a restart.
 - A multi-block whose origin is in a chunk that is not loaded is not drawn.
 - When a chunk loads, its loaded neighbors are remeshed, so the chunks of an area that loads are remeshed several times.
 - Ambient occlusion is cast by blocks that hide all their faces; quads whose corners differ in occlusion are not merged.
+- The turn of the texture of a face applies to cubes: the mesher of another shape reads the texture of each face (`BlockVisual.TryGetTexture`), not its turn.

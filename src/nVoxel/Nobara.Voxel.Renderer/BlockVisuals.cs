@@ -82,12 +82,15 @@ internal sealed class BlockVisuals
     /// <summary>The six faces, in the order of <see cref="ChunkNormal"/>.</summary>
     public const byte AllFaces = 0x3F;
 
-    // The tables, by state; FaceTextures has six entries per state, in the order of ChunkNormal.
+    // The tables, by state; FaceTextures and FaceTurns have six entries per state, in the order of ChunkNormal.
     internal readonly byte[] Kinds;
     internal readonly byte[] OccludeMasks;
     internal readonly byte[] Categories;
     internal readonly byte[] TintIndices;
     internal readonly uint[] FaceTextures;
+
+    // The quarter turns, 0 to 3, of the texture of each face in the face, after the orientation of the state.
+    internal readonly byte[] FaceTurns;
     internal readonly int[] TypeIndices;
     internal readonly int[] ModelIndices;
     internal readonly ushort[] MesherIndices;
@@ -100,6 +103,7 @@ internal sealed class BlockVisuals
         Categories = new byte[states];
         TintIndices = new byte[states];
         FaceTextures = new uint[states * 6];
+        FaceTurns = new byte[states * 6];
         TypeIndices = new int[states];
         ModelIndices = new int[states];
         MesherIndices = new ushort[states];
@@ -200,6 +204,10 @@ internal sealed class BlockVisuals
     [HotPath]
     public uint FaceTexture(uint state, int direction) => state < (uint)Kinds.Length ? FaceTextures[(state * 6) + direction] : 0;
 
+    /// <summary>Gets how many quarter turns the texture of a face is turned in the face, from 0 to 3.</summary>
+    [HotPath]
+    public int FaceTurn(uint state, int direction) => state < (uint)Kinds.Length ? FaceTurns[(state * 6) + direction] : 0;
+
     [HotPath]
     public BlockVisual Get(uint state) => state < (uint)Kinds.Length ? new BlockVisual(this, state) : throw new ArgumentOutOfRangeException(nameof(state));
 
@@ -251,6 +259,7 @@ internal static class BlockVisualBuilder
         }
 
         Span<uint> reference = stackalloc uint[6];
+        Span<int> referenceTurns = stackalloc int[6];
         for (uint state = 0; state < (uint)blocks.StateCount; state++)
         {
             BlockType type = blocks.TypeOf(state);
@@ -297,13 +306,14 @@ internal static class BlockVisualBuilder
             // Textures by face of the reference orientation, then turned with the block.
             for (int face = 0; face < 6; face++)
             {
-                reference[face] = ResolveTexture(textures, state, face, resources, problems);
+                reference[face] = ResolveTexture(textures, state, face, resources, problems, out referenceTurns[face]);
             }
 
             for (int face = 0; face < 6; face++)
             {
                 int turned = DirectionOf(Vector3.TransformNormal(BlockVisuals.Normal(face), orientation));
                 visuals.FaceTextures[(state * 6) + turned] = reference[face];
+                visuals.FaceTurns[(state * 6) + turned] = (byte)((referenceTurns[face] + TurnOf(face, turned, orientation)) & 3);
             }
 
             if (kind == BlockVisuals.Cube && reference.IndexOfAnyExcept(0u) < 0 && warned.Add(type.ObjectId))
@@ -345,6 +355,30 @@ internal static class BlockVisualBuilder
         return bits;
     }
 
+    // The directions of U and V of the texture of each face, as the mesher lays them out (ChunkMesher.TextureCoordinates).
+    private static (Vector3 U, Vector3 V) TextureAxes(int direction) => direction switch
+    {
+        0 => (Vector3.UnitZ, -Vector3.UnitY),
+        1 => (-Vector3.UnitZ, -Vector3.UnitY),
+        2 => (Vector3.UnitX, -Vector3.UnitZ),
+        3 => (Vector3.UnitX, Vector3.UnitZ),
+        4 => (-Vector3.UnitX, -Vector3.UnitY),
+        _ => (Vector3.UnitX, -Vector3.UnitY),
+    };
+
+    // The quarter turns that take the U axis of the texture of a face of the reference orientation,
+    // turned with the state, to the axes of the face it turns to: 0 along U, 1 along V, 2 against U, 3 against V.
+    private static int TurnOf(int face, int turned, Matrix4x4 orientation)
+    {
+        Vector3 u = Vector3.TransformNormal(TextureAxes(face).U, orientation);
+        (Vector3 targetU, Vector3 targetV) = TextureAxes(turned);
+        float alongU = Vector3.Dot(u, targetU);
+        float alongV = Vector3.Dot(u, targetV);
+        if (alongU > 0.5f) return 0;
+        if (alongV > 0.5f) return 1;
+        return alongU < -0.5f ? 2 : 3;
+    }
+
     private static int DirectionOf(Vector3 normal)
     {
         Vector3 a = Vector3.Abs(normal);
@@ -362,8 +396,10 @@ internal static class BlockVisualBuilder
     }
 
     // The most specific property wins: the face itself, then Side, Top or Bottom, then RenderTexture.
-    private static uint ResolveTexture(GenericElement?[][] textures, uint state, int direction, IRenderResources resources, List<string> problems)
+    // The attribute turn gives the quarter turns of the texture in the face, clockwise seen from the front.
+    private static uint ResolveTexture(GenericElement?[][] textures, uint state, int direction, IRenderResources resources, List<string> problems, out int turn)
     {
+        turn = 0;
         int specific = direction switch
         {
             0 => 7, // West
@@ -378,6 +414,23 @@ internal static class BlockVisualBuilder
         if (value is null)
         {
             return 0;
+        }
+
+        if (value.Attribute("turn") is { } attribute)
+        {
+            turn = attribute.Value.Text.Trim() switch
+            {
+                "0" => 0,
+                "90" => 1,
+                "180" => 2,
+                "270" => 3,
+                _ => -1,
+            };
+            if (turn < 0)
+            {
+                problems.Add($"{attribute.Source}: the attribute turn of <{value.Name}> is '{attribute.Value.Text}'; it is 0, 90, 180, or 270.");
+                turn = 0;
+            }
         }
 
         string id = value.Value?.Text ?? string.Empty;
