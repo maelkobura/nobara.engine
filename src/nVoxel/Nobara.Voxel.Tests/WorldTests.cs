@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Numerics;
+using Nobara.Context;
 using Nobara.Core.Mathematics;
 using Nobara.Game;
 using Nobara.Voxel;
@@ -31,6 +32,30 @@ public sealed class WorldTests
 
         Assert.Empty(harness.Owner.Worlds.Grids);
         Assert.Equal(0, index.Count);
+    }
+
+    [Fact]
+    public void ASecondSessionCreatesItsGridsInTheNewEntityWorld()
+    {
+        using var harness = new VoxelHarness();
+        using var engine = harness.Start();
+        harness.Tick(engine, 2);
+        Assert.True(harness.Owner.Worlds.TryGetTerrain(DimensionId.Default, out Grid? firstTerrain));
+
+        for (int session = 0; session < 2; session++)
+        {
+            harness.Owner.Sessions.End();
+            harness.Tick(engine);
+            Assert.Empty(harness.Owner.Worlds.Grids);
+
+            harness.Owner.Sessions.Start();
+            harness.Tick(engine, 2);
+
+            Assert.Equal(SessionState.Active, harness.Owner.Sessions.State);
+            Assert.Equal(4, harness.Owner.Worlds.Grids.Count);
+            Assert.True(harness.Owner.Worlds.TryGetTerrain(DimensionId.Default, out Grid? terrain));
+            Assert.NotSame(firstTerrain, terrain);
+        }
     }
 
     [Fact]

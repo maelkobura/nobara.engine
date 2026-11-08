@@ -87,6 +87,8 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
             {
                 if (_entities!.TryGet(dimension, out EntityWorld? existingWorld)) _entities.Destroy(_module, dimension);
             }
+
+            _archetypes.Clear();
         });
     }
 
@@ -269,9 +271,10 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
     private EntityArchetype GetArchetype(EntityWorld world)
     {
         string key = world.Dimension.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (_archetypes.TryGetValue(key, out EntityArchetype? archetype)) return archetype;
+        // An archetype belongs to one entity world: the world of a dimension is replaced at each session.
+        if (_archetypes.TryGetValue(key, out EntityArchetype? archetype) && ReferenceEquals(archetype.World, world)) return archetype;
         archetype = world.GetArchetype(GridComponent, _entities!.WorldTransform);
-        _archetypes.Add(key, archetype);
+        _archetypes[key] = archetype;
         return archetype;
     }
 
