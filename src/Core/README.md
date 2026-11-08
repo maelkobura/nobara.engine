@@ -524,7 +524,9 @@ foreach (ByteString component in item.Component)
 ```
 
 `context.Distribution.Modules` lists every module that the distribution
-declares, whether it is active in the context or not. A module that applies
+declares, whether it is active in the context or not: a module of the other
+side, one that the target disables, and one disabled after an error are
+listed, although the first two are not installed. A module that applies
 the rule of optional components uses it to tell a module that is declared but
 inactive, whose data is ignored, from a name that no module has.
 

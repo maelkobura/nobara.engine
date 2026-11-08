@@ -46,6 +46,9 @@ public sealed class TickerModule : IModule
         // The library comes from lib/.
         context.Logger.Info("library hash " + XxHash32.HashToUInt32("ticker"u8).ToString("x8", System.Globalization.CultureInfo.InvariantCulture));
         context.Logger.Info("profiler " + (context.Profiler.Enabled ? "on" : "off"));
+
+        // The server lists the client module too: it is declared, only not installed.
+        context.Logger.Info("declared modules " + string.Join(", ", context.Distribution.Modules));
         Read(context);
     }
 

@@ -74,7 +74,7 @@ internal sealed class Distribution
     private Distribution(F.DistributionManifest manifest)
     {
         Manifest = manifest;
-        Info = new DistributionInfo(manifest.Id, manifest.Name, manifest.Version, manifest.States?.Client, manifest.States?.Server, manifest.Modules.Select(m => m.Id).ToArray());
+        Info = new DistributionInfo(manifest.Id, manifest.Name, manifest.Version, manifest.States?.Client, manifest.States?.Server, DeclaredModules(manifest));
         foreach (F.ModulePolicy policy in manifest.ErrorPolicy?.Modules ?? [])
         {
             _policies[policy.Module] = policy.Policy;
@@ -134,6 +134,10 @@ internal sealed class Distribution
         stream.CopyTo(copy);
         return Read(copy.ToArray());
     }
+
+    // A manifest written before declared_modules lists only its installed modules.
+    private static string[] DeclaredModules(F.DistributionManifest manifest) =>
+        manifest.DeclaredModules.Count > 0 ? manifest.DeclaredModules.ToArray() : manifest.Modules.Select(m => m.Id).ToArray();
 
     public ModuleInfo CreateInfo(F.ModuleManifest manifest, bool required)
     {

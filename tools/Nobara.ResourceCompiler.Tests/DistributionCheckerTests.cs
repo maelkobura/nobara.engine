@@ -372,4 +372,36 @@ public sealed class DistributionCheckerTests
         Assert.Equal("engine.nobara", config.Config.Source.File);
         Assert.Equal(2u, config.Config.Source.Line);
     }
+
+    [Fact]
+    public void Lists_the_modules_a_target_does_not_install_as_declared()
+    {
+        Module("nobara.game", required: true)
+            .Module("nobara.renderer", Depends("nobara.game"), side: "client")
+            .Module("nobara.tools", Depends("nobara.game"));
+        _build = "<Target name=\"server\"><Platform>win-x64</Platform><Side>server</Side><Disable module=\"nobara.tools\" /></Target>";
+        DistributionCheckResult result = Check("server");
+        var diagnostics = new DiagnosticBag();
+        ProjectManifest project = ProjectManifestReader.Read($"<NobaraProject format=\"1\"><Id>example</Id><Name>Example</Name><Version>1.0.0</Version><Modules>{string.Concat(_entries)}</Modules></NobaraProject>", Path.Combine(Root, "project.nobara"), diagnostics)!;
+        EngineManifest engine = EngineManifestReader.Read("<NobaraEngine format=\"1\" />", Path.Combine(Root, "engine.nobara"), diagnostics)!;
+
+        F.DistributionManifest compiled = ManifestCompiler.Compile(project, engine, result.ActiveModules, result.RequiredModules, null, Root, declaredModules: _modules.Select(m => m.Id).ToList());
+
+        Assert.Equal(["nobara.game"], compiled.Modules.Select(m => m.Id));
+        Assert.Equal(["nobara.game", "nobara.renderer", "nobara.tools"], compiled.DeclaredModules);
+    }
+
+    [Fact]
+    public void Declares_the_installed_modules_by_default()
+    {
+        Module("nobara.game", required: true);
+        DistributionCheckResult result = Check();
+        var diagnostics = new DiagnosticBag();
+        ProjectManifest project = ProjectManifestReader.Read($"<NobaraProject format=\"1\"><Id>example</Id><Name>Example</Name><Version>1.0.0</Version><Modules>{string.Concat(_entries)}</Modules></NobaraProject>", Path.Combine(Root, "project.nobara"), diagnostics)!;
+        EngineManifest engine = EngineManifestReader.Read("<NobaraEngine format=\"1\" />", Path.Combine(Root, "engine.nobara"), diagnostics)!;
+
+        F.DistributionManifest compiled = ManifestCompiler.Compile(project, engine, result.ActiveModules, result.RequiredModules, null, Root);
+
+        Assert.Equal(["nobara.game"], compiled.DeclaredModules);
+    }
 }
