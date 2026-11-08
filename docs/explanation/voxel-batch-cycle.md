@@ -53,7 +53,13 @@ completes.
 
 The item usage handler supplied by nVoxel turns a placeable block item into a
 `Place` request on the face adjacent to the targeted block. If the block has
-an orientation property, the face selects its matching orientation value.
+an orientation property, the face selects its matching orientation value. A
+block with `horizontal` orientations placed on a top or bottom face, such as
+a furnace on the ground, has no matching value: when the target carries the
+direction of the ray (`UseTarget.OnBlock` with a direction), the block faces
+the actor, turned toward the nearest horizontal direction opposite to the
+ray in the frame of the grid; without it, the block keeps the state of its
+item.
 When a cell of the block is outside the bounds of the grid or does not hold
 air, the handler returns `Pass` instead of submitting the request, so
 `UseItem` reports that nothing handled the use and the game goes on. `Place`

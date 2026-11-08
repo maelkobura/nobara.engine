@@ -43,7 +43,7 @@ actor, so the pause and a frozen dimension suspend them.
 | `ItemComponentType<T>`, `ItemComponents`, `ComponentValues` | A type of item component; an immutable set of components and values; the values of a `.nof` file given to the reader of a type. |
 | `IItemUsage` | The kinds of interaction (`Use`, `UseOnBlock`, `UseOnEntity`, `Attack`, `DeclareInteraction`), the handlers (`AddHandler`), and the usage service (`UseItem`, `Interrupt`, `TryGetProlongedUse`). |
 | `IItemHandler<T>`, `ItemUse<T>`, `UseResult` | The code that runs when an item with a component is used, what it receives, and what it answers. |
-| `ItemActor`, `UseTarget`, `ItemStackView` | Who uses the item, on what, and the item with the components of its stack, in a neutral form. |
+| `ItemActor`, `UseTarget`, `ItemStackView` | Who uses the item, on what (for a block, optionally the direction of the ray that hit it), and the item with the components of its stack, in a neutral form. |
 | `ItemLoadException`, `ItemProblem` | Why the items cannot be loaded. |
 | `Nobara.Items.Build.DerivedItem` | Builds the content of an item that the plugin of another type derives from its resources. |
 
