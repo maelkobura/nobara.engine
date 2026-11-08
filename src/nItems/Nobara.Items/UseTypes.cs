@@ -126,8 +126,9 @@ public enum BlockFace : byte
 public readonly struct UseTarget
 {
     [HotPath]
-    private UseTarget(UseTargetKind kind, ulong grid, int x, int y, int z, BlockFace face, ulong entity)
+    private UseTarget(UseTargetKind kind, ulong grid, int x, int y, int z, BlockFace face, ulong entity, System.Numerics.Vector3 direction = default)
     {
+        Direction = direction;
         Kind = kind;
         Grid = grid;
         X = x;
@@ -165,6 +166,16 @@ public readonly struct UseTarget
     /// <summary>Gets the identifier of the entity, for an entity.</summary>
     public ulong Entity { get; }
 
+    /// <summary>
+    /// Gets the direction of the ray that hit the block, in world space, or
+    /// zero when the caller did not give it.
+    /// </summary>
+    /// <remarks>
+    /// The handler of a block item uses it to turn a block toward the actor
+    /// when the face that was hit gives no direction for it.
+    /// </remarks>
+    public System.Numerics.Vector3 Direction { get; }
+
     /// <summary>Creates the target of a use on a block.</summary>
     /// <param name="grid">The identifier of the entity of the grid.</param>
     /// <param name="x">The X position of the block in the grid.</param>
@@ -174,6 +185,17 @@ public readonly struct UseTarget
     /// <returns>The target.</returns>
     [HotPath]
     public static UseTarget OnBlock(ulong grid, int x, int y, int z, BlockFace face) => new(UseTargetKind.Block, grid, x, y, z, face, 0);
+
+    /// <summary>Creates the target of a use on a block, with the direction of the ray that hit it.</summary>
+    /// <param name="grid">The identifier of the entity of the grid.</param>
+    /// <param name="x">The X position of the block in the grid.</param>
+    /// <param name="y">The Y position.</param>
+    /// <param name="z">The Z position.</param>
+    /// <param name="face">The face that was hit.</param>
+    /// <param name="direction">The direction of the ray, in world space; it need not be normalized.</param>
+    /// <returns>The target.</returns>
+    [HotPath]
+    public static UseTarget OnBlock(ulong grid, int x, int y, int z, BlockFace face, System.Numerics.Vector3 direction) => new(UseTargetKind.Block, grid, x, y, z, face, 0, direction);
 
     /// <summary>Creates the target of a use on an entity.</summary>
     /// <param name="entity">The identifier of the entity.</param>

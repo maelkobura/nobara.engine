@@ -284,6 +284,30 @@ public sealed class BatchTests : IDisposable
     }
 
     [Theory]
+    [InlineData(0, 0f, -1f, -1f, "south")]
+    [InlineData(0, 1f, -1f, 0.2f, "west")]
+    [InlineData(0, 0f, -1f, 0f, "north")]
+    [InlineData(2, 0f, -1f, -1f, "south")]
+    public void APlaceableHorizontalBlockOnATopFaceFacesTheActor(int gridIndex, float x, float y, float z, string expected)
+    {
+        // Grid 2 is turned by 30 degrees: the direction is given in the frame of the grid, then turned into the world.
+        _harness.OwnerResources = Bundle("<Block><Name>Furnace</Name><Content><Shape>shape:nobara.cube</Shape><Orientations>horizontal</Orientations><CreateItem/></Content></Block>");
+        using Engine engine = _harness.Start();
+        _harness.Tick(engine, 2);
+        Grid grid = _harness.Owner.CreatedGrids[gridIndex];
+        BlockType type = _harness.Owner.Blocks.Get("block:example.batches.furnace");
+        ItemType item = _harness.Owner.Items.Get("item:example.batches.furnace");
+        Vector3 direction = Vector3.Transform(new Vector3(x, y, z), grid.Transform.Rotation);
+
+        UseOutcome outcome = _harness.Owner.Usage.UseItem(new ItemActor(42, DimensionId.Default), new ItemStackView(item), _harness.Owner.Usage.UseOnBlock, UseTarget.OnBlock(grid.Identifier, 0, 0, 0, ItemBlockFace.Up, direction));
+        _harness.Tick(engine);
+
+        Assert.Equal(UseOutcome.Handled, outcome);
+        StateProperty orientation = type.GetProperty("orientation");
+        Assert.Equal(orientation.IndexOf(expected), _harness.Owner.Blocks.GetValue(grid.GetBlock(new BlockCoordinate(0, 1, 0)), orientation));
+    }
+
+    [Theory]
     [InlineData(2, ItemBlockFace.East)]
     [InlineData(0, ItemBlockFace.Up)]
     public void PlaceableItemPassesOnACellThatCannotTakeTheBlock(int x, ItemBlockFace face)

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using System.Numerics;
 using Nobara.Blocks;
 using Nobara.Core;
 using Nobara.Core.Jobs;
@@ -170,7 +171,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
     private readonly List<NotificationSubscription> _subscriptions = [];
     private readonly Action _runCallback;
     private readonly Action<Grid, BlockActor, BlockCause, BlockPlacement> _placeOneCallback;
-    private readonly Func<uint, ItemBlockFace, uint> _orientCallback;
+    private readonly Func<Grid, uint, ItemBlockFace, Vector3, uint> _orientCallback;
     private readonly Func<Grid, BlockCoordinate, uint, bool> _canPlaceCallback;
     private readonly Func<ulong, Grid?> _resolveGridCallback;
     private ItemHandlerHandle? _placeableHandler;
@@ -240,7 +241,7 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
 
         if (!FitsInt(x) || !FitsInt(y) || !FitsInt(z)) return UseResult.Pass;
         BlockCoordinate placement = new((int)x, (int)y, (int)z);
-        uint state = _orientCallback(use.Value.State, use.Target.Face);
+        uint state = _orientCallback(grid, use.Value.State, use.Target.Face, use.Target.Direction);
 
         // A player can aim at a cell that cannot take the block: the use does nothing instead of throwing.
         if (!_canPlaceCallback(grid, placement, state)) return UseResult.Pass;
@@ -274,10 +275,17 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
 
     private void PlaceOne(Grid grid, BlockActor actor, BlockCause cause, BlockPlacement placement) => Place(grid, actor, cause, [placement]);
 
-    private uint Orient(uint state, ItemBlockFace face)
+    private uint Orient(Grid grid, uint state, ItemBlockFace face, Vector3 direction)
     {
         BlockType type = blocks.TypeOf(state);
         if (!type.TryGetProperty("orientation", out StateProperty? property)) return state;
+
+        // On a top or bottom face, a horizontal block faces the actor, from the direction of the ray in the grid.
+        if (type.Orientations == BlockOrientations.Horizontal && face is ItemBlockFace.Up or ItemBlockFace.Down && TowardActor(Vector3.Transform(direction, Quaternion.Inverse(grid.Transform.Rotation))) is string toward)
+        {
+            return blocks.With(state, property, property.IndexOf(toward));
+        }
+
         string name = face switch
         {
             ItemBlockFace.Down => "down",
@@ -293,6 +301,16 @@ internal sealed class VoxelBatches : IVoxelBatches, ITickSystem, IItemHandler<Pl
         }
 
         return state;
+    }
+
+    /// <summary>Gets the horizontal direction opposite to a look direction, or <see langword="null"/> for a vertical one.</summary>
+    private static string? TowardActor(Vector3 direction)
+    {
+        float x = -direction.X;
+        float z = -direction.Z;
+        if (MathF.Abs(x) < 1e-6f && MathF.Abs(z) < 1e-6f) return null;
+        if (MathF.Abs(x) >= MathF.Abs(z)) return x > 0 ? "east" : "west";
+        return z > 0 ? "south" : "north";
     }
 
     public VoxelBatchHandle Submit(BlockBatch batch) => Enqueue(batch, technical: false, InferKind(batch));

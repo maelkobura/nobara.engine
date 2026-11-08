@@ -130,13 +130,15 @@ public sealed class UsageTests : IDisposable
         using Engine engine = _harness.Start();
 
         ItemType steak = food.Registry.Get("item:example.food.steak");
-        food.Usage.UseItem(Player, new ItemStackView(steak), food.Usage.UseOnBlock, UseTarget.OnBlock(5, 1, 2, 3, BlockFace.Up));
+        food.Usage.UseItem(Player, new ItemStackView(steak), food.Usage.UseOnBlock, UseTarget.OnBlock(5, 1, 2, 3, BlockFace.Up, new System.Numerics.Vector3(0, -1, 2)));
 
         Assert.Equal(Player, received.Actor);
         Assert.Same(steak, received.Stack.Item);
         Assert.Same(food.Usage.UseOnBlock, received.Kind);
         Assert.Equal(UseTargetKind.Block, received.Target.Kind);
         Assert.Equal((5UL, 1, 2, 3, BlockFace.Up), (received.Target.Grid, received.Target.X, received.Target.Y, received.Target.Z, received.Target.Face));
+        Assert.Equal(new System.Numerics.Vector3(0, -1, 2), received.Target.Direction);
+        Assert.Equal(System.Numerics.Vector3.Zero, UseTarget.OnBlock(5, 1, 2, 3, BlockFace.Up).Direction);
         Assert.Equal(3, received.Value);
         Assert.Equal(0UL, received.Elapsed);
     }
