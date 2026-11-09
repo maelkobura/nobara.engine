@@ -61,7 +61,7 @@ exists, chunks are meshed at full light.
 
 | Member | Use |
 | --- | --- |
-| `IVoxelWorlds` | Dimensions, terrain grids, grid creation and destruction, and the spatial index. |
+| `IVoxelWorlds` | Dimensions, terrain grids, grid creation and destruction, the spatial index, and the job data of the blocks of every chunk (`ChunkAccess`). |
 | `BlockCoordinate`, `ChunkCoordinate`, `LocalBlockCoordinate`, `VoxelCoordinates` | Overflow-checked grid coordinates and 32³ chunk indexing. |
 | `Grid`, `GridStorage`, `GridBounds` | ECS-backed grids and their resident chunk tables. |
 | `Chunk`, `ChunkSnapshot`, `Palette` | Palette storage, versions, frozen copies, and compact native memory. |
@@ -251,7 +251,10 @@ nVoxel:
 
 - Grid and chunk state belongs to a world session and is created on the context loop thread.
 - Chunk reads use native palette and channel memory and do not allocate.
-- A chunk has one `JobData` access declaration. Background consumers use `ChunkSnapshot`, which copies the chunk and requested borders.
+- The chunks of a context share one `JobData`, `IVoxelWorlds.ChunkAccess`:
+  nVoxel writes it at the `World` stage, and a tick system or a job that
+  reads blocks at a later stage declares it as read. Background consumers
+  use `ChunkSnapshot`, which copies the chunk and requested borders.
 - Palette compaction is explicit and can be scheduled as background work by a later consumer.
 - A terrain grid loads its chunks through tickets (`GridResidency.Tickets`): a chunk outside every ticket is not loaded, and queries report it as such, never as air. Other grids keep every chunk they have written (`GridResidency.Kept`), and an absent chunk is air. `GridOptions.Residency` chooses otherwise.
 - `IChunkProvider.Produce` runs in a background job and is checked as hot path code: it reads nothing that the loop thread changes and does not allocate. A chunk that no provider accepts is air.

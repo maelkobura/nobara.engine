@@ -22,6 +22,19 @@ public interface IVoxelWorlds
     /// <summary>Gets the ECS component that points from a grid entity to its storage.</summary>
     Nobara.Entity.ComponentType<GridComponent> GridComponent { get; }
 
+    /// <summary>
+    /// Gets the job data that guards the blocks of every chunk of the context.
+    /// A tick system or a job that reads chunks declares it as read; nVoxel
+    /// writes it while it applies batches and loads chunks, at the <c>World</c>
+    /// stage.
+    /// </summary>
+    /// <remarks>
+    /// It is one piece of data for all the chunks of the context, since chunks
+    /// come and go after tick systems declare their accesses. Jobs that only
+    /// read it run together.
+    /// </remarks>
+    Nobara.Core.Jobs.JobData ChunkAccess { get; }
+
     /// <summary>Declares a dimension owned by nVoxel and its terrain policy.</summary>
     /// <param name="dimension">The identifier, other than the already declared default.</param>
     /// <param name="clock">The initial game clock.</param>

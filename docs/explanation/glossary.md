@@ -40,6 +40,12 @@ the event bus: the tables of subscribers are built per type, so a block whose
 type has no subscriber costs nothing. See [the nBlocks module
 sheet](../../src/nBlocks/README.md#block-hooks).
 
+### Block light
+
+The light channel that the blocks which emit light spread from block to
+block, from 0 to 15; with color, a red, a green, and a blue component. See
+[voxel lighting](voxel-lighting.md#two-channels-per-block).
+
 ### Block state
 
 One combination of the values of the state properties of a type of block,
@@ -669,6 +675,25 @@ The ordered steps that a module goes through: discovery, loading,
 registration, initialization, start, execution, stop, and release. See
 [Lifecycle](architecture.md#lifecycle).
 
+### Light channel
+
+One of the two values of light that each block holds, from 0 (dark) to 15
+(full): [sky light](#sky-light) or [block light](#block-light). See [voxel
+lighting](voxel-lighting.md#two-channels-per-block).
+
+### Light emission
+
+The light that a block emits, declared by the free property
+`<LightEmission>` of its type, and changed by state through variants. See
+[voxel lighting](voxel-lighting.md#sources-and-filters).
+
+### Light filter
+
+The levels that a block takes from the light that crosses it, on top of the
+level lost at each block, declared by the free property `<LightFilter>`;
+with color, each component on its own. See [voxel
+lighting](voxel-lighting.md#sources-and-filters).
+
 ### Loading task
 
 A share of the work that a world session waits for before it is active,
@@ -834,6 +859,13 @@ types and their tags, the types of item components, and the usage service
 of items, with their handlers and prolonged uses. See [its module
 sheet](../../src/nItems/README.md).
 
+### nLighting
+
+The platform module that computes the light of voxel grids: the sky and
+block channels of each block, the sources and filters of the blocks, and the
+propagation of block light. See [its module
+sheet](../../src/nLighting/README.md).
+
 ### nRenderer
 
 The platform module, on the client, that organizes the rendering of a frame
@@ -920,6 +952,13 @@ A use of an item that lasts, such as eating or drawing a bow, started by a
 handler and timed by nItems on the dimension clock of its actor: the pause
 and a frozen dimension suspend it. An actor has one at a time. See [the
 nItems module sheet](../../src/nItems/README.md#prolonged-uses).
+
+### Propagation queue
+
+A queue of blocks whose light spreads to their neighbors (addition) or goes
+away from them (removal). nLighting corrects the light after a change with
+these two queues instead of computing it again. See [voxel
+lighting](voxel-lighting.md#spreading-by-queues).
 
 ### Protected namespace
 
@@ -1082,6 +1121,11 @@ The sources of a [shader](#shader) compiled with more macros, such as
 ### Side
 
 Where a module runs: client, server, or both.
+
+### Sky light
+
+The light channel that tells how much a block is exposed to the sky, from 0
+to 15. See [voxel lighting](voxel-lighting.md#two-channels-per-block).
 
 ### SPIR-V
 

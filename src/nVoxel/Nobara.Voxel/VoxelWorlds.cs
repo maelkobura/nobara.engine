@@ -44,7 +44,7 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
 
     public GridSpatialIndex SpatialIndex => _spatialIndex;
 
-    internal JobData ChunkAccess => _chunkAccess;
+    public JobData ChunkAccess => _chunkAccess;
 
     /// <summary>Gets the declared dimensions, enumerated without allocation.</summary>
     internal Dictionary<DimensionId, DimensionDefinition>.KeyCollection DimensionKeys
