@@ -150,7 +150,7 @@ one target or for each side:
 - every module entry has a manifest, and every required dependency is present
   and active, in its version range; an optional dependency that is present
   is in its range too;
-- no dependency cycle, and no platform module that depends on a business
+- no dependency cycle, and no platform module that depends on a game
   module;
 - no conflict and no disputed reservation between active modules;
 - short names, configuration keys, and state identifiers are unique;
@@ -198,7 +198,7 @@ Every diagnostic has a file, a line, and a column when they are known.
 | `NRC200` | A module entry without a manifest, or a module provided twice. |
 | `NRC201` | A required dependency is missing or not active. |
 | `NRC202` | A module or a dependency is outside its version range. |
-| `NRC203` | A platform module depends on a business module. |
+| `NRC203` | A platform module depends on a game module. |
 | `NRC204` | A dependency cycle. |
 | `NRC205` | Two active modules conflict. |
 | `NRC206` | Two active modules reserve the same resource. |

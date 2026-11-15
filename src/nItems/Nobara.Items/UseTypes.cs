@@ -17,7 +17,7 @@ namespace Nobara.Items;
 /// <see cref="IItemUsage.UseOnBlock"/>, <see cref="IItemUsage.UseOnEntity"/>,
 /// and <see cref="IItemUsage.Attack"/>; a module declares more with
 /// <see cref="IItemUsage.DeclareInteraction"/>. Which input triggers which
-/// kind is the business of the game, not of nItems.
+/// kind is up to the game, not to nItems.
 /// </remarks>
 public sealed class InteractionKind
 {

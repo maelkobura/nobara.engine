@@ -149,7 +149,7 @@ UseOutcome outcome = usage.UseItem(new ItemActor(entity, dimension), new ItemSta
   the registry computed for that item. A stack with its own components goes
   through every handler of the kind, which is slower.
 - The service never changes the stack. Which input triggers which kind is
-  the business of the game.
+  up to the game.
 - A handler added after the registry froze rebuilds the tables at once.
   Disposing its `ItemHandlerHandle` removes it.
 - A handler that throws is reported with `ModuleContext.ReportFault` on its

@@ -70,7 +70,7 @@ internal sealed class TestDistribution : IDisposable
             Format = 1,
             Id = id,
             Version = version,
-            Level = F.Level.Business,
+            Level = F.Level.Game,
             Side = F.Side.Both,
         };
         configure?.Invoke(manifest);

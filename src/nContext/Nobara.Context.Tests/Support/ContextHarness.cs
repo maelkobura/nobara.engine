@@ -47,7 +47,7 @@ internal sealed class ContextHarness : IDisposable
     /// <summary>Gets or sets whether the engine runs in development mode.</summary>
     public bool DevelopmentMode { get; set; }
 
-    /// <summary>Adds a business module that depends on the context module and declares states.</summary>
+    /// <summary>Adds a game module that depends on the context module and declares states.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="states">The states its manifest declares, with their side; <see cref="F.Side.Unspecified"/> for every side of the module.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
@@ -56,7 +56,7 @@ internal sealed class ContextHarness : IDisposable
     /// <param name="dependsOn">Other modules of the test that the module requires, which load before it.</param>
     public ContextHarness Module(string id, (string Id, F.Side Side)[] states, Action<Probe>? behavior = null, F.Side side = F.Side.Both, F.Policy? policy = null, string[]? dependsOn = null)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = side };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = side };
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.context", Range = "^1.0" });
         foreach (string dependency in dependsOn ?? [])
         {

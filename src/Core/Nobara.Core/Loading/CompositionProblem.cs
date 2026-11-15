@@ -30,8 +30,8 @@ public enum CompositionProblemKind
     /// <summary>Modules depend on each other in a cycle.</summary>
     DependencyCycle,
 
-    /// <summary>A platform module depends on a business module.</summary>
-    PlatformDependsOnBusiness,
+    /// <summary>A platform module depends on a game module.</summary>
+    PlatformDependsOnGame,
 
     /// <summary>Two active modules declare a conflict.</summary>
     Conflict,

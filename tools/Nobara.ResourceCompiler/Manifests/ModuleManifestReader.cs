@@ -30,7 +30,7 @@ public static class ModuleManifestReader
     private static readonly Dictionary<string, ModuleLevel> Levels = new Dictionary<string, ModuleLevel>
     {
         ["platform"] = ModuleLevel.Platform,
-        ["business"] = ModuleLevel.Business,
+        ["game"] = ModuleLevel.Game,
     };
 
     private static readonly Dictionary<string, SettingScope> Scopes = new Dictionary<string, SettingScope>

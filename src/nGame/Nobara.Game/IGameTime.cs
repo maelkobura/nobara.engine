@@ -15,7 +15,7 @@ namespace Nobara.Game;
 /// <remarks>
 /// <para>
 /// Game time is raw: a count of ticks per dimension, on 64 bits. It knows no
-/// day, night, or season; business modules build those on the clocks.
+/// day, night, or season; game modules build those on the clocks.
 /// </para>
 /// <para>
 /// At the start of each tick, before the first stage, the clock of each

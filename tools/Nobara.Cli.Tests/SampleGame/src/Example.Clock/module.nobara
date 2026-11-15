@@ -6,6 +6,6 @@
 <NobaraModule format="1">
   <Id>example.clock</Id>
   <Version>1.0.0</Version>
-  <Level>business</Level>
+  <Level>game</Level>
   <Side>client</Side>
 </NobaraModule>

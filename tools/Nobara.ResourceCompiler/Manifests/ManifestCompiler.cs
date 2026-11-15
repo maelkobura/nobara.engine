@@ -25,7 +25,7 @@ public static class ManifestCompiler
             Id = manifest.Id,
             ShortName = manifest.ShortName ?? string.Empty,
             Version = manifest.Version.Text,
-            Level = manifest.Level == ModuleLevel.Platform ? F.Level.Platform : F.Level.Business,
+            Level = manifest.Level == ModuleLevel.Platform ? F.Level.Platform : F.Level.Game,
             Side = Side(manifest.Side),
             BackendRequired = Side(manifest.BackendRequired),
             BackendOf = manifest.BackendOf ?? string.Empty,

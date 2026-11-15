@@ -118,7 +118,7 @@ public sealed class GenerateTests : IDisposable
     public void Names_the_folder_of_a_local_module_without_manifest_or_project()
     {
         _game.Project("""<Local path="src/Example.Mobs" /><Local path="src/Example.Ghost" />""");
-        _game.Write("src/Example.Mobs/module.nobara", """<NobaraModule format="1"><Id>example.mobs</Id><Version>1.0.0</Version><Level>business</Level><Side>both</Side></NobaraModule>""");
+        _game.Write("src/Example.Mobs/module.nobara", """<NobaraModule format="1"><Id>example.mobs</Id><Version>1.0.0</Version><Level>game</Level><Side>both</Side></NobaraModule>""");
         Directory.CreateDirectory(Path.Combine(_game.Root, "src", "Example.Ghost"));
 
         CliResult result = _game.Run("generate");

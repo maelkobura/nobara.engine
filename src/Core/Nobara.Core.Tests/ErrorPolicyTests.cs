@@ -120,7 +120,7 @@ public sealed class ErrorPolicyTests : IDisposable
     }
 
     [Theory]
-    [InlineData(true, F.Level.Business)]
+    [InlineData(true, F.Level.Game)]
     [InlineData(false, F.Level.Platform)]
     public void Imposes_stop_on_required_and_platform_modules(bool required, F.Level level)
     {

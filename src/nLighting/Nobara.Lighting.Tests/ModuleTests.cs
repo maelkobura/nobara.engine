@@ -107,7 +107,7 @@ public sealed class ModuleTests
         string build = "<Target name=\"server\"><Platform>win-x64</Platform><Side>server</Side><Disable module=\"nobara.lighting\" /></Target>";
         Assert.True(Check(modules, build, "server").Success);
 
-        modules.Add(Inline("<NobaraModule format=\"1\"><Id>example.spawns</Id><Version>1.0.0</Version><Level>business</Level><Side>both</Side><Dependencies><Module id=\"nobara.lighting\" version=\"^1.0\" /></Dependencies></NobaraModule>", "example.spawns"));
+        modules.Add(Inline("<NobaraModule format=\"1\"><Id>example.spawns</Id><Version>1.0.0</Version><Level>game</Level><Side>both</Side><Dependencies><Module id=\"nobara.lighting\" version=\"^1.0\" /></Dependencies></NobaraModule>", "example.spawns"));
         DistributionCheckResult refused = Check(modules, build, "server");
         Assert.False(refused.Success);
         Assert.Contains(refused.Diagnostics, d => d.Code == "NRC201" && d.Message.Contains("example.spawns", StringComparison.Ordinal) && d.Message.Contains("nobara.lighting", StringComparison.Ordinal));

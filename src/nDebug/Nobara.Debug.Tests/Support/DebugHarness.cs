@@ -113,7 +113,7 @@ internal sealed class DebugHarness : IDisposable
     /// <param name="behavior">Sets up each instance of the module.</param>
     public DebugHarness Module(string id, bool? debug, Action<Probe>? behavior = null)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         if (debug is bool optional)
         {
             manifest.Dependencies.Add(new F.Dependency { Id = DebugModule.ModuleId, Range = "^1.0", Optional = optional });
@@ -292,7 +292,7 @@ internal sealed class DebugHarness : IDisposable
 
     private byte[] GameManifest()
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         foreach (string dependency in new[] { "nobara.frames", "nobara.graphics", RendererModule.ModuleId, InputModule.ModuleId })
         {
             manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });

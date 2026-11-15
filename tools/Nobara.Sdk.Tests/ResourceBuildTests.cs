@@ -53,7 +53,7 @@ public sealed class ResourceBuildTests : IDisposable
     {
         string project = _workspace.WriteModule(
             "Sample.Gems",
-            "<Id>sample.gems</Id><Version>1.0.0</Version><Level>business</Level>",
+            "<Id>sample.gems</Id><Version>1.0.0</Version><Level>game</Level>",
             "namespace Sample.Gems; public static class Marker { public static object Gem => typeof(Sample.Gems.Schemas.Gem); }");
         _workspace.Write("Sample.Gems/Schemas/gem.proto", GemSchema);
         _workspace.Write("Sample.Gems/Resources/gems.nof", GemResources);
@@ -152,7 +152,7 @@ public sealed class ResourceBuildTests : IDisposable
             """);
         string shop = _workspace.WriteModule(
             "Sample.Shop",
-            """<Id>sample.shop</Id><Version>1.0.0</Version><Level>business</Level><Dependencies><Module id="sample.gems" version="^1.0" /></Dependencies>""");
+            """<Id>sample.shop</Id><Version>1.0.0</Version><Level>game</Level><Dependencies><Module id="sample.gems" version="^1.0" /></Dependencies>""");
         _workspace.Write("Sample.Shop/Resources/shop.nof", """
             <Nobara version="1.0.0" namespace="Sample/Shop">
               <Gem><Name>Emerald</Name><Content><DisplayName>gem.emerald</DisplayName><Hardness>7</Hardness><Icon>texture://Sample/Gems/RubyIcon</Icon></Content></Gem>
@@ -177,10 +177,10 @@ public sealed class ResourceBuildTests : IDisposable
         string gems = WriteGems();
         string shop = _workspace.WriteModule(
             "Sample.Shop",
-            """<Id>sample.shop</Id><Version>1.0.0</Version><Level>business</Level><Dependencies><Module id="sample.gems" version="^1.0" /></Dependencies>""");
+            """<Id>sample.shop</Id><Version>1.0.0</Version><Level>game</Level><Dependencies><Module id="sample.gems" version="^1.0" /></Dependencies>""");
         string market = _workspace.WriteModule(
             "Sample.Market",
-            """<Id>sample.market</Id><Version>1.0.0</Version><Level>business</Level><Dependencies><Module id="sample.shop" version="^1.0" /></Dependencies>""");
+            """<Id>sample.market</Id><Version>1.0.0</Version><Level>game</Level><Dependencies><Module id="sample.shop" version="^1.0" /></Dependencies>""");
         _workspace.Write("Sample.Market/Resources/market.nof", """
             <Nobara version="1.0.0" namespace="Sample/Market">
               <Gem><Name>Topaz</Name><Content><DisplayName>gem.topaz</DisplayName></Content></Gem>

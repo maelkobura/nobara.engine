@@ -55,13 +55,13 @@ internal sealed class FramesHarness : IDisposable
         return this;
     }
 
-    /// <summary>Adds a business module that depends on nFrames.</summary>
+    /// <summary>Adds a game module that depends on nFrames.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
     /// <param name="reserves">Exclusive resources it reserves.</param>
     public FramesHarness Module(string id, Action<Probe>? behavior = null, params string[] reserves)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.frames", Range = "^1.0" });
         if (WithEvents)
         {

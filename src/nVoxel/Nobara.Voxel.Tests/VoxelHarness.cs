@@ -58,7 +58,7 @@ internal sealed class VoxelHarness : IDisposable
         {
             distribution.Modules.Add(new F.DistributionModule { Id = id, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
         }
-        var ownerManifest = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
+        var ownerManifest = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.voxel", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.items", Range = "^1.0" });
         ownerManifest.Dependencies.Add(new F.Dependency { Id = "nobara.blocks", Range = "^1.0" });

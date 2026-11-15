@@ -348,7 +348,7 @@ internal sealed class ModuleResolver
             Id = compiled.Id,
             ShortName = compiled.ShortName.Length > 0 ? compiled.ShortName : null,
             Version = SemanticVersion.TryParse(compiled.Version, out SemanticVersion? version) ? version! : SemanticVersion.Of(0, 0, 0),
-            Level = compiled.Level == F.Level.Platform ? ModuleLevel.Platform : ModuleLevel.Business,
+            Level = compiled.Level == F.Level.Platform ? ModuleLevel.Platform : ModuleLevel.Game,
             Side = Side(compiled.Side),
             Dependencies = compiled.Dependencies
                 .Select(d => VersionRange.TryParse(d.Range, out VersionRange? range, out _) ? new ModuleDependency { Id = d.Id, Range = range!, Optional = d.Optional, Location = at } : null)

@@ -110,6 +110,7 @@ public sealed class ManifestReaderTests
     [InlineData("<NobaraModule format=\"1\"><Id>nobara.a</Id>", "NRC100")]
     [InlineData("<NobaraModule format=\"1\"><Id>nobara a</Id><Version>1.0.0</Version><Level>platform</Level><Side>both</Side></NobaraModule>", "NRC104")]
     [InlineData("<NobaraModule format=\"1\"><Id>nobara.a</Id><Version>1.0.0</Version><Level>core</Level><Side>both</Side></NobaraModule>", "NRC107")]
+    [InlineData("<NobaraModule format=\"1\"><Id>nobara.a</Id><Version>1.0.0</Version><Level>business</Level><Side>both</Side></NobaraModule>", "NRC107")]
     [InlineData("<NobaraModule format=\"1\"><Id>nobara.a</Id><Version>1.0.0</Version><Level>platform</Level><Side>everywhere</Side></NobaraModule>", "NRC107")]
     [InlineData("<NobaraModule format=\"1\"><Id>nobara.a</Id><Id>nobara.b</Id><Version>1.0.0</Version><Level>platform</Level><Side>both</Side></NobaraModule>", "NRC103")]
     public void Reports_an_invalid_identity(string text, string code)

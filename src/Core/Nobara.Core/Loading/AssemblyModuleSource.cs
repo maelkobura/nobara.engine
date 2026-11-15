@@ -12,7 +12,7 @@ namespace Nobara.Core.Loading;
 
 /// <summary>
 /// Loads one assembly per module from the folders of an installed game:
-/// <c>system/</c> for platform modules, <c>game/</c> for business modules,
+/// <c>system/</c> for platform modules, <c>game/</c> for game modules,
 /// and <c>lib/</c> for the third-party libraries they share.
 /// </summary>
 /// <remarks>
