@@ -24,7 +24,8 @@ public sealed class ColorTests : IDisposable
         _harness.Tick(engine);
 
         Assert.Equal(new LightLevel(15, 14, 0, 0), probe.Light(grid, 14, 16, 16));
-        Assert.Equal(new LightLevel(15, 0, 0, 0), probe.Light(grid, 15, 16, 16));
+        // The glass is under the stone of the wall: its sky comes from beside it.
+        Assert.Equal(new LightLevel(14, 0, 0, 0), probe.Light(grid, 15, 16, 16));
         Assert.Equal(new LightLevel(15, 0, 0, 0), probe.Light(grid, 16, 16, 16));
     }
 
@@ -39,12 +40,12 @@ public sealed class ColorTests : IDisposable
         _harness.Tick(engine);
 
         Assert.Equal(new LightLevel(15, 13, 13, 13), probe.Light(grid, 14, 16, 16));
-        Assert.Equal(new LightLevel(15, 12, 0, 0), probe.Light(grid, 15, 16, 16));
+        Assert.Equal(new LightLevel(14, 12, 0, 0), probe.Light(grid, 15, 16, 16));
         Assert.Equal(new LightLevel(15, 11, 0, 0), probe.Light(grid, 16, 16, 16));
 
         probe.Set(grid, (13, 16, 16, probe.State("redlamp")));
         _harness.Tick(engine);
-        Assert.Equal(new LightLevel(15, 13, 0, 0), probe.Light(grid, 15, 16, 16));
+        Assert.Equal(new LightLevel(14, 13, 0, 0), probe.Light(grid, 15, 16, 16));
         Assert.Equal(new LightLevel(15, 12, 0, 0), probe.Light(grid, 16, 16, 16));
     }
 

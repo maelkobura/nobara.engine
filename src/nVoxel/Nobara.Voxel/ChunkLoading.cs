@@ -406,4 +406,12 @@ public interface IChunkLoading
 
     /// <summary>Gets the number of chunks that providers are producing.</summary>
     int PendingChunks { get; }
+
+    /// <summary>
+    /// Gets the area tickets of the session that are not disposed, those of
+    /// viewers included, in the order they were added. Modules that favor the
+    /// places where something happens, such as the light near the players,
+    /// read their centers.
+    /// </summary>
+    IReadOnlyList<AreaTicket> AreaTickets { get; }
 }

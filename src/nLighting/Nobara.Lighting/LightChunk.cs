@@ -25,18 +25,20 @@ internal sealed unsafe class LightChunk : IDisposable
 
     public const int Volume = VoxelCoordinates.ChunkVolume;
 
-    private const ushort BlockMask = 0x0FFF;
-
     private readonly bool _colored;
     private void* _data;
-    private ushort _uniform = DefaultValue;
+    private ushort _uniform;
+    private bool _disposed;
 
-    public LightChunk(Grid grid, ChunkCoordinate coordinate, Chunk blocks, bool colored)
+    public LightChunk(Grid grid, ChunkCoordinate coordinate, Chunk blocks, bool colored, SkyColumn column, ushort initial)
     {
         Grid = grid;
         Coordinate = coordinate;
         Blocks = blocks;
         _colored = colored;
+        Column = column;
+        BaseY = coordinate.Y * VoxelCoordinates.ChunkSize;
+        _uniform = initial;
     }
 
     public Grid Grid { get; }
@@ -45,6 +47,18 @@ internal sealed unsafe class LightChunk : IDisposable
 
     /// <summary>Gets the blocks of the chunk in nVoxel.</summary>
     public Chunk Blocks { get; }
+
+    /// <summary>Gets the heights of the column of chunks, from which the cells exposed to the sky follow.</summary>
+    public SkyColumn Column { get; }
+
+    /// <summary>Gets the coordinate along Y of the lowest layer of the chunk.</summary>
+    public int BaseY { get; }
+
+    /// <summary>Gets or sets the squared distance to the nearest point of interest, which orders the work of a pass.</summary>
+    public float Priority;
+
+    /// <summary>Gets whether the chunk left memory.</summary>
+    public bool IsDisposed => _disposed;
 
     /// <summary>Gets the loaded chunk on each side, by <see cref="BlockFace"/>.</summary>
     public LightChunk?[] Neighbors { get; } = new LightChunk?[6];
@@ -78,11 +92,9 @@ internal sealed unsafe class LightChunk : IDisposable
         return (ushort)(((packed & 0xF0) << 8) | (packed & 0x0F));
     }
 
+    /// <summary>Tells whether a cell is above the highest opaque block of its column, where the sky channel is 15.</summary>
     [HotPath]
-    public ushort GetBlock(int index) => (ushort)(Get(index) & BlockMask);
-
-    [HotPath]
-    public void SetBlock(int index, ushort block) => Set(index, (ushort)((Get(index) & ~BlockMask) | block));
+    public bool IsExposed(int index) => Column.Heights[index & 1023] < BaseY + (index >> 10);
 
     /// <summary>Writes the value of a block, leaving uniform mode at the first block that differs.</summary>
     [HotPath]
@@ -155,6 +167,7 @@ internal sealed unsafe class LightChunk : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         if (_data != null)
         {
             NativeMemory.Free(_data);
@@ -262,21 +275,51 @@ internal static class Faces
         };
     }
 
-    /// <summary>Takes each component of the block channel from another, at least zero.</summary>
-    /// <param name="value">The block channel.</param>
+    /// <summary>Takes each component of a light value (sky, red, green, blue) from another, at least zero.</summary>
+    /// <param name="value">The light value.</param>
     /// <param name="filter">The levels to take from each component.</param>
     /// <param name="loss">The level to take from each component on top.</param>
     public static ushort Subtract(ushort value, ushort filter, int loss)
     {
+        int sky = (value >> 12) - (filter >> 12) - loss;
         int red = ((value >> 8) & 15) - ((filter >> 8) & 15) - loss;
         int green = ((value >> 4) & 15) - ((filter >> 4) & 15) - loss;
         int blue = (value & 15) - (filter & 15) - loss;
-        return (ushort)((Math.Max(red, 0) << 8) | (Math.Max(green, 0) << 4) | Math.Max(blue, 0));
+        return (ushort)((Math.Max(sky, 0) << 12) | (Math.Max(red, 0) << 8) | (Math.Max(green, 0) << 4) | Math.Max(blue, 0));
     }
 
     /// <summary>Keeps the brightest of each component.</summary>
     public static ushort Max(ushort a, ushort b) =>
-        (ushort)(Math.Max(a & 0xF00, b & 0xF00) | Math.Max(a & 0x0F0, b & 0x0F0) | Math.Max(a & 0x00F, b & 0x00F));
+        (ushort)(Math.Max(a & 0xF000, b & 0xF000) | Math.Max(a & 0xF00, b & 0xF00) | Math.Max(a & 0x0F0, b & 0x0F0) | Math.Max(a & 0x00F, b & 0x00F));
+
+    /// <summary>Tells whether a value is brighter than another in at least one component.</summary>
+    public static bool Raises(ushort value, ushort over) => Max(value, over) != over;
+
+    /// <summary>Keeps the components of a value that are brighter than those of another.</summary>
+    public static ushort Above(ushort value, ushort than)
+    {
+        ushort kept = 0;
+        for (int shift = 0; shift < 16; shift += 4)
+        {
+            int level = (value >> shift) & 15;
+            if (level > ((than >> shift) & 15)) kept |= (ushort)(level << shift);
+        }
+
+        return kept;
+    }
+
+    /// <summary>Keeps the components of a value that are at least those of another.</summary>
+    public static ushort KeepAtLeast(ushort value, ushort than)
+    {
+        ushort kept = 0;
+        for (int shift = 0; shift < 16; shift += 4)
+        {
+            int level = (value >> shift) & 15;
+            if (level >= ((than >> shift) & 15)) kept |= (ushort)(level << shift);
+        }
+
+        return kept;
+    }
 }
 
 /// <summary>
@@ -304,13 +347,19 @@ internal sealed class WorkState
     /// <summary>The removals that start in this chunk: local index in the low 16 bits, removed value in the high 16 bits.</summary>
     public readonly List<uint> Seeds = [];
 
+    /// <summary>The removals that a lane left in its queue when its budget ran out, in the same form as <see cref="Seeds"/>.</summary>
+    public readonly List<uint> RemovalQueue = [];
+
+    /// <summary>The number of the tick when the chunk got this work, to measure how late the light is.</summary>
+    public long Since;
+
     public bool HasPending;
     public bool HasIncomingAdd;
     public bool HasIncomingRemoval;
     public bool HasOutgoingAdd;
     public bool HasOutgoingRemoval;
 
-    public bool HasRemovalWork => Seeds.Count > 0 || HasIncomingRemoval;
+    public bool HasRemovalWork => Seeds.Count > 0 || RemovalQueue.Count > 0 || HasIncomingRemoval;
 
     public bool HasAdditionWork => HasPending || HasIncomingAdd;
 
@@ -329,6 +378,7 @@ internal sealed class WorkState
         if (HasOutgoingAdd) Array.Clear(OutgoingAdd);
         if (HasOutgoingRemoval) Array.Clear(OutgoingRemoval);
         Seeds.Clear();
+        RemovalQueue.Clear();
         HasPending = HasIncomingAdd = HasIncomingRemoval = HasOutgoingAdd = HasOutgoingRemoval = false;
     }
 }
@@ -346,6 +396,18 @@ internal sealed class Scratch
     private int _additionCount;
     private int _removalHead;
     private int _removalCount;
+
+    /// <summary>The operations of the lane in the current round: cells taken from a queue, and seeds.</summary>
+    public int Operations;
+
+    /// <summary>The operations the lane may do in the current round.</summary>
+    public int Quota;
+
+    public bool IsSpent
+    {
+        [HotPath]
+        get => Operations >= Quota;
+    }
 
     public bool HasAdditions
     {

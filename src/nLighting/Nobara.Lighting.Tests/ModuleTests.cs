@@ -99,7 +99,7 @@ public sealed class ModuleTests
     {
         string root = RepositoryRoot();
         var modules = new List<ModuleManifest> { Read(Path.Combine(root, "src", "nLighting", "Nobara.Lighting", "module.nobara")) };
-        foreach (string id in new[] { "nobara.voxel", "nobara.blocks", "nobara.game", "nobara.context" })
+        foreach (string id in new[] { "nobara.voxel", "nobara.blocks", "nobara.game", "nobara.context", "nobara.entity" })
         {
             modules.Add(Inline($"<NobaraModule format=\"1\"><Id>{id}</Id><Version>1.0.0</Version><Level>platform</Level><Side>both</Side></NobaraModule>", id));
         }

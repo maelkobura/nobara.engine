@@ -5,6 +5,7 @@
 using Nobara.Blocks;
 using Nobara.Context;
 using Nobara.Core;
+using Nobara.Entity;
 using Nobara.Game;
 using Nobara.Voxel;
 
@@ -12,7 +13,7 @@ using Nobara.Voxel;
 
 namespace Nobara.Lighting;
 
-/// <summary>The voxel lighting module: light sources, light storage, and the propagation of block light.</summary>
+/// <summary>The voxel lighting module: light sources, light storage, the propagation of the sky and block light, and the brightness query.</summary>
 public sealed class LightingModule : IModule
 {
     /// <summary>The identifier of the module.</summary>
@@ -38,7 +39,9 @@ public sealed class LightingModule : IModule
             context.Resolve<IVoxelBatches>(),
             context.Resolve<IChunkLoading>(),
             context.Resolve<IWorldSessions>(),
-            context.Resolve<ITickSchedule>());
+            context.Resolve<ITickSchedule>(),
+            context.Resolve<IHeightMaps>(),
+            context.Resolve<IEntityWorlds>());
     }
 
     /// <inheritdoc/>
@@ -46,7 +49,8 @@ public sealed class LightingModule : IModule
     {
         IShapeRegistry shapes = context.Resolve<IShapeRegistry>();
         _sources!.Start(context, context.Resolve<IBlockRegistry>(), shapes, context.Settings.GetBool(LightingSettings.Color));
-        _lighting!.Start(shapes);
+        _lighting!.Start(shapes, context.Settings.GetInt(LightingSettings.OperationsPerTick));
+        if (context.IsModuleActive(LightingDebugWindow.DebugModuleId)) LightingDebugWindow.Add(context, _lighting);
     }
 
     /// <inheritdoc/>

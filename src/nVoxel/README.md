@@ -72,7 +72,7 @@ exists, chunks are meshed at full light.
 | `BlockRotation` | Quarter-turn transformations for block states and block-data values. |
 | `IVoxelBatches` | Tick-aligned placement, breaking, interaction, technical batches, and chunk notifications. |
 | `VoxelBatchNotification`, `VoxelBlockChange`, `RemovedBlockData` | Per-chunk results, removed block data, and optional notification filters. |
-| `IChunkLoading` | Chunk tickets, area and viewer tickets, the chunk provider chain, residency subscriptions, and chunk status. |
+| `IChunkLoading` | Chunk tickets, area and viewer tickets (`AreaTickets` lists the area tickets in effect), the chunk provider chain, residency subscriptions, and chunk status. |
 | `ChunkTicket`, `AreaTicket`, `ViewerTicket`, `TicketLevel`, `ChunkArea` | Revocable tickets that hold chunks loaded, active, or active at a reduced frequency. |
 | `IChunkProvider`, `ChunkRequest` | A source of chunks; the first provider that accepts a chunk produces it in a background job. |
 | `IBlockTicks` | Scheduled ticks in a queue per chunk, on the dimension clock. Random ticks need no call: subscribe to `RandomTick`. |
@@ -106,7 +106,9 @@ A viewer, such as the local player before the network, holds its areas with
 `IChunkLoading.AddViewer`, and moves them with `ViewerTicket.Move`. Place the
 tickets that the session waits for in a `SessionStarting` handler: nVoxel has
 created the terrain grid by then, since its handler runs first. Dispose them
-before the session ends, in a `SessionEnding` handler.
+before the session ends, in a `SessionEnding` handler. `IChunkLoading.AreaTickets`
+lists the area tickets in effect, those of viewers included, for modules that
+favor the places around them, such as nLighting.
 
 nVoxel joins the `World` stage with four tick systems, in this order:
 `nobara.voxel.loading`, `nobara.voxel.batches`,
