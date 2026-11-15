@@ -76,6 +76,13 @@ A way to build a game, declared in `build.nobara`: a platform, a side, and
 the modules it leaves out. [`nobara build`](../reference/cli.md#nobara-build-target)
 turns each target into an installed game and an archive.
 
+### Bus
+
+A node of the mixing tree of nAudio, declared in data with the resource type
+`Bus`: its volume multiplies the volume of its children, and every
+[sound event](#sound-event) plays on one bus, its category. The root is
+`bus:nobara.audio.master`. See [the `Bus` reference](../reference/formats/bus.md).
+
 ### Change version
 
 A counter of an [entity world](#entity-world) that a write to a tracked
@@ -822,6 +829,12 @@ Where the core finds the modules of a distribution: one assembly per module in
 the `system/` and `game/` folders, or, on platforms without dynamic loading,
 modules compiled into the executable.
 
+### nAudio
+
+The audio module: the resource types `Sound` and `Bus`, the tree of buses,
+and the decoding of sounds on the client. See
+[its module sheet](../../src/nAudio/README.md).
+
 ### nBlocks
 
 The platform module of the block registry: the resource type `Block`, the
@@ -1176,6 +1189,13 @@ the corner instead of taken from the one cell in front of the face, so that
 light fades across faces instead of in steps. See [the meshing of
 chunks](chunk-meshing.md#smooth-light).
 
+### Sound event
+
+What plays when a module asks for a sound: a resource of type `Sound`, such
+as `sound:example.sounds.step`, which groups [variants](#variant) and their
+settings (volume, pitch, bus, spatial settings, loop, streaming, priority,
+limit of instances). See [the `Sound` reference](../reference/formats/sound.md).
+
 ### SPIR-V
 
 The binary format of the shaders that nGraphics loads. Shaders are written in
@@ -1219,6 +1239,12 @@ host of the engine, or the player closing the window, which a module
 relays. The module that intercepts stop requests receives it instead, and
 nContext hands it to the active state. See [the core
 page](../../src/Core/README.md#reserved-phases-and-levers).
+
+### Streaming
+
+Decoding a sound in blocks while it plays, in background jobs, instead of
+decoding it whole when it loads; for music and long ambiences. See
+[the nAudio module sheet](../../src/nAudio/README.md#decoding).
 
 ### Swapchain
 
@@ -1301,6 +1327,12 @@ chunk geometry on the GPU and draws the scene in [HDR](#hdr) at a render
 resolution apart from the window, transparent geometry last, with passes
 that can be turned off. See [the UNGP module
 sheet](../../src/UNGP/README.md).
+
+### Variant
+
+One file of a [sound event](#sound-event), with its weight in the draw and
+its own volume and pitch factors. The event draws one variant each time it
+plays; the same seed draws the same variant.
 
 ### Visibility graph
 
