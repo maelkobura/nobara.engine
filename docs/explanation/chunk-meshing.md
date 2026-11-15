@@ -92,8 +92,9 @@ nLighting at the same moment: the job sees blocks and light that agree. A
 chunk whose light changes is marked like a chunk whose blocks change, and its
 neighbors too when the change touches its border, so a remesh that runs on an
 old light is discarded the same way. A torch placed by a player lights its
-surroundings at the next frame: the light spreads in the same tick, before
-the remesh copies it.
+surroundings at the next frame: its light usually spreads within the same
+tick, before the remesh copies it; a change larger than the budget of
+nLighting for a tick reaches the image over the next ticks.
 
 A chunk is marked when a batch changes it, and its neighbors too when the
 change touches its border; marking it again does nothing until its remesh

@@ -160,7 +160,8 @@ frame, however many batches changed it. A remesh whose chunk changed while it
 ran is discarded, and the chunk is remeshed again; a change of its light
 discards it the same way. A change made by an action batch shows at the next
 frame, with the light that the propagation computed in the same tick: its
-remesh is waited for if needed.
+remesh is waited for if needed. Light that spreads over more ticks, within
+the budget of nLighting, reaches the image as its chunks are remeshed.
 
 With nLighting, at every extraction, nVoxel.Renderer reads the terrain light
 sample of each grid that is not the terrain (`ILighting.TryGetTerrainSample`)
