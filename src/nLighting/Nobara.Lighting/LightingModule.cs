@@ -21,6 +21,7 @@ public sealed class LightingModule : IModule
 
     private LightSourceRegistry? _sources;
     private Lighting? _lighting;
+    private IDisposable? _debug;
 
     /// <inheritdoc/>
     public void Register(ModuleContext context)
@@ -50,9 +51,19 @@ public sealed class LightingModule : IModule
         IShapeRegistry shapes = context.Resolve<IShapeRegistry>();
         _sources!.Start(context, context.Resolve<IBlockRegistry>(), shapes, context.Settings.GetBool(LightingSettings.Color));
         _lighting!.Start(shapes, context.Settings.GetInt(LightingSettings.OperationsPerTick));
-        if (context.IsModuleActive(LightingDebugWindow.DebugModuleId)) LightingDebugWindow.Add(context, _lighting);
+        if (context.IsModuleActive(LightingDebugWindow.DebugModuleId)) _debug = AddDebugWindow(context, _lighting);
+    }
+
+    /// <inheritdoc/>
+    public void Stop(ModuleContext context)
+    {
+        _debug?.Dispose();
+        _debug = null;
     }
 
     /// <inheritdoc/>
     public void Release(ModuleContext context) => _lighting?.Dispose();
+
+    // A method of its own, so that the types of nDebug load only when it runs.
+    private static IDisposable? AddDebugWindow(ModuleContext context, Lighting lighting) => LightingDebugWindow.Add(context, lighting);
 }

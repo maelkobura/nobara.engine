@@ -325,6 +325,35 @@ public sealed class LoadingTests : IDisposable
     }
 
     [Fact]
+    public void TheAreaTicketsInEffectAreListedWithoutTheirHandles()
+    {
+        using Engine engine = _harness.Start();
+        _harness.Tick(engine, 2);
+        Probe probe = _harness.Owner;
+        Assert.True(probe.Worlds.TryGetTerrain(DimensionId.Default, out Grid? terrain));
+        Assert.Empty(probe.Loading.AreaTickets);
+
+        ViewerTicket viewer = probe.Loading.AddViewer(probe.Context, terrain!, WorldPosition.FromBlocks(0.5, 0.5, 0.5));
+        AreaTicket area = probe.Loading.AddAreaTicket(probe.Context, terrain!, WorldPosition.FromBlocks(100, 0, 0), new ChunkArea(1, 1), TicketLevel.ReducedActive);
+        using ChunkTicket chunk = probe.Loading.AddTicket(probe.Context, terrain!, new ChunkCoordinate(0, 0, 0), TicketLevel.Loaded);
+
+        // The two areas of the viewer, then the area ticket; a chunk ticket is not an area.
+        IReadOnlyList<AreaTicketView> areas = probe.Loading.AreaTickets;
+        Assert.Equal(3, areas.Count);
+        Assert.Equal(TicketLevel.Loaded, areas[0].Level);
+        Assert.Equal(TicketLevel.Active, areas[1].Level);
+        Assert.Equal(new AreaTicketView(probe.Context.Module.Id, terrain!, new ChunkCoordinate(3, 0, 0), new ChunkArea(1, 1), TicketLevel.ReducedActive), areas[2]);
+
+        area.Move(WorldPosition.FromBlocks(200, 0, 0));
+        Assert.Equal(new ChunkCoordinate(6, 0, 0), probe.Loading.AreaTickets[2].Center);
+
+        area.Dispose();
+        Assert.Equal(2, probe.Loading.AreaTickets.Count);
+        viewer.Dispose();
+        Assert.Empty(probe.Loading.AreaTickets);
+    }
+
+    [Fact]
     public void ATicketLeftAtTheEndOfTheSessionIsReported()
     {
         ChunkTicket? left = null;

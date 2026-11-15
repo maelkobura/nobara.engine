@@ -1232,9 +1232,9 @@ several modules may add members. See [the `.nof` reference](../reference/formats
 ### Terrain light sample
 
 The light of the terrain around a grid that is not the terrain, such as a
-ship, read at the center and the eight corners of the grid. The light of the
-grid is scaled by it when it is drawn, so a ship that enters a cave grows
-darker, while each grid keeps its own light. See [voxel
+ship, read at the center and the eight corners of the grid. It is meant for
+the renderer, to scale the light of the grid by it, so that a ship that
+enters a cave grows darker, while each grid keeps its own light. See [voxel
 lighting](voxel-lighting.md#grids).
 
 ### Text focus

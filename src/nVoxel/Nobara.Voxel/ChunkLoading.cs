@@ -253,6 +253,14 @@ public sealed class AreaTicket : LoadingRegistration
     private protected override void OnDispose() => _loader.Release(this);
 }
 
+/// <summary>An area ticket in effect, as <see cref="IChunkLoading.AreaTickets"/> shows it to every module.</summary>
+/// <param name="OwnerId">The module that owns the ticket.</param>
+/// <param name="Grid">The grid.</param>
+/// <param name="Center">The chunk of the grid that contains the center.</param>
+/// <param name="Area">The area around the center chunk.</param>
+/// <param name="Level">The level it gives the chunks of the area.</param>
+public readonly record struct AreaTicketView(string OwnerId, Grid Grid, ChunkCoordinate Center, ChunkArea Area, TicketLevel Level);
+
 /// <summary>
 /// The tickets of a viewer, such as the local player before the network: the
 /// view area at <see cref="TicketLevel.Loaded"/> and the simulation area at
@@ -408,10 +416,12 @@ public interface IChunkLoading
     int PendingChunks { get; }
 
     /// <summary>
-    /// Gets the area tickets of the session that are not disposed, those of
-    /// viewers included, in the order they were added. Modules that favor the
+    /// Gets the area tickets in effect in the session, those of viewers
+    /// included, in the order they were added, as read-only views: a module
+    /// cannot move or remove the tickets of another. Modules that favor the
     /// places where something happens, such as the light near the players,
     /// read their centers.
     /// </summary>
-    IReadOnlyList<AreaTicket> AreaTickets { get; }
+    /// <remarks>Each view reads the ticket when it is taken, by index; reading by index allocates nothing.</remarks>
+    IReadOnlyList<AreaTicketView> AreaTickets { get; }
 }

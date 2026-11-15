@@ -107,7 +107,7 @@ A viewer, such as the local player before the network, holds its areas with
 tickets that the session waits for in a `SessionStarting` handler: nVoxel has
 created the terrain grid by then, since its handler runs first. Dispose them
 before the session ends, in a `SessionEnding` handler. `IChunkLoading.AreaTickets`
-lists the area tickets in effect, those of viewers included, for modules that
+lists the area tickets in effect, those of viewers included, as read-only views, for modules that
 favor the places around them, such as nLighting.
 
 nVoxel joins the `World` stage with four tick systems, in this order:

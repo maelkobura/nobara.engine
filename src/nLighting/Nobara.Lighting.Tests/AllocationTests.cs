@@ -3,6 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using Nobara.Core;
+using Nobara.Core.Mathematics;
+using Nobara.Entity;
+using Nobara.Game;
 using Nobara.Voxel;
 
 namespace Nobara.Lighting.Tests;
@@ -21,6 +24,13 @@ public sealed class AllocationTests : IDisposable
         Grid grid = probe.CreateGrid();
         probe.Set(grid, (31, 16, 16, probe.State("torch")), (40, 16, 16, 0), (10, 10, 10, probe.State("lamp")));
         _harness.Tick(engine);
+
+        // Points of interest and a dynamic light, which every tick reads.
+        using LightFocus focus = probe.Lighting.AddFocus(probe.Context, DimensionId.Default, WorldPosition.FromBlocks(0, 16, 0));
+        probe.Tickets.Add(probe.Loading.AddAreaTicket(probe.Context, grid, WorldPosition.FromBlocks(40, 16, 0), new ChunkArea(0, 0), TicketLevel.Active));
+        Assert.True(probe.Entities.TryGet(DimensionId.Default, out EntityWorld? world));
+        EntityId light = world.Create(world.GetArchetype(probe.Sources.DynamicLight, probe.Entities.WorldTransform));
+        world.Set(light, probe.Sources.DynamicLight, new DynamicLight { Color = new LightColor(10, 10, 10), Radius = 6 });
         var torch = new BlockCoordinate(31, 16, 16);
         for (int i = 0; i < 3; i++)
         {

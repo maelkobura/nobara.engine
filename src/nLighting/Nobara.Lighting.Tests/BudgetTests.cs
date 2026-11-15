@@ -20,12 +20,22 @@ public sealed class BudgetTests(ITestOutputHelper output)
     [InlineData(false)]
     public void ABatchOfFiftyThousandBlocksConvergesInAFewTicksNearestFirst(bool developmentMode)
     {
-        SortedDictionary<(int, int, int), ushort[]> expected = Slab(int.MaxValue, developmentMode, out _, out string unlimited);
-        SortedDictionary<(int, int, int), ushort[]> budgeted = Slab(Budget, developmentMode, out int ticks, out string measures);
+        SortedDictionary<(int, int, int), ushort[]> expected = Slab(int.MaxValue, developmentMode, focus: true, out _, out string unlimited);
+        SortedDictionary<(int, int, int), ushort[]> budgeted = Slab(Budget, developmentMode, focus: true, out int ticks, out string measures);
 
         PropagationTests.AssertSame(expected, budgeted);
         Assert.InRange(ticks, 2, 60);
         output.WriteLine($"Development mode {developmentMode}, 50,000 torches without a budget: {unlimited}; with a budget of {Budget:N0}: {measures}.");
+    }
+
+    [Fact]
+    public void WithoutAFocusTheChunksNearAnActiveAreaTicketGoFirst()
+    {
+        SortedDictionary<(int, int, int), ushort[]> expected = Slab(int.MaxValue, developmentMode: false, focus: false, out _, out _);
+        SortedDictionary<(int, int, int), ushort[]> budgeted = Slab(Budget, developmentMode: false, focus: false, out int ticks, out _);
+
+        PropagationTests.AssertSame(expected, budgeted);
+        Assert.InRange(ticks, 2, 60);
     }
 
     [Fact]
@@ -68,15 +78,17 @@ public sealed class BudgetTests(ITestOutputHelper output)
         output.WriteLine($"Development mode {developmentMode}, view area ({probe.Loading.ViewArea.Radius} chunks, {probe.Loading.ViewArea.Height} up and down): {probe.Lighting.Statistics.Chunks:N0} chunks, {probe.Lighting.Statistics.ArrayChunks:N0} arrays, {operations:N0} operations over {ticks} ticks, at most {longest:N0} operations and {slowest.TotalMilliseconds:F2} ms in a tick after the first, {watch.Elapsed.TotalSeconds:F1} s in all.");
     }
 
-    // 50,000 torches over 56 chunks, a focus at one corner; returns the light once converged.
-    private SortedDictionary<(int, int, int), ushort[]> Slab(int budget, bool developmentMode, out int ticks, out string measures)
+    // 50,000 torches over 56 chunks, a focus or an active area ticket at one corner; returns the light once converged.
+    private static SortedDictionary<(int, int, int), ushort[]> Slab(int budget, bool developmentMode, bool focus, out int ticks, out string measures)
     {
         using var harness = new LightingHarness(developmentMode: developmentMode, budget: budget);
         using Engine engine = harness.Start();
         Probe probe = harness.Owner;
         uint torch = probe.State("torch");
         Grid grid = probe.CreateGrid();
-        using LightFocus focus = probe.Lighting.AddFocus(probe.Context, DimensionId.Default, WorldPosition.FromBlocks(0, 16, 0));
+        WorldPosition corner = WorldPosition.FromBlocks(0, 16, 0);
+        using LightFocus? point = focus ? probe.Lighting.AddFocus(probe.Context, DimensionId.Default, corner) : null;
+        if (!focus) probe.Tickets.Add(probe.Loading.AddAreaTicket(probe.Context, grid, corner, new ChunkArea(0, 0), TicketLevel.Active));
         var blocks = new List<(int, int, int, uint)>(50_000);
         for (int x = 0; x < 250; x++)
         {

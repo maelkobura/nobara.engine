@@ -65,7 +65,7 @@ public sealed class GridLightTests : IDisposable
         Assert.Equal(9, open.Points);
         Assert.False(probe.Lighting.TryGetTerrainSample(probe.Terrain, out _));
 
-        // Under the layer of stone, the chunks around are not loaded: no light reaches it.
+        // Under the layer of stone, read at nine points: no sky reaches there, as the chunks beside are not loaded.
         ship.UpdateTransform(WorldTransform.At(WorldPosition.FromBlocks(10, 8, 10)));
         _harness.Tick(engine);
         Assert.True(probe.Lighting.TryGetTerrainSample(ship, out TerrainLightSample covered));

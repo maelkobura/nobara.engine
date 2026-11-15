@@ -17,7 +17,7 @@ namespace Nobara.Lighting;
 /// memory of the light.
 /// </summary>
 [UsesOptionalDependency(DebugModuleId)]
-internal sealed class LightingDebugWindow
+internal sealed class LightingDebugWindow : IDisposable
 {
     /// <summary>The identifier of nDebug.</summary>
     public const string DebugModuleId = "nobara.debug";
@@ -26,16 +26,22 @@ internal sealed class LightingDebugWindow
 
     private readonly Lighting _lighting;
     private readonly IVoxelQueries _queries;
+    private DebugWindow? _window;
 
     private LightingDebugWindow(Lighting lighting, IVoxelQueries queries) => (_lighting, _queries) = (lighting, queries);
 
     /// <summary>Registers the window. Call it only when nDebug is active.</summary>
-    public static void Add(ModuleContext context, Lighting lighting)
+    /// <returns>The window, which the module disposes when it stops; <see langword="null"/> without the service of nDebug.</returns>
+    public static LightingDebugWindow? Add(ModuleContext context, Lighting lighting)
     {
-        if (!context.TryResolve(out IDebugUi? debug)) return;
+        if (!context.TryResolve(out IDebugUi? debug)) return null;
         var window = new LightingDebugWindow(lighting, context.Resolve<IVoxelQueries>());
-        debug.AddWindow(context, new DebugWindowOptions { Title = "Lighting", Open = false }, new Content(window));
+        window._window = debug.AddWindow(context, new DebugWindowOptions { Title = "Lighting", Open = false }, new Content(window));
+        return window;
     }
+
+    /// <summary>Removes the window.</summary>
+    public void Dispose() => _window?.Dispose();
 
     private void Draw()
     {

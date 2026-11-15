@@ -147,8 +147,9 @@ take one round of its lanes. A larger change takes a few ticks: the light is
 late, then exact. Each round takes the chunks nearest a point of interest
 first:
 
-- a focus added with `AddFocus`, such as the camera of a client, which its
-  module moves each frame;
+- a focus added with `AddFocus` during a world session, such as one that a
+  client module moves with the camera; it ends with the session, and no
+  module of the engine adds one yet;
 - the centers of the area tickets of nVoxel at the `Active` or
   `ReducedActive` level, such as those of the viewers.
 
@@ -202,7 +203,7 @@ chunks that have light. nLighting releases them all when the session ends.
 | Key | Effect |
 | --- | --- |
 | `lighting.color` | When `true`, the block channel has a red, a green, and a blue component, and a filter can let some of them through: 2 bytes per block. When `false`, it has one level: 1 byte per block. Read when the context starts. |
-| `lighting.operationsPerTick` | The operations of propagation in one tick, from 1,024. The default, 100,000, took about 3 to 5 ms in a release build on a machine with 12 hardware threads. Read when the context starts. |
+| `lighting.operationsPerTick` | The operations of propagation in one tick, from 1,024. The default, 100,000, took about 3.4 ms in a release build on a machine with 12 hardware threads. Read when the context starts. |
 
 ## Resources
 
@@ -279,8 +280,8 @@ that keeps them, and about 200 KiB of queues for each worker thread that runs
 it, kept once used.
 
 A pass after a batch that places 10,000 light sources across 16 chunks took
-12 to 35 ms in a release build, on a machine with 12 hardware threads, and
-the pass that removes them up to 60 ms. A pass after one source placed or
+40 to 46 ms in a release build, on a machine with 12 hardware threads, and
+the pass that removes them 32 to 39 ms, compilation included. A pass after one source placed or
 removed in a chunk took about 1 ms.
 
 With the default budget, in the same build, 50,000 light sources across 56

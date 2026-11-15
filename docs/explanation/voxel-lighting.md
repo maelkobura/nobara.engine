@@ -155,8 +155,9 @@ A grid does not receive the light of the terrain block by block, and gives
 it none. nLighting reads instead a terrain light sample for each grid that
 is not the terrain: the average light of the terrain at the center and the
 eight corners of the grid, without the points in a solid block or in a chunk
-that is not loaded. The renderer scales the light of the grid by it, so a
-ship that flies into a cave grows darker. The sample is read again at the
+that is not loaded. It is meant for the renderer, which is to scale the
+light of the grid by it, so that a ship that flies into a cave grows darker;
+the renderer does not read it yet. The sample is read again at the
 end of a tick when the grid moved or when the light of the terrain changed.
 
 A split or a merge needs nothing of its own: the blocks that leave a grid
@@ -194,7 +195,8 @@ face and may have come from what it removes.
 
 The chunks nearest a point of interest go first:
 
-- on a client, a light focus that follows the camera;
+- the light focuses that modules add, such as one that a client module
+  moves with the camera; no module of the engine adds one yet;
 - on every side, the centers of the area tickets that keep chunks active,
   such as those of the players.
 

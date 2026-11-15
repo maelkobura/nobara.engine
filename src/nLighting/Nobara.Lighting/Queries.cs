@@ -63,8 +63,8 @@ public readonly record struct Brightness(int Sky, LightColor Block, LightColor D
 /// <summary>
 /// The light of the terrain around a grid that is not the terrain, such as a
 /// ship: the average of the light of the terrain at the center and the eight
-/// corners of the grid. The renderer scales the light of the grid by it, so a
-/// ship that enters a cave grows darker.
+/// corners of the grid, meant for the renderer to scale the light of the grid
+/// by it, so that a ship that enters a cave grows darker.
 /// </summary>
 /// <param name="Sky">The average sky channel, from 0 to 15.</param>
 /// <param name="Red">The average red component of the block channel, from 0 to 15.</param>
@@ -106,7 +106,7 @@ public sealed class LightFocus : IDisposable
     /// <summary>Gets the direction the point looks at, such as the direction of the camera, or zero; the debug window reads the light of the block it aims at.</summary>
     public Vector3 Direction { get; private set; }
 
-    /// <summary>Gets whether the focus was disposed.</summary>
+    /// <summary>Gets whether the focus was disposed, by its module or at the end of the world session.</summary>
     public bool IsRevoked { get; private set; }
 
     /// <summary>Moves the point.</summary>

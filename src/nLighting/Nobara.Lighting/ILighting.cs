@@ -70,7 +70,8 @@ public interface ILighting
     /// <param name="dimension">The dimension of the point.</param>
     /// <param name="position">The position in the world.</param>
     /// <param name="direction">The direction it looks at, such as that of the camera, or zero.</param>
-    /// <returns>The focus, which moves the point and removes it.</returns>
+    /// <returns>The focus, which moves the point and removes it; it ends with the world session.</returns>
+    /// <exception cref="InvalidOperationException">No world session is active.</exception>
     LightFocus AddFocus(ModuleContext module, DimensionId dimension, in WorldPosition position, Vector3 direction = default);
 
     /// <summary>

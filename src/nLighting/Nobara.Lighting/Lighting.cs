@@ -250,6 +250,7 @@ internal sealed class Lighting : ILighting, ITickSystem, IDisposable
     public LightFocus AddFocus(ModuleContext module, DimensionId dimension, in WorldPosition position, Vector3 direction = default)
     {
         ArgumentNullException.ThrowIfNull(module);
+        if (!_live) throw new InvalidOperationException("A light focus belongs to a world session.");
         var focus = new LightFocus(dimension, position, direction);
         _focuses.Add(focus);
         return focus;
@@ -355,11 +356,11 @@ internal sealed class Lighting : ILighting, ITickSystem, IDisposable
         }
 
         foreach (LightFocus focus in _focuses) _points.Add((focus.Dimension, focus.Position));
-        IReadOnlyList<AreaTicket> areas = _loading.AreaTickets;
+        IReadOnlyList<AreaTicketView> areas = _loading.AreaTickets;
         for (int i = 0; i < areas.Count; i++)
         {
-            AreaTicket area = areas[i];
-            if (!area.IsActive || area.Level == TicketLevel.Loaded || area.Grid.IsDestroyed) continue;
+            AreaTicketView area = areas[i];
+            if (area.Level == TicketLevel.Loaded || area.Grid.IsDestroyed) continue;
             _points.Add((area.Grid.Dimension, ChunkCenter(area.Grid, area.Center)));
         }
 
@@ -763,6 +764,8 @@ internal sealed class Lighting : ILighting, ITickSystem, IDisposable
         }
 
         _grids.Clear();
+        foreach (LightFocus focus in _focuses) focus.Dispose();
+        _focuses.Clear();
         _dynamicQueries.Clear();
         _sources.ClearDynamic();
         _chunkCount = 0;
