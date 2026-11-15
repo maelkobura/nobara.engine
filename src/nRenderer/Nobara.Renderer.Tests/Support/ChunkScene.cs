@@ -147,7 +147,7 @@ internal sealed class ChunkDrawPass : IRenderPass, IDisposable
         {
             NobaraChunkVertex v = nobara_chunkVertex();
             const vec3 colors[4] = vec3[4](vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0), vec3(1.0, 1.0, 0.0));
-            vColor = colors[v.textureLayer & 3u] * (0.6 + 0.4 * abs(v.normal.z)) * nobara_chunkLight(v, 1.0);
+            vColor = colors[v.textureLayer & 3u] * (0.6 + 0.4 * abs(v.normal.z)) * nobara_chunkLight(nobara_ChunkSection, v, vec3(1.0));
             gl_Position = ViewProjection * vec4(nobara_chunkPosition(nobara_ChunkSection, v.position), 1.0);
         }
         """;

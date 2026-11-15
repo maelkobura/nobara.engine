@@ -145,8 +145,11 @@ window.
 The tonemap pass multiplies the colors by `IUngp.Exposure` (key
 `ungp.exposure`), then keeps the colors whose largest component is under
 0.76 as they are, and compresses brighter ones toward white without
-clipping: the highlight compression of the Khronos PBR Neutral tone mapper.
-A texture shown at full brightness keeps its color, and a value above 1
+clipping: the highlight compression of the Khronos PBR Neutral tone mapper,
+without its toe. A texture shown at full brightness keeps its color, and so
+does a face in the dark: the toe, which takes up to 0.04 from every channel of
+the darkest colors to stand for the specular reflection of physically based
+materials, would only saturate their textures. A value above 1
 stays visible instead of being cut. The pass then writes the colors in sRGB:
 it encodes them itself when the target stores 8-bit values without doing
 it, as the screen does, and lets a target in `Rgba8UnormSrgb` encode them. A target in a floating-point
@@ -196,13 +199,16 @@ light, of its ambient occlusion, and of the shade of its face.
 
 | Value | Brightness |
 | --- | --- |
-| Light | The light of the vertex over 15, at most 1, with the daylight multiplier at 1. |
+| Light | Channel by channel, the brightest of the sky light of the vertex times the light around its group and the day and night multiplier of the view, the light of blocks of the vertex, and the light of blocks around its group times the sky light of the vertex; over 15, at most 1 (`nobara_chunkLight` of nRenderer). |
 | Ambient occlusion 0, 1, 2, 3 | 1, 0.8, 0.6, 0.4 |
 | Face toward +Y, -Y, ±Z, ±X, none | 1, 0.5, 0.8, 0.6, 1 |
 
 The brightness is a value as the screen shows it, so the shader raises it to
 the power 2.2 before it multiplies the linear color of the texture: a face
-at 0.8 looks 0.8 times as bright on the screen. Opaque faces hide their back
+at 0.8 looks 0.8 times as bright on the screen. The shade of a face by its
+direction stays with the light: two faces of a block under the same light
+would otherwise look the same, and the relief of a wall in the sun would not
+show. Opaque faces hide their back
 faces; cut-out faces are drawn from both sides, and the variant `Cutout`
 discards the texels whose alpha is under 0.5; transparent faces are blended
 by the alpha of their texture.
@@ -219,7 +225,9 @@ The chunk shader follows this contract, which UNGP binds:
   buffers of the groups and of the tints at bindings 7 and 8
   (`ChunkGeometry.DrawLayout`, resource set 1);
 - it declares the uniform block `View` (`<Uniform name="View">`), at a
-  binding of its choice, which holds `mat4 ViewProjection`;
+  binding of its choice, which holds `mat4 ViewProjection`, then
+  `vec4 SkyLight`, the day and night multiplier of the view
+  (`RenderView.SkyLight`), in its first three components;
 - it declares `uniform sampler2DArray BlockTextures[16]` at binding 0, which
   takes the bindings 0 to 15; the `Shader` resource does not declare these
   textures, which the pass binds itself;
@@ -316,8 +324,10 @@ frame.
 
 ## Known limitations
 
-- No lighting: objects are drawn at full brightness; chunk faces at the
-  light of their vertices, with a daylight multiplier fixed at 1.
+- Objects are drawn at full brightness: only chunk faces are lit. Dynamic
+  lights are not drawn.
+- A face lit by no light is black, whatever the time of day: there is no
+  ambient light under the lowest level.
 - The sky is one color: no sun, moon, clouds, or gradient.
 - Only chunk geometry is culled: every object of the view is drawn, by the
   prepass and by the opaque pass, even outside the field of view.

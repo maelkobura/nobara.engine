@@ -219,6 +219,125 @@ public sealed class MesherTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AVertexAtTheCornerOfALightSourceAveragesTheFourCellsAroundIt()
+    {
+        MeshInput input = Air();
+        Fill(input, 0, 0, 0, 32, 1, 32, Stone);
+        Lit(input, 0, 0);
+
+        // Light of blocks that falls by one level per block from a source above (4, 0, 4).
+        for (int x = -1; x <= 32; x++)
+        {
+            for (int z = -1; z <= 32; z++)
+            {
+                SetLight(input, x, 1, z, 0, Math.Max(0, 14 - Math.Abs(x - 4) - Math.Abs(z - 4)));
+            }
+        }
+
+        Mesh(input);
+
+        // (5, 1, 5) is between the cells at 14, 13, 13, and 12; (8, 1, 4) between 10, 9, 11, and 10.
+        Assert.All(TopAt(5, 1, 5), v => Assert.Equal(new ChunkLight(0, 13, 13, 13), v.Light));
+        Assert.All(TopAt(8, 1, 4), v => Assert.Equal(new ChunkLight(0, 10, 10, 10), v.Light));
+        Assert.All(TopAt(30, 1, 30), v => Assert.Equal(new ChunkLight(0, 0, 0, 0), v.Light));
+    }
+
+    [Fact]
+    public void TheSkyLightUnderAnOverhangFadesByHalfLevels()
+    {
+        MeshInput input = Air();
+        Fill(input, 0, 0, 0, 32, 1, 32, Stone);
+        Fill(input, 0, 3, 0, 8, 4, 32, Stone);
+        Lit(input, 0, 0);
+
+        // The open sky from X = 8, one level less per block under the roof.
+        for (int x = -1; x <= 32; x++)
+        {
+            for (int z = -1; z <= 32; z++)
+            {
+                for (int y = 1; y <= 2; y++)
+                {
+                    SetLight(input, x, y, z, x >= 8 ? 15 : 15 - (8 - x), 0);
+                }
+            }
+        }
+
+        Mesh(input);
+
+        // The edge of the roof is between two cells at 14 and two at 15; one block in, 13 and 14.
+        Assert.All(TopAt(8, 1, 16), v => Assert.Equal(14.5f, v.Light.Sky));
+        Assert.All(TopAt(7, 1, 16), v => Assert.Equal(13.5f, v.Light.Sky));
+        Assert.All(TopAt(20, 1, 16), v => Assert.Equal(15, v.Light.Sky));
+    }
+
+    [Fact]
+    public void ABlockBesideAFaceDarkensItsOcclusionButNotItsLight()
+    {
+        MeshInput input = Air();
+        Fill(input, 0, 0, 0, 32, 1, 32, Stone);
+        Set(input, 5, 1, 5, Stone);
+
+        // Blocks closed on six faces hold no light; the air holds 10.
+        Lit(input, 10, 0);
+        Fill(input, 0, 0, 0, 32, 1, 32, Stone, light: true);
+        SetLight(input, 5, 1, 5, 0, 0);
+
+        Mesh(input);
+
+        ChunkVertex[] corner = TopAt(5, 1, 5);
+        Assert.NotEmpty(corner);
+        Assert.All(corner, v => Assert.Equal(10, v.Light.Sky));
+        Assert.All(corner, v => Assert.True(v.AmbientOcclusion > 0));
+    }
+
+    [Fact]
+    public void FacesOfDifferentLightsAreNotMerged()
+    {
+        MeshInput input = Air();
+        Fill(input, 0, 0, 0, 4, 1, 1, Stone);
+        Lit(input, 15, 0);
+        Mesh(input);
+        int even = _output.Vertices.ToArray().Count(v => v.Normal == ChunkNormal.PositiveY);
+
+        SetLight(input, 3, 1, 0, 10, 0);
+        Mesh(input);
+        ChunkVertex[] top = [.. _output.Vertices.ToArray().Where(v => v.Normal == ChunkNormal.PositiveY)];
+
+        Assert.Equal(4, even);
+        Assert.True(top.Length > 4, $"The top of the row has {top.Length} vertices.");
+        Assert.Contains(top, v => v.Light.Sky < 15);
+        Assert.Contains(top, v => v.Light.Sky == 15);
+    }
+
+    [Fact]
+    public void ModelsAndOtherShapesTakeTheLightOfTheirCell()
+    {
+        MeshInput input = Air();
+        Set(input, 3, 4, 5, Statue);
+        Set(input, 7, 8, 9, Custom);
+        Lit(input, 15, 0);
+        SetLight(input, 3, 4, 5, 7, 3);
+        SetLight(input, 7, 8, 9, 2, 9);
+
+        Mesh(input);
+
+        ChunkVertex[] vertices = _output.Vertices.ToArray();
+        Assert.All(vertices.Where(v => v.Position.X < 5), v => Assert.Equal(new ChunkLight(7, 3, 3, 3), v.Light));
+        Assert.All(vertices.Where(v => v.Position.X > 5), v => Assert.Equal(new ChunkLight(2, 9, 9, 9), v.Light));
+    }
+
+    [Fact]
+    public void WithoutLightEveryVertexHasFullLight()
+    {
+        MeshInput input = Surface();
+        Set(input, 3, 30, 5, Statue);
+
+        Mesh(input);
+
+        Assert.All(_output.Vertices.ToArray(), v => Assert.Equal(ChunkLight.Full, v.Light));
+    }
+
+    [Fact]
     public void TheConnectionsOfTheFacesFollowTheOpenCells()
     {
         MeshInput input = Air();
@@ -238,10 +357,12 @@ public sealed class MesherTests(ITestOutputHelper output)
         Assert.True(_output.Connectivity.IsConnected(SectionFace.NegativeY, SectionFace.PositiveY));
     }
 
-    [Fact]
-    public void TheMesherAllocatesNothingOnceItMeshedAChunk()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheMesherAllocatesNothingOnceItMeshedAChunk(bool light)
     {
-        MeshInput input = Surface();
+        MeshInput input = Surface(light);
         Mesh(input);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -254,18 +375,29 @@ public sealed class MesherTests(ITestOutputHelper output)
     [Fact]
     public void TheTimeOfMeshingATypicalChunkIsMeasured()
     {
-        MeshInput input = Surface();
-        Mesh(input);
-        const int Runs = 50;
-        var watch = Stopwatch.StartNew();
-        for (int i = 0; i < Runs; i++)
+        foreach (bool light in new[] { false, true })
         {
-            Mesh(input);
-        }
+            MeshInput input = Surface(light);
 
-        watch.Stop();
-        output.WriteLine($"A surface chunk: {watch.Elapsed.TotalMilliseconds / Runs:F3} ms per remesh, {_output.TriangleCount} triangles, {_output.VertexCount} vertices.");
-        Assert.True(_output.TriangleCount > 0);
+            // Warm up for half a second, then let the runtime finish compiling the optimized code.
+            var warmup = Stopwatch.StartNew();
+            while (warmup.ElapsedMilliseconds < 500)
+            {
+                Mesh(input);
+            }
+
+            Thread.Sleep(200);
+            const int Runs = 100;
+            var watch = Stopwatch.StartNew();
+            for (int i = 0; i < Runs; i++)
+            {
+                Mesh(input);
+            }
+
+            watch.Stop();
+            output.WriteLine($"A surface chunk {(light ? "with" : "without")} light: {watch.Elapsed.TotalMilliseconds / Runs:F3} ms per remesh, {_output.TriangleCount} triangles, {_output.VertexCount} vertices.");
+            Assert.True(_output.TriangleCount > 0);
+        }
     }
 
     internal static BlockVisuals Visuals()
@@ -319,7 +451,7 @@ public sealed class MesherTests(ITestOutputHelper output)
 
     internal static void Set(MeshInput input, int x, int y, int z, uint state) => input.States[MeshInput.Index(x, y, z)] = state;
 
-    internal static void Fill(MeshInput input, int x0, int y0, int z0, int x1, int y1, int z1, uint state)
+    internal static void Fill(MeshInput input, int x0, int y0, int z0, int x1, int y1, int z1, uint state, bool light = false)
     {
         for (int y = y0; y < y1; y++)
         {
@@ -327,16 +459,36 @@ public sealed class MesherTests(ITestOutputHelper output)
             {
                 for (int x = x0; x < x1; x++)
                 {
-                    Set(input, x, y, z, state);
+                    if (light)
+                    {
+                        // A block closed on six faces holds no light.
+                        SetLight(input, x, y, z, 0, 0);
+                    }
+                    else
+                    {
+                        Set(input, x, y, z, state);
+                    }
                 }
             }
         }
     }
 
-    // A chunk of the surface of a world: hills of dirt over stone, with some glass and leaves.
-    internal static MeshInput Surface()
+    /// <summary>Gives the copy light, the same in every cell.</summary>
+    internal static void Lit(MeshInput input, int sky, int block)
+    {
+        Array.Fill(input.Light, (ushort)((sky << 12) | (block << 8) | (block << 4) | block));
+        input.HasLight = true;
+    }
+
+    internal static void SetLight(MeshInput input, int x, int y, int z, int sky, int block) =>
+        input.Light[MeshInput.Index(x, y, z)] = (ushort)((sky << 12) | (block << 8) | (block << 4) | block);
+
+    // A chunk of the surface of a world: hills of dirt over stone, with some glass and leaves;
+    // with light, the sky fading under the surface and the light of a source in the middle.
+    internal static MeshInput Surface(bool light = false)
     {
         MeshInput input = Air();
+        input.HasLight = light;
         for (int x = -1; x <= 32; x++)
         {
             for (int z = -1; z <= 32; z++)
@@ -351,6 +503,9 @@ public sealed class MesherTests(ITestOutputHelper output)
                     }
 
                     Set(input, x, y, z, state);
+                    int sky = state is Stone or Dirt ? 0 : Math.Clamp(15 - (height - y), 0, 15);
+                    int block = state is Stone or Dirt ? 0 : Math.Max(0, 14 - Math.Abs(x - 16) - Math.Abs(z - 16) - Math.Abs(y - height));
+                    SetLight(input, x, y, z, sky, block);
                 }
             }
         }
@@ -359,6 +514,10 @@ public sealed class MesherTests(ITestOutputHelper output)
     }
 
     private void Mesh(MeshInput input) => _mesher.Mesh(input, s_visuals, _output);
+
+    // The vertices of the tops of cubes at a point.
+    private ChunkVertex[] TopAt(int x, int y, int z) =>
+        [.. _output.Vertices.ToArray().Where(v => v.Normal == ChunkNormal.PositiveY && v.Position == new Vector3(x, y, z))];
 
     private int Quads(ChunkCategory category) => _output.Indices(category).Length / 6;
 

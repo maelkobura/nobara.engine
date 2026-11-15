@@ -13,7 +13,7 @@ namespace Nobara.Renderer;
 public sealed partial class ChunkGeometry
 {
     internal const int SectionRecordSize = 96;
-    internal const int GroupRecordSize = 192;
+    internal const int GroupRecordSize = 208;
     internal const int InitialVertices = 1 << 20;
     internal const int InitialIndices = 1 << 21;
     private const int DrawSize = 20;
@@ -119,6 +119,9 @@ public sealed partial class ChunkGeometry
 
     /// <summary>Gets the state of a group for the last frame, for tests and tools.</summary>
     internal GroupSlot Group(ChunkGroupId group) => _groups[group.Index];
+
+    /// <summary>Gets the record of a group as the last frame wrote it, for tests.</summary>
+    internal GroupRecord GroupRecordOf(ChunkGroupId group) => _groupRecords[group.Index];
 
     /// <summary>
     /// Gets the resource layout of the set that <see cref="Draw"/> binds: the
@@ -638,6 +641,7 @@ public sealed partial class ChunkGeometry
             record.PreviousZ = slot.PyramidZ;
             record.PreviousLocal = new Vector4(slot.PyramidLocal, slot.PyramidValid ? 1 : 0);
             record.PreviousBasis = slot.PyramidBasis;
+            record.Light = new Vector4(slot.Light.Sky, slot.Light.Red, slot.Light.Green, slot.Light.Blue);
         }
     }
 
@@ -1157,7 +1161,7 @@ public sealed partial class ChunkGeometry
         public readonly uint Unused;
     }
 
-    /// <summary>The record of a group: the camera seen from the group, now and when the depth pyramid was built.</summary>
+    /// <summary>The record of a group: the camera seen from the group, now and when the depth pyramid was built, and the light around the group.</summary>
     [StructLayout(LayoutKind.Sequential)]
     internal struct GroupRecord
     {
@@ -1167,6 +1171,7 @@ public sealed partial class ChunkGeometry
         public int PreviousX, PreviousY, PreviousZ, Unused;
         public Vector4 PreviousLocal;
         public Matrix4x4 PreviousBasis;
+        public Vector4 Light;
     }
 
     /// <summary>A section sent to the culling, and its place among the transparent draws.</summary>

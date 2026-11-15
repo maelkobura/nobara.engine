@@ -190,6 +190,13 @@ registered draws it.
 0.1 to 4; the pipeline sets it. Transient textures follow the render
 resolution or the viewport (`RenderTextureSize`).
 
+`SkyLight` is the day and night multiplier of the view: a color from 0 to 1
+per channel, white by default, that scales the sky light of chunk geometry
+in the shader. The engine knows no time of day: a module that runs a day and
+night cycle sets it from its clock, such as a pale blue at night. It changes
+the image at the next frame, without a remesh, and does not change the light
+that gameplay reads.
+
 A `Camera` looks along its local -Z axis, with +Y up. Its projection reverses
 depth: the near plane has depth 1, the far plane, infinite by default, depth
 0. Clear depth to `Camera.ClearDepth` and test with `Camera.DepthCompare`
@@ -366,6 +373,16 @@ geometry of one chunk of a group, at the whole coordinates of the chunk
 triangles, opaque, cut-out, and transparent. Like the render world, it
 changes during extraction only.
 
+`SetGroupLight` gives a group the light around it, a `ChunkLight` from 0 to
+15 per channel, `ChunkLight.OpenSky` by default (sky 15, no light of
+blocks), which keeps the light of its vertices. For a grid that moves in the
+terrain, such as a ship, it is the light of the terrain where the grid is:
+the sky light of each vertex is scaled by the sky of the surroundings, and
+the light of blocks of the surroundings reaches the vertex as far as the sky
+of its own grid does, so a ship in a cave grows darker, and its hold stays
+lit by its own lamps only. It applies at the next frame, without
+interpolation.
+
 ```csharp
 public void Extract(RenderExtraction extraction)
 {
@@ -406,7 +423,7 @@ A `ChunkVertex` is 16 bytes: its position in blocks from the corner of the
 chunk (from -16 to 48, steps of 1/1024), its texture coordinates (0 to 64, the
 same steps), its `TextureLocation` (arrays 0 to 31, layers 0 to 2047), its
 `ChunkNormal`, its `ChunkLight` (sky, and red, green, and blue of blocks, 0 to
-15.5 in halves; `ChunkLight.Full` before the light is computed), its
+15.5 in halves; `ChunkLight.Full` when no light is computed), its
 ambient occlusion (0 to 3), and its tint (0 to 127). Values outside their
 range are clamped. The four words are documented on the type.
 
@@ -492,8 +509,12 @@ binding 8 (`ChunkGeometry.TintsBinding`), which the resource set of
 `nobara_chunkPosition` gives a position relative to the camera, computed from
 whole chunk coordinates so that it is as precise a billion blocks from the
 origin as at the origin, `nobara_chunkNormal` turns a normal with its group,
-and `nobara_chunkLight` combines the light of a vertex with a day and night
-multiplier.
+and `nobara_chunkLight(section, vertex, skyLight)` gives the light of a
+vertex from 0 to 1 per channel: the brightest of its sky light, scaled by the
+light around its group and by the day and night multiplier `skyLight`, of its
+light of blocks, and of the light of blocks around its group, scaled by its
+sky light. `nobara_chunkLight(vertex, daylight)` leaves out the light around
+the group.
 
 ## Events
 

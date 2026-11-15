@@ -73,7 +73,9 @@ internal sealed class TransparentPass(SceneDraws scene, ChunkDraws chunks) : IRe
 /// (<see cref="RenderMesh.VertexLayout"/>), the transform of the object seen
 /// from the camera as a <c>mat4</c> at locations 4 to 7, one per instance, and
 /// declares the uniform block <c>View</c>, which holds <c>mat4
-/// ViewProjection</c>.
+/// ViewProjection</c>, then <c>vec4 SkyLight</c>, the day and night
+/// multiplier of the view (<see cref="RenderView.SkyLight"/>), which a shader
+/// may leave out of its declaration.
 /// </remarks>
 internal sealed class SceneDraws : IDisposable
 {
@@ -84,7 +86,7 @@ internal sealed class SceneDraws : IDisposable
     public const int ModelLocation = 4;
 
     private const int ModelSize = 64;
-    private const int ViewSize = 64;
+    private const int ViewSize = 80;
     private readonly ModuleContext _context;
     private readonly GraphicsDevice _device;
     private readonly VertexBufferLayout _modelLayout;
@@ -129,8 +131,9 @@ internal sealed class SceneDraws : IDisposable
 
         _preparedFrame = context.Frame;
         CommandBuffer commands = context.Commands;
-        Matrix4x4 viewProjection = context.View.ViewProjectionMatrix;
-        commands.UpdateBuffer(_viewBuffers.Current, 0, MemoryMarshal.AsBytes(new ReadOnlySpan<Matrix4x4>(ref viewProjection)));
+        ColorF sky = context.View.SkyLight;
+        var view = new ViewBlock { ViewProjection = context.View.ViewProjectionMatrix, SkyLight = new Vector4(sky.R, sky.G, sky.B, 1) };
+        commands.UpdateBuffer(_viewBuffers.Current, 0, MemoryMarshal.AsBytes(new ReadOnlySpan<ViewBlock>(ref view)));
 
         ReadOnlySpan<RenderItem> items = context.View.Items;
         if (items.Length == 0)
@@ -378,4 +381,12 @@ internal sealed class SceneDraws : IDisposable
 
     /// <summary>The pipeline state of a program of a shader for one kind of draw and one mode; no state when UNGP cannot draw the shader.</summary>
     private sealed record PipelineEntry(ShaderProgram Program, RenderShader Shader, int ShaderVersion, SceneDrawKind Kind, MaterialMode Mode, GraphicsPipeline? Pipeline, ViewBinding? View, bool HasMaterialSet);
+
+    /// <summary>The uniform block <c>View</c>, in the layout std140.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ViewBlock
+    {
+        public Matrix4x4 ViewProjection;
+        public Vector4 SkyLight;
+    }
 }

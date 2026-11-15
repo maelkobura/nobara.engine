@@ -383,6 +383,31 @@ public sealed class ChunkGeometryTests : IDisposable
         Assert.False(_scene.Chunks.Group(group).PyramidValid);
     }
 
+    [Fact]
+    public void TheLightAroundAGroupIsTheOpenSkyUntilSetAndReachesItsRecord()
+    {
+        (ChunkVertex[] vertices, uint[] indices) = ChunkScene.Box(Vector3.Zero, Vector3.One);
+        ChunkGroupId group = default;
+        _scene.Extract(e =>
+        {
+            group = e.Chunks.CreateGroup(WorldTransform.Identity);
+            e.Chunks.AddSection(group, default, new ChunkSectionGeometry(vertices, indices));
+        });
+        Assert.Equal(ChunkLight.OpenSky, _scene.Chunks.GetGroupLight(group));
+
+        _scene.Extract(e =>
+        {
+            e.Chunks.SetGroupLight(group, new ChunkLight(6, 2, 3, 4));
+            Assert.Throws<ArgumentOutOfRangeException>(() => e.Chunks.SetGroupLight(group, new ChunkLight(16, 0, 0, 0)));
+            Assert.Throws<ArgumentOutOfRangeException>(() => e.Chunks.SetGroupLight(group, new ChunkLight(15, -1, 0, 0)));
+        });
+
+        Assert.Equal(new ChunkLight(6, 2, 3, 4), _scene.Chunks.GetGroupLight(group));
+        Assert.Equal(new Vector4(6, 2, 3, 4), _scene.Chunks.GroupRecordOf(group).Light);
+        Assert.Throws<InvalidOperationException>(() => _scene.Chunks.SetGroupLight(group, ChunkLight.OpenSky));
+        Assert.Equal(ChunkGeometry.GroupRecordSize, Marshal.SizeOf<ChunkGeometry.GroupRecord>());
+    }
+
     // The camera seen from a group, along X, in blocks.
     private double CameraX(ChunkGroupId group)
     {

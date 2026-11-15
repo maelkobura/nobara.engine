@@ -5,13 +5,16 @@
 
 // The chunk shader of UNGP: it decodes the chunk vertex of nRenderer, and
 // gives the fragment stage its texture and its shade, which is the tint times
-// the brightness of the vertex: its light, its ambient occlusion, and the
-// shade of its face.
+// the brightness of the vertex: its light (the sky light scaled by the light
+// around its group and by the day and night multiplier of the view, or the
+// light of blocks), its ambient occlusion, and the shade of its face.
 #include <nobara/renderer/chunk.glsl>
 
 layout(std140, binding = 0) uniform View
 {
     mat4 ViewProjection;
+    // The day and night multiplier of the sky light, RenderView.SkyLight.
+    vec4 SkyLight;
 };
 
 layout(location = 0) out vec2 vTexCoord;
@@ -36,7 +39,7 @@ void main()
     vLayer = v.textureLayer;
 
     // The brightness is a value as the screen shows it; the scene is linear.
-    vec3 brightness = min(nobara_chunkLight(v, 1.0), vec3(1.0)) * FACE_SHADES[v.face] * OCCLUSION[v.occlusion];
+    vec3 brightness = min(nobara_chunkLight(nobara_ChunkSection, v, SkyLight.rgb), vec3(1.0)) * FACE_SHADES[v.face] * OCCLUSION[v.occlusion];
     vShade = nobara_chunkTint(v) * pow(brightness, vec3(2.2));
     gl_Position = ViewProjection * vec4(nobara_chunkPosition(nobara_ChunkSection, v.position), 1.0);
 }

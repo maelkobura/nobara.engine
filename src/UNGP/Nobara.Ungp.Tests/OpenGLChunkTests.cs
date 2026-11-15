@@ -37,6 +37,7 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output) : IDisposable
     private Engine? _engine;
     private Texture? _color;
     private Texture? _depth;
+    private ChunkGroupId _wall;
 
     public void Dispose()
     {
@@ -122,6 +123,66 @@ public sealed class OpenGLChunkTests(ITestOutputHelper output) : IDisposable
         Assert.True(on.Drawn < off.Drawn / 4, $"With occlusion culling, {on.Drawn} sections are drawn; {off.Drawn} without it.");
         Assert.Empty(_harness.Errors);
     }
+
+    [Fact]
+    public void TheSkyLightMultiplierOfTheViewScalesTheSkyLightOnly()
+    {
+        Start();
+        AddLitWall(WorldTransform.Identity, null);
+        byte[] day = Draw(frames: 3);
+        AssertColor(Encode(Lit(UngpHarness.Red, 1)), day, 24, 32, "the face lit by the sky, by day");
+        AssertColor(Encode(Lit(UngpHarness.Red, 1)), day, 40, 32, "the face lit by blocks, by day");
+
+        // By night, without a remesh: the sky face takes the multiplier, the face lit by blocks keeps its light.
+        _harness.Render.MainView.SkyLight = new ColorF(0.25f, 0.25f, 0.5f, 1);
+        byte[] night = Draw(frames: 2);
+
+        Vector3 red = Linear((UngpHarness.Red.R, UngpHarness.Red.G, UngpHarness.Red.B, (byte)255));
+        Vector3 sky = red * new Vector3(MathF.Pow(0.25f * FrontShade, 2.2f), MathF.Pow(0.25f * FrontShade, 2.2f), MathF.Pow(0.5f * FrontShade, 2.2f));
+        AssertColor(Encode(sky), night, 24, 32, "the face lit by the sky, by night");
+        AssertColor(Encode(Lit(UngpHarness.Red, 1)), night, 40, 32, "the face lit by blocks, by night");
+        Assert.Empty(_harness.Errors);
+    }
+
+    [Fact]
+    public void TheLightAroundAGroupScalesItsSkyLightAndGivesTheLightOfBlocksWhereTheSkyReaches()
+    {
+        Start();
+        AddLitWall(WorldTransform.Identity, new ChunkLight(5, 6, 6, 6));
+        byte[] pixels = Draw(frames: 3);
+
+        // The sky face is lit by the brightest of 5 from the sky and 6 from the blocks around; the face that the sky does not reach keeps its own light.
+        AssertColor(Encode(Lit(UngpHarness.Red, 6f / 15)), pixels, 24, 32, "the face lit by the sky, in a dark place");
+        AssertColor(Encode(Lit(UngpHarness.Red, 1)), pixels, 40, 32, "the face lit by blocks, in a dark place");
+        Assert.Equal(new ChunkLight(5, 6, 6, 6), _harness.Render.Chunks.GetGroupLight(_wall));
+        Assert.Empty(_harness.Errors);
+    }
+
+    // A wall in two halves facing the camera: on the left, lit by the sky only; on the right, by blocks only.
+    private void AddLitWall(WorldTransform transform, ChunkLight? around)
+    {
+        TextureLocation red = Texture("texture:example.scene.red");
+        var faces = new ChunkFaces()
+            .Front(ChunkCategory.Opaque, red, 28, 28, 32, 36, 26, new ChunkLight(15, 0, 0, 0))
+            .Front(ChunkCategory.Opaque, red, 32, 28, 36, 36, 26, new ChunkLight(0, 15, 15, 15));
+        _harness.Render.AddExtractor(_harness.Context, new TestExtractor
+        {
+            Next = e =>
+            {
+                _wall = e.Chunks.CreateGroup(transform);
+                if (around is { } light)
+                {
+                    e.Chunks.SetGroupLight(_wall, light);
+                }
+
+                e.Chunks.AddSection(_wall, new SectionOrigin(-1, -1, -1), faces.Geometry);
+            },
+        });
+    }
+
+    // A color of a face toward +Z at a light from 0 to 1, as the chunk shader shades it.
+    private static Vector3 Lit((byte R, byte G, byte B) color, float light) =>
+        new Vector3(Linear(color.R), Linear(color.G), Linear(color.B)) * MathF.Pow(light * FrontShade, 2.2f);
 
     private void Start()
     {

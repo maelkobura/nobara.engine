@@ -8,7 +8,7 @@ The reasons for the design of the meshing are in [the meshing of chunks](../../d
 
 nVoxel owns the dimensions of a context and stores the terrain and other voxel grids of each world session. It also applies block batches at the World tick, expands multiblocks, reports chunk notifications, and exposes split/merge operations. It loads chunks through tickets and a chain of chunk providers, runs scheduled and random block ticks, keeps height maps, and answers spatial queries. It remains independent of rendering, meshing, and persistence.
 
-nVoxel.Renderer, on the client, turns the blocks of every grid into chunk geometry: cubes merged face by face with hidden faces removed, models placed and turned with their block, shapes of other modules through their meshers, and ambient occlusion at each vertex. It remeshes chunks in background jobs, nearest the camera first, when their blocks change or they load.
+nVoxel.Renderer, on the client, turns the blocks of every grid into chunk geometry: cubes merged face by face with hidden faces removed, models placed and turned with their block, shapes of other modules through their meshers, and ambient occlusion and smooth light at each vertex. It remeshes chunks in background jobs, nearest the camera first, when their blocks change, when their light changes, or when they load. With [nLighting](../nLighting/README.md), it also gives each grid that is not the terrain the light of the terrain around it.
 
 ## Status
 
@@ -51,11 +51,15 @@ nVoxel.Renderer:
 | `nobara.context` | `^1.0` | Required |
 | `nobara.renderer` | `^1.0` | Required |
 | `nobara.voxel` | `^1.0` | Required |
+| `nobara.lighting` | `^1.0` | Optional |
 <!-- nobara:generated:end -->
 
 nVoxel.Renderer reads the blocks of nBlocks and nVoxel, and gives its geometry
-to nRenderer. It declares no dependency toward a lighting module: until one
-exists, chunks are meshed at full light.
+to nRenderer. nLighting is optional: when the distribution has it, the
+vertices carry its light; without it, chunks are meshed at full light, with
+ambient occlusion only, and the image is the same as before nLighting
+existed. The code that uses nLighting is confined to one class, so the module
+loads without it.
 
 ## Entry points
 
@@ -144,13 +148,25 @@ the session.
 nVoxel.Renderer listens to the notifications of batches and to the chunks
 that load and unload, and marks the chunks to remesh: the chunk itself, and
 its neighbors when a change touches its border or when a neighbor loads.
+With nLighting, it also listens to the chunks whose light changed
+(`ILighting.SubscribeChanges`), after each tick, and marks the chunk, and its
+26 neighbors when the change touches its border. A change of light alone is
+not waited for: its remesh comes after those of the changes made by a player.
 During the extraction of nRenderer, at every frame, it applies the remeshes
 that finished, then starts the next ones, chunks changed by a player first,
 then the nearest the camera, at most `IVoxelMeshing.MaxRunning` at once. A
 chunk has at most one remesh at a time, and is remeshed at most once per
 frame, however many batches changed it. A remesh whose chunk changed while it
-ran is discarded, and the chunk is remeshed again. A change made by an action
-batch shows at the next frame: its remesh is waited for if needed.
+ran is discarded, and the chunk is remeshed again; a change of its light
+discards it the same way. A change made by an action batch shows at the next
+frame, with the light that the propagation computed in the same tick: its
+remesh is waited for if needed.
+
+With nLighting, at every extraction, nVoxel.Renderer reads the terrain light
+sample of each grid that is not the terrain (`ILighting.TryGetTerrainSample`)
+and, when its version changed, gives it to the group of the grid
+(`ChunkGeometry.SetGroupLight`): a ship that enters a cave grows darker, at
+the next frame, without a remesh.
 
 During `SessionStarting`, nVoxel.Renderer adds the loading task "meshed
 chunks of the simulation area": it completes once the loading task of nVoxel
@@ -266,7 +282,9 @@ nVoxel:
 nVoxel.Renderer:
 
 - Client only; use `IVoxelMeshing` on the loop thread of the client context.
-- Remeshes run in background jobs on a frozen copy of the chunk and of a border of one cell from its 26 neighbors, made on the loop thread during extraction; the result returns to the loop thread. A mesher reads nothing else, and is checked as hot path code: the mesher allocates nothing once its scratch memory has grown to the largest chunk.
+- Remeshes run in background jobs on a frozen copy of the chunk and of a border of one cell from its 26 neighbors, made on the loop thread during extraction, and, with nLighting, on a frozen copy of its light over the same cells (`ILighting.CopyFrozen`), taken at the same time; the result returns to the loop thread. A mesher reads nothing else, and is checked as hot path code: the mesher allocates nothing once its scratch memory has grown to the largest chunk, and a frame allocates nothing once the world is loaded, lit, and meshed.
+- Smooth light: each corner of a face of a cube takes the average of the light of the cells that its ambient occlusion reads (the cell in front of the face, the two beside the corner, and the one in the corner, which is left out when both sides are closed), leaving out the blocks that hide all their faces, as they hold no light. It is rounded to the half level, channel by channel: sky, then red, green, and blue of blocks, equal without color. Faces merge only when their light is the same at their four corners. A model, and a block of another shape, takes the light of its own cell at every vertex.
+- A chunk that nLighting does not hold yet is meshed at full light; the change of light that follows meshes it again.
 - A neighboring chunk that is not loaded hides the faces next to it, in a grid that loads its chunks with tickets; in other grids, an absent chunk is air.
 - Meshers are registered before nVoxel.Renderer starts. The visual of every state is built once, when it starts.
 
@@ -281,7 +299,13 @@ metadata determine the final client footprint.
 A remesh of nVoxel.Renderer keeps a frozen copy of 34³ states (154 KiB) and
 its geometry, which grows to the largest chunk it meshed and is kept; there
 are at most `IVoxelMeshing.MaxRunning` of them, twice the number of workers
-by default. The tables of the visual hold about 100 bytes per block state.
+by default. Each also keeps the light of the cells of its copy (76 KiB), and,
+with nLighting, the frozen copy of the light that nLighting fills (76 KiB).
+The tables of the visual hold about 100 bytes per block state.
+
+A remesh of a chunk of surface (hills of dirt on stone, 4,488 triangles) took
+1.1 to 1.2 ms in a release build, with its code compiled, and 1.5 ms with
+smooth light from a light that varies across the chunk.
 
 ## Known limitations
 
@@ -299,9 +323,14 @@ nVoxel:
 
 nVoxel.Renderer:
 
-- No light is computed: every vertex is at full light, with ambient occlusion only.
+- Without nLighting in the distribution, every vertex is at full light, with ambient occlusion only.
+- A change of light remeshes the whole chunk, and its 26 neighbors when it touches its border, even when only a few cells changed. While a large change of light spreads over several ticks, the chunks it crosses are remeshed at each tick, and the remeshes still running are discarded.
+- Models and the shapes of other modules are lit evenly by their cell, without smooth light; a mesher cannot give a vertex its own light.
+- A cell of a neighboring chunk that is not loaded reads as full sky without light of blocks, as nLighting copies it.
+- Dynamic lights are not drawn.
+- The light of the terrain around a grid applies at once when it changes, without interpolation.
 - Models do not hide the faces of their neighbors and cast no ambient occlusion. A model is read when the module starts: a mesh changed by a hot reload is meshed again only after a restart.
 - A multi-block whose origin is in a chunk that is not loaded is not drawn.
 - When a chunk loads, its loaded neighbors are remeshed, so the chunks of an area that loads are remeshed several times.
-- Ambient occlusion is cast by blocks that hide all their faces; quads whose corners differ in occlusion are not merged.
+- Ambient occlusion is cast by blocks that hide all their faces; quads whose corners differ in occlusion or in light are not merged.
 - The turn of the texture of a face applies to cubes: the mesher of another shape reads the texture of each face (`BlockVisual.TryGetTexture`), not its turn.

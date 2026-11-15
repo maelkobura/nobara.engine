@@ -28,6 +28,7 @@ struct Group
     ivec4 previousChunk;
     vec4 previousLocal;
     mat4 previousBasis;
+    vec4 light;
 };
 
 struct Draw

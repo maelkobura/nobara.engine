@@ -52,6 +52,7 @@ public sealed class RenderView
     private ulong _movedTick = ulong.MaxValue;
     private float _renderScale = 1;
     private ViewRect _viewport = ViewRect.Full;
+    private ColorF _skyLight = new(1, 1, 1, 1);
 
     internal RenderView(string name, RenderWorld world)
     {
@@ -103,6 +104,33 @@ public sealed class RenderView
             }
 
             _renderScale = value;
+        }
+    }
+
+    /// <summary>
+    /// Gets or sets the day and night multiplier of the view: the factor of
+    /// the sky light of chunk geometry, per channel, from 0 to 1; white (1, 1,
+    /// 1) by default, the full light of day. Its alpha is ignored.
+    /// </summary>
+    /// <remarks>
+    /// The engine knows no time of day: a module that runs a day and night
+    /// cycle sets it from its clock, such as a pale blue at night. It changes
+    /// only the image, at the next frame: no chunk is meshed again, and the
+    /// light that the gameplay reads does not change. The pipeline passes it to
+    /// the chunk shader (<c>nobara_chunkLight</c>).
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">A channel is outside 0 to 1.</exception>
+    public ColorF SkyLight
+    {
+        get => _skyLight;
+        set
+        {
+            if (!(value.R >= 0 && value.R <= 1 && value.G >= 0 && value.G <= 1 && value.B >= 0 && value.B <= 1))
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), $"Each channel of the sky light multiplier is from 0 to 1; got {value}.");
+            }
+
+            _skyLight = value with { A = 1 };
         }
     }
 

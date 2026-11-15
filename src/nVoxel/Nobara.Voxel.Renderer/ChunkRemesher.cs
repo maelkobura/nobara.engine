@@ -20,6 +20,9 @@ internal sealed class MeshWork
 
     public ChunkMesher Mesher { get; } = new();
 
+    /// <summary>Gets or sets the copy of the light of the chunk, taken with the copy of its blocks; created at the first remesh with nLighting.</summary>
+    public MeshLightCopy? Light { get; set; }
+
     public BlockVisuals Visuals { get; set; } = null!;
 
     public ChunkEntry? Entry { get; set; }
@@ -34,7 +37,15 @@ internal sealed class MeshWork
     public bool Urgent { get; set; }
 
     [HotPath]
-    public void Run() => Mesher.Mesh(Input, Visuals, Output);
+    public void Run()
+    {
+        if (Input.HasLight)
+        {
+            Light!.Expand(Input.Light);
+        }
+
+        Mesher.Mesh(Input, Visuals, Output);
+    }
 }
 
 /// <summary>The background job of a remesh.</summary>
@@ -54,6 +65,9 @@ internal sealed class GridEntry(Grid grid)
     public ChunkGroupId Group { get; set; }
 
     public WorldTransform Transform { get; set; }
+
+    /// <summary>Gets or sets the version of the light of the terrain given to the group, or -1 when none was given.</summary>
+    public long LightVersion { get; set; } = -1;
 }
 
 /// <summary>A loaded chunk that the meshing follows.</summary>
@@ -86,10 +100,11 @@ internal sealed class ChunkEntry(GridEntry grid, ChunkCoordinate coordinate)
 
 /// <summary>
 /// Follows the chunks of nVoxel and keeps their geometry in the chunk geometry
-/// of nRenderer: chunks marked by the notifications of batches and by their
-/// loading, remeshed in background jobs nearest the camera first, at most once
-/// per frame each, and their results applied during the extraction of the
-/// renderer, unless the chunk changed meanwhile.
+/// of nRenderer: chunks marked by the notifications of batches, by their
+/// loading, and by the changes of their light, remeshed in background jobs
+/// nearest the camera first, at most once per frame each, and their results
+/// applied during the extraction of the renderer, unless the chunk changed
+/// meanwhile.
 /// </summary>
 internal sealed class ChunkRemesher : IRenderExtractor, IVoxelMeshing
 {
@@ -191,7 +206,36 @@ internal sealed class ChunkRemesher : IRenderExtractor, IVoxelMeshing
         _started = true;
     }
 
+    /// <summary>Gets or sets the light of nLighting, when it is active; without it, chunks are meshed at full light.</summary>
+    internal MeshLighting? Lighting { get; set; }
+
+    /// <summary>
+    /// Marks a chunk whose light changed, and its neighbors when a block on its
+    /// border changed. These remeshes come after those of the changes made by
+    /// an action: they are not waited for at the next frame.
+    /// </summary>
+    internal void OnLightChanged(Grid grid, ChunkCoordinate chunk, bool touchesBorder)
+    {
+        if (_visuals is null || !_grids.TryGetValue(grid, out GridEntry? entry) || !entry.Chunks.TryGetValue(chunk, out ChunkEntry? chunkEntry))
+        {
+            return;
+        }
+
+        Mark(chunkEntry, urgent: false);
+        if (touchesBorder)
+        {
+            MarkNeighbors(entry, chunk, -1, -1, -1, 1, 1, 1);
+        }
+    }
+
     internal IReadOnlyDictionary<string, IBlockMesher> Meshers => _meshers;
+
+    /// <summary>Gets the group of chunk geometry of a grid, for tests.</summary>
+    internal bool TryGetGroup(Grid grid, out ChunkGroupId group)
+    {
+        group = _grids.TryGetValue(grid, out GridEntry? entry) ? entry.Group : default;
+        return group.IsValid;
+    }
 
     /// <summary>Gets or sets a function that sees the geometry of each remesh as it is applied, for tests.</summary>
     internal Action<Grid, ChunkCoordinate, MeshOutput>? Applied { get; set; }
@@ -361,6 +405,10 @@ internal sealed class ChunkRemesher : IRenderExtractor, IVoxelMeshing
             }
 
             grid.Transform = transform;
+            if (grid.Group.IsValid)
+            {
+                UpdateLight(chunks, grid);
+            }
         }
 
         foreach (GridEntry grid in _gridScratch)
@@ -384,6 +432,16 @@ internal sealed class ChunkRemesher : IRenderExtractor, IVoxelMeshing
 
             grid.Chunks.Clear();
             _grids.Remove(grid.Grid);
+        }
+    }
+
+    // A grid that is not the terrain receives the light of the terrain where it is, from nLighting.
+    private void UpdateLight(ChunkGeometry chunks, GridEntry grid)
+    {
+        if (Lighting is not null && Lighting.TryGetTerrainSample(grid.Grid, out ChunkLight light, out uint version) && version != grid.LightVersion)
+        {
+            chunks.SetGroupLight(grid.Group, light);
+            grid.LightVersion = version;
         }
     }
 
@@ -459,6 +517,8 @@ internal sealed class ChunkRemesher : IRenderExtractor, IVoxelMeshing
         {
             grid.Group = chunks.CreateGroup(grid.Grid.Transform);
             grid.Transform = grid.Grid.Transform;
+            grid.LightVersion = -1;
+            UpdateLight(chunks, grid);
         }
 
         entry.Section = chunks.AddSection(grid.Group, new SectionOrigin(entry.Coordinate.X, entry.Coordinate.Y, entry.Coordinate.Z), geometry);
@@ -545,6 +605,18 @@ internal sealed class ChunkRemesher : IRenderExtractor, IVoxelMeshing
         work.Version = chunk.Version;
         work.Urgent = urgent;
         Copy(grid, entry.Coordinate, chunk, work.Input);
+
+        // The light is copied with the blocks: a change of either marks the chunk again, which discards the result.
+        if (Lighting is not null)
+        {
+            work.Light ??= Lighting.CreateCopy();
+            work.Input.HasLight = Lighting.TryCopy(grid, entry.Coordinate, work.Light);
+        }
+        else
+        {
+            work.Input.HasLight = false;
+        }
+
         entry.Running = work;
         work.Handle = _context.Jobs.Schedule(new MeshJob(work), priority: JobPriority.Background);
         _running.Add(work);
