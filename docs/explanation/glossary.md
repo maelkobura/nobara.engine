@@ -269,6 +269,14 @@ A file that the core writes to the logs folder before a context stops on an
 error. It names the module, the lifecycle step, and the exception. See [the
 core](../../src/Core/README.md#error-policies).
 
+### Day and night multiplier
+
+The factor of the sky light of chunk geometry, per channel, that a view
+applies in the shader (`RenderView.SkyLight`): white by day, darker and bluer
+at night. The engine knows no time of day; a game module sets it from its
+clock. Changing it remeshes nothing. See [voxel
+lighting](voxel-lighting.md#day-and-night).
+
 ### Debug drawing
 
 Lines, boxes, and spheres that any module draws in the world for a time, to
@@ -1161,6 +1169,13 @@ to 15: 15 above the highest opaque block of its column, and spread from there
 under it. It does not follow the time of day. See [voxel
 lighting](voxel-lighting.md#the-sky).
 
+### Smooth lighting
+
+The light of each corner of a face of a cube, averaged from the cells around
+the corner instead of taken from the one cell in front of the face, so that
+light fades across faces instead of in steps. See [the meshing of
+chunks](chunk-meshing.md#smooth-light).
+
 ### SPIR-V
 
 The binary format of the shaders that nGraphics loads. Shaders are written in
@@ -1232,9 +1247,9 @@ several modules may add members. See [the `.nof` reference](../reference/formats
 ### Terrain light sample
 
 The light of the terrain around a grid that is not the terrain, such as a
-ship, read at the center and the eight corners of the grid. It is meant for
-the renderer, to scale the light of the grid by it, so that a ship that
-enters a cave grows darker, while each grid keeps its own light. See [voxel
+ship, read at the center and the eight corners of the grid. The renderer
+scales the light of the grid by it, so that a ship that enters a cave grows
+darker, while each grid keeps its own light. See [voxel
 lighting](voxel-lighting.md#grids).
 
 ### Text focus

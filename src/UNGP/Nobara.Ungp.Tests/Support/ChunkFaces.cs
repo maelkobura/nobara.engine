@@ -15,10 +15,10 @@ internal sealed class ChunkFaces
     private readonly List<uint> _cutout = [];
     private readonly List<uint> _transparent = [];
 
-    /// <summary>Adds a square facing +Z at depth <paramref name="z"/>, from (x0, y0) to (x1, y1), in blocks of the chunk; its texture goes from u = 0 at x0 to u = 1 at x1.</summary>
-    public ChunkFaces Front(ChunkCategory category, TextureLocation texture, float x0, float y0, float x1, float y1, float z)
+    /// <summary>Adds a square facing +Z at depth <paramref name="z"/>, from (x0, y0) to (x1, y1), in blocks of the chunk; its texture goes from u = 0 at x0 to u = 1 at x1; full light unless <paramref name="light"/> is given.</summary>
+    public ChunkFaces Front(ChunkCategory category, TextureLocation texture, float x0, float y0, float x1, float y1, float z, ChunkLight? light = null)
     {
-        Face(category, texture, ChunkNormal.PositiveZ, new(x0, y0, z), new(x1, y0, z), new(x1, y1, z), new(x0, y1, z));
+        Face(category, texture, ChunkNormal.PositiveZ, new(x0, y0, z), new(x1, y0, z), new(x1, y1, z), new(x0, y1, z), light ?? ChunkLight.Full);
         return this;
     }
 
@@ -40,13 +40,14 @@ internal sealed class ChunkFaces
     public ChunkSectionGeometry Geometry => new(_vertices.ToArray(), _opaque.ToArray(), _cutout.ToArray(), _transparent.ToArray());
 
     // Counter-clockwise seen from the front, the corners from the bottom left.
-    private void Face(ChunkCategory category, TextureLocation texture, ChunkNormal normal, Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+    private void Face(ChunkCategory category, TextureLocation texture, ChunkNormal normal, Vector3 a, Vector3 b, Vector3 c, Vector3 d, ChunkLight? light = null)
     {
         uint first = (uint)_vertices.Count;
-        _vertices.Add(new ChunkVertex(a, new Vector2(0, 0), texture, normal, ChunkLight.Full));
-        _vertices.Add(new ChunkVertex(b, new Vector2(1, 0), texture, normal, ChunkLight.Full));
-        _vertices.Add(new ChunkVertex(c, new Vector2(1, 1), texture, normal, ChunkLight.Full));
-        _vertices.Add(new ChunkVertex(d, new Vector2(0, 1), texture, normal, ChunkLight.Full));
+        ChunkLight l = light ?? ChunkLight.Full;
+        _vertices.Add(new ChunkVertex(a, new Vector2(0, 0), texture, normal, l));
+        _vertices.Add(new ChunkVertex(b, new Vector2(1, 0), texture, normal, l));
+        _vertices.Add(new ChunkVertex(c, new Vector2(1, 1), texture, normal, l));
+        _vertices.Add(new ChunkVertex(d, new Vector2(0, 1), texture, normal, l));
         List<uint> list = category switch
         {
             ChunkCategory.Opaque => _opaque,

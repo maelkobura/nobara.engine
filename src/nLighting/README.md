@@ -18,6 +18,7 @@ operations per tick, nearest the points of interest first. It tells its
 subscribers which chunks changed, gives frozen copies of the light of a chunk
 that a job may read, such as a mesher, samples the light of the terrain
 around each other grid for the renderer, and answers the brightness query.
+On the client, [nVoxel.Renderer](../nVoxel/README.md) draws this light.
 
 ## Status
 
@@ -298,8 +299,7 @@ of a column of chunks take 4 KiB, once per column that has light.
   `nobara.lighting.dynamic_light` yet: set it from code.
 - A grid receives the light of the terrain only through its terrain light
   sample, and no light from other grids; it gives none.
-- The day-night cycle does not apply to the sky channel yet: no module
-  scales it.
+- No module of the engine runs a day and night cycle: a game sets the day
+  and night multiplier of the view of nRenderer (`RenderView.SkyLight`).
 - In a grid that keeps its chunks, a chunk that does not exist holds no
   light: light stops at the border of the chunks that exist.
-- The light is not drawn yet: nVoxel.Renderer meshes chunks at full light.

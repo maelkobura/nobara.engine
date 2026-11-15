@@ -13,7 +13,9 @@ section](glossary.md#chunk-section) per chunk that has geometry, placed by the
 whole coordinates of its chunk in the group. A group moves like an object of
 the render world, interpolated between ticks by the same rules, so a moving
 grid needs no change of its sections. The terrain is one more group, at the
-origin.
+origin. A group also carries the light around it, so a grid that moves into
+a dark place grows darker without a change of its sections either; for the
+terrain, it is the open sky, which keeps the light of its vertices.
 
 Each section has three categories of faces, drawn in different passes:
 opaque faces, cut-out faces (alpha tested, such as leaves), and transparent

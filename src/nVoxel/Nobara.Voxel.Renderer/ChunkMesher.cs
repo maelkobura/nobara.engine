@@ -34,6 +34,18 @@ internal sealed class MeshInput
     [HotPath]
     public List<InstanceCell> Instances { get; } = [];
 
+    /// <summary>
+    /// Gets the light of the cells of the copy, in the order of <see cref="States"/>:
+    /// the sky level in the 4 high bits, then the red, green, and blue levels of
+    /// the light of blocks, 4 bits each. Read only when <see cref="HasLight"/> is set.
+    /// </summary>
+    [HotPath]
+    public ushort[] Light { get; } = new ushort[Volume];
+
+    /// <summary>Gets or sets whether <see cref="Light"/> holds the light of the copy; without it, every vertex has full light.</summary>
+    [HotPath]
+    public bool HasLight { get; set; }
+
     /// <summary>Gets the index in the copy of a cell, from -1 to 32 along each axis.</summary>
     [HotPath]
     public static int Index(int x, int y, int z) => x + 1 + (Size * (z + 1 + (Size * (y + 1))));
@@ -195,8 +207,8 @@ internal sealed class MeshOutput
 
 /// <summary>
 /// Meshes a frozen copy of a chunk: cubes merged face by face (greedy
-/// meshing) with hidden faces removed and ambient occlusion at each vertex,
-/// models placed and turned, blocks of other shapes by their meshers, and the
+/// meshing) with hidden faces removed, and ambient occlusion and smooth light
+/// at each vertex, models placed, turned, and lit by their cell, blocks of other shapes by their meshers, and the
 /// connections of the faces of the chunk for the visibility graph.
 /// </summary>
 /// <remarks>Its scratch memory is kept from one chunk to the next: once it has meshed the largest chunk, it allocates nothing.</remarks>
@@ -204,6 +216,10 @@ internal sealed class ChunkMesher
 {
     private const int Edge = VoxelCoordinates.ChunkSize;
     private const ulong Mergeable = 1UL << 40;
+    private const int LightShift = 41;
+
+    // Full light, as half levels in the packing of CornerLight: 30 in each of the four channels.
+    private const int FullLight = (30 << 15) | (30 << 10) | (30 << 5) | 30;
 
     private readonly ulong[] _mask = new ulong[Edge * Edge];
     private readonly int[] _queue = new int[VoxelCoordinates.ChunkVolume];
@@ -253,15 +269,17 @@ internal sealed class ChunkMesher
                         uint texture = visuals.FaceTexture(state, direction);
                         if (texture != 0)
                         {
-                            int occlusion = Occlusion(input, visuals, cell + step, axis, out bool uniform);
-                            // Faces whose texture is turned differently do not merge.
+                            int occlusion = Corners(input, visuals, cell + step, axis, out bool uniform, out int light, out bool even);
+                            // Faces whose texture is turned differently do not merge, nor faces
+                            // whose light is not the same at their four corners.
                             key = 1UL
                                 | ((ulong)texture << 1)
                                 | ((ulong)visuals.TintOf(state) << 18)
                                 | ((ulong)visuals.CategoryOf(state) << 25)
                                 | ((ulong)occlusion << 27)
                                 | ((ulong)visuals.FaceTurn(state, direction) << 35)
-                                | (uniform ? Mergeable : 0);
+                                | ((ulong)light << LightShift)
+                                | (uniform && even ? Mergeable : 0);
                             any = true;
                         }
                     }
@@ -272,7 +290,7 @@ internal sealed class ChunkMesher
 
             if (any)
             {
-                Merge(output, direction, axis, slice);
+                Merge(input, visuals, output, direction, axis, slice);
             }
         }
     }
@@ -294,28 +312,131 @@ internal sealed class ChunkMesher
     }
 
     // The ambient occlusion of the four corners of a face, from the cell in
-    // front of it: 2 bits each, in the order of the corners of Corner.
+    // front of it: 2 bits each, in the order of the corners of Corner. With
+    // light, the smooth light of the face, from the same cells: at each
+    // corner, the average of the cells around it that do not hide all their
+    // faces, which hold no light. The light of corner 0 is given; even tells
+    // whether the four corners have the same light.
     [HotPath]
-    private static int Occlusion(MeshInput input, BlockVisuals visuals, int front, int axis, out bool uniform)
+    private static int Corners(MeshInput input, BlockVisuals visuals, int front, int axis, out bool uniform, out int light, out bool even)
     {
         TangentSteps(axis, out int stepU, out int stepV);
+        bool lit = input.HasLight;
         int packed = 0;
+        light = FullLight;
+        even = true;
         for (int corner = 0; corner < 4; corner++)
         {
             int su = corner is 1 or 2 ? stepU : -stepU;
             int sv = corner >= 2 ? stepV : -stepV;
             bool side1 = input.IsSolid(front + su, visuals);
             bool side2 = input.IsSolid(front + sv, visuals);
-            int value = side1 && side2 ? 3 : (side1 ? 1 : 0) + (side2 ? 1 : 0) + (input.IsSolid(front + su + sv, visuals) ? 1 : 0);
+            bool diagonal = !(side1 && side2) && input.IsSolid(front + su + sv, visuals);
+            int value = side1 && side2 ? 3 : (side1 ? 1 : 0) + (side2 ? 1 : 0) + (diagonal ? 1 : 0);
             packed |= value << (corner * 2);
+            if (lit)
+            {
+                int cornerLight = CornerLight(input.Light, front, su, sv, side1, side2, diagonal);
+                if (corner == 0)
+                {
+                    light = cornerLight;
+                }
+                else if (cornerLight != light)
+                {
+                    even = false;
+                }
+            }
         }
 
         uniform = packed is 0 or 0x55 or 0xAA or 0xFF;
         return packed;
     }
 
+    // The light of the four corners of a face, for a face whose corners differ.
     [HotPath]
-    private void Merge(MeshOutput output, int direction, int axis, int slice)
+    private static void CornerLights(MeshInput input, BlockVisuals visuals, int front, int axis, out int l0, out int l1, out int l2, out int l3)
+    {
+        TangentSteps(axis, out int stepU, out int stepV);
+        l0 = CornerLight(input, visuals, front, -stepU, -stepV);
+        l1 = CornerLight(input, visuals, front, stepU, -stepV);
+        l2 = CornerLight(input, visuals, front, stepU, stepV);
+        l3 = CornerLight(input, visuals, front, -stepU, stepV);
+    }
+
+    [HotPath]
+    private static int CornerLight(MeshInput input, BlockVisuals visuals, int front, int su, int sv)
+    {
+        bool side1 = input.IsSolid(front + su, visuals);
+        bool side2 = input.IsSolid(front + sv, visuals);
+        bool diagonal = !(side1 && side2) && input.IsSolid(front + su + sv, visuals);
+        return CornerLight(input.Light, front, su, sv, side1, side2, diagonal);
+    }
+
+    // The light of a corner of a face, in half levels from 0 to 30, packed as
+    // sky (bits 15 to 19), red (10 to 14), green (5 to 9), and blue (0 to 4).
+    // Light does not turn around a corner closed on both sides, as ambient occlusion does not.
+    [HotPath]
+    private static int CornerLight(ushort[] light, int front, int su, int sv, bool side1, bool side2, bool diagonal)
+    {
+        int value = light[front];
+        int sky = value >> 12, red = (value >> 8) & 15, green = (value >> 4) & 15, blue = value & 15;
+        int count = 1;
+        if (!side1)
+        {
+            Add(light[front + su], ref sky, ref red, ref green, ref blue, ref count);
+        }
+
+        if (!side2)
+        {
+            Add(light[front + sv], ref sky, ref red, ref green, ref blue, ref count);
+        }
+
+        if (!(side1 && side2) && !diagonal)
+        {
+            Add(light[front + su + sv], ref sky, ref red, ref green, ref blue, ref count);
+        }
+
+        return (Half(sky, count) << 15) | (Half(red, count) << 10) | (Half(green, count) << 5) | Half(blue, count);
+    }
+
+    [HotPath]
+    private static void Add(int value, ref int sky, ref int red, ref int green, ref int blue, ref int count)
+    {
+        sky += value >> 12;
+        red += (value >> 8) & 15;
+        green += (value >> 4) & 15;
+        blue += value & 15;
+        count++;
+    }
+
+    // The average of count levels, rounded to the nearest half level, in half levels.
+    [HotPath]
+    private static int Half(int sum, int count) => ((4 * sum) + count) / (2 * count);
+
+    [HotPath]
+    private static ChunkLight Unpack(int light) =>
+        new((light >> 15) / 2f, ((light >> 10) & 31) / 2f, ((light >> 5) & 31) / 2f, (light & 31) / 2f);
+
+    // The brightest channel of a packed light, in half levels.
+    [HotPath]
+    private static int Brightest(int light) =>
+        Math.Max(Math.Max(light >> 15, (light >> 10) & 31), Math.Max((light >> 5) & 31, light & 31));
+
+    // The light of a cell, for the shapes that are not cubes: its own light, at every vertex.
+    [HotPath]
+    private static ChunkLight CellLight(MeshInput input, int cell)
+    {
+        if (!input.HasLight)
+        {
+            return ChunkLight.Full;
+        }
+
+        int value = input.Light[cell];
+        return new ChunkLight(value >> 12, (value >> 8) & 15, (value >> 4) & 15, value & 15);
+    }
+
+    [HotPath]
+    private void Merge(MeshInput input, BlockVisuals visuals, MeshOutput output, int direction, int axis, int slice)
     {
         ulong[] mask = _mask;
         for (int v = 0; v < Edge; v++)
@@ -349,7 +470,7 @@ internal sealed class ChunkMesher
                     mask.AsSpan(((v + dv) * Edge) + u, width).Clear();
                 }
 
-                EmitQuad(output, key, direction, axis, slice, u, v, width, height);
+                EmitQuad(input, visuals, output, key, direction, axis, slice, u, v, width, height);
                 u += width;
             }
         }
@@ -370,8 +491,21 @@ internal sealed class ChunkMesher
     }
 
     [HotPath]
-    private static void EmitQuad(MeshOutput output, ulong key, int direction, int axis, int slice, int u, int v, int width, int height)
+    private static void EmitQuad(MeshInput input, BlockVisuals visuals, MeshOutput output, ulong key, int direction, int axis, int slice, int u, int v, int width, int height)
     {
+        // A merged face has the same light at each corner, the one of its key; a face
+        // whose light differs from corner to corner is one cell, read again from the copy.
+        int l0 = (int)((key >> LightShift) & 0xFFFFF);
+        int l1 = l0, l2 = l0, l3 = l0;
+        bool even = (key & Mergeable) != 0 || !input.HasLight;
+        if (!even)
+        {
+            Cell(axis, slice, u, v, out int x, out int y, out int z);
+            CornerLights(input, visuals, MeshInput.Index(x, y, z) + MeshInput.Step(direction), axis, out l0, out l1, out l2, out l3);
+            even = l0 == l1 && l1 == l2 && l2 == l3;
+        }
+
+        ChunkLight light = Unpack(l0);
         BlockVisuals.TryUnpack((uint)((key >> 1) & 0x1FFFF), out TextureLocation texture);
         int tint = (int)((key >> 18) & 0x7F);
         var category = (ChunkCategory)((key >> 25) & 3);
@@ -393,15 +527,17 @@ internal sealed class ChunkMesher
             Vector3 position = Point(axis, plane, u + cu, v + cv);
             Vector2 uv = Turn(TextureCoordinates(direction, cu, cv, width, height), turn, width, height);
             int ao = (occlusion >> (corner * 2)) & 3;
-            output.AddVertex(new ChunkVertex(position, uv, texture, normal, ChunkLight.Full, ao, tint));
+            ChunkLight vertexLight = even ? light : Unpack(corner switch { 0 => l0, 1 => l1, 2 => l2, _ => l3 });
+            output.AddVertex(new ChunkVertex(position, uv, texture, normal, vertexLight, ao, tint));
         }
 
-        // The diagonal of the quad joins its two lighter corners, so a shadowed corner does not streak along the face.
-        int a0 = (occlusion >> ((reverse ? 3 : 0) * 2)) & 3;
-        int a1 = (occlusion >> ((reverse ? 2 : 1) * 2)) & 3;
-        int a2 = (occlusion >> ((reverse ? 1 : 2) * 2)) & 3;
-        int a3 = (occlusion >> ((reverse ? 0 : 3) * 2)) & 3;
-        if (a0 + a2 > a1 + a3)
+        // The diagonal of the quad joins its two lighter corners, so a shadowed corner does not streak along
+        // the face: by ambient occlusion when the light is even, by light and ambient occlusion otherwise.
+        int i0 = reverse ? 3 : 0, i1 = reverse ? 2 : 1, i2 = reverse ? 1 : 2, i3 = reverse ? 0 : 3;
+        bool turned = even
+            ? Occlusion(occlusion, i0) + Occlusion(occlusion, i2) > Occlusion(occlusion, i1) + Occlusion(occlusion, i3)
+            : Brightness(occlusion, i0, l0, l1, l2, l3) + Brightness(occlusion, i2, l0, l1, l2, l3) < Brightness(occlusion, i1, l0, l1, l2, l3) + Brightness(occlusion, i3, l0, l1, l2, l3);
+        if (turned)
         {
             output.AddTriangle(category, first + 1, first + 2, first + 3);
             output.AddTriangle(category, first + 1, first + 3, first);
@@ -412,6 +548,14 @@ internal sealed class ChunkMesher
             output.AddTriangle(category, first, first + 2, first + 3);
         }
     }
+
+    [HotPath]
+    private static int Occlusion(int occlusion, int corner) => (occlusion >> (corner * 2)) & 3;
+
+    // How light a corner looks: its brightest channel, darkened by its ambient occlusion.
+    [HotPath]
+    private static int Brightness(int occlusion, int corner, int l0, int l1, int l2, int l3) =>
+        Brightest(corner switch { 0 => l0, 1 => l1, 2 => l2, _ => l3 }) * (5 - Occlusion(occlusion, corner));
 
     // Texture coordinates of a corner, in blocks: U to the right and V down,
     // seen from the front, for the sides; U along X and V along Z for the top.
@@ -500,14 +644,14 @@ internal sealed class ChunkMesher
                         int model = visuals.ModelOf(state);
                         if (model >= 0)
                         {
-                            PlaceModel(output, visuals.Models[model], visuals.CategoryOf(state), visuals.TintOf(state), x, y, z);
+                            PlaceModel(output, visuals.Models[model], visuals.CategoryOf(state), visuals.TintOf(state), CellLight(input, cell), x, y, z);
                         }
                     }
                     else if (kind == BlockVisuals.Custom)
                     {
                         BlockDataView data = (visuals.Occludes(state) & BlockVisuals.InstanceBit) != 0 ? input.DataOf(cell) : BlockDataView.Empty;
                         var context = new BlockMeshContext(input, visuals, x, y, z, data);
-                        _writer.Begin(output, x, y, z, visuals.TintOf(state));
+                        _writer.Begin(output, x, y, z, visuals.TintOf(state), CellLight(input, cell));
                         visuals.Meshers[visuals.MesherOf(state)].Mesh(context, _writer);
                     }
                 }
@@ -516,7 +660,7 @@ internal sealed class ChunkMesher
     }
 
     [HotPath]
-    private static void PlaceModel(MeshOutput output, ModelGeometry model, ChunkCategory category, int tint, int x, int y, int z)
+    private static void PlaceModel(MeshOutput output, ModelGeometry model, ChunkCategory category, int tint, ChunkLight light, int x, int y, int z)
     {
         var offset = new Vector3(x, y, z);
         uint first = (uint)output.VertexCount;
@@ -524,7 +668,7 @@ internal sealed class ChunkMesher
         for (int i = 0; i < vertices.Length; i++)
         {
             ModelVertex v = vertices[i];
-            output.AddVertex(new ChunkVertex(v.Position + offset, v.TextureCoordinates, v.Texture, v.Normal, ChunkLight.Full, 0, tint));
+            output.AddVertex(new ChunkVertex(v.Position + offset, v.TextureCoordinates, v.Texture, v.Normal, light, 0, tint));
         }
 
         uint[] indices = model.Indices;

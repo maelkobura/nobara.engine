@@ -124,8 +124,9 @@ public readonly struct BlockVisual
 /// <summary>
 /// Receives the geometry of a block from a mesher: vertices in the
 /// coordinates of the cell, from (0, 0, 0) to (1, 1, 1), and triangles in a
-/// category. The writer moves them to the block, and gives them the light
-/// and the tint of the block.
+/// category. The writer moves them to the block, and gives them the tint of
+/// the block and the light of its cell: a block that is not a cube is lit
+/// evenly, without smooth light.
 /// </summary>
 [HotPath]
 public sealed class BlockMeshWriter
@@ -133,6 +134,7 @@ public sealed class BlockMeshWriter
     private MeshOutput _output = null!;
     private Vector3 _offset;
     private int _tint;
+    private ChunkLight _light;
     private int _first;
 
     internal BlockMeshWriter()
@@ -147,7 +149,7 @@ public sealed class BlockMeshWriter
     /// <param name="ambientOcclusion">The ambient occlusion, from 0 (none) to 3.</param>
     /// <returns>The index of the vertex for <see cref="AddTriangle"/>.</returns>
     public int AddVertex(Vector3 position, Vector2 textureCoordinates, TextureLocation texture, ChunkNormal normal, int ambientOcclusion = 0) =>
-        _output.AddVertex(new ChunkVertex(position + _offset, textureCoordinates, texture, normal, ChunkLight.Full, ambientOcclusion, _tint)) - _first;
+        _output.AddVertex(new ChunkVertex(position + _offset, textureCoordinates, texture, normal, _light, ambientOcclusion, _tint)) - _first;
 
     /// <summary>Adds a triangle of three vertices of this block, counterclockwise seen from its front.</summary>
     /// <param name="category">The category of the triangle.</param>
@@ -166,11 +168,12 @@ public sealed class BlockMeshWriter
         _output.AddTriangle(category, (uint)(a + _first), (uint)(b + _first), (uint)(c + _first));
     }
 
-    internal void Begin(MeshOutput output, int x, int y, int z, int tint)
+    internal void Begin(MeshOutput output, int x, int y, int z, int tint, ChunkLight light)
     {
         _output = output;
         _offset = new Vector3(x, y, z);
         _tint = tint;
+        _light = light;
         _first = output.VertexCount;
     }
 }

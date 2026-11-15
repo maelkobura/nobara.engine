@@ -26,7 +26,7 @@ A chunk of 32³ blocks has up to 196,608 faces of cubes. Most of them are
 hidden by a neighbor, and most visible ones lie next to an equal face in the
 same plane. The mesher walks the chunk slice by slice, in each of the six
 directions: it marks the visible faces of the slice, each with what makes it
-look the way it does (texture and its quarter turn in the face, tint, category, and ambient occlusion), then
+look the way it does (texture and its quarter turn in the face, tint, category, ambient occlusion, and light), then
 covers the slice with the largest rectangles of equal faces. This is
 [greedy meshing](glossary.md#greedy-meshing): a flat floor of a chunk is one
 quad instead of 1,024. The texture coordinates of a quad count in blocks, and
@@ -49,6 +49,34 @@ quad would spread the shadow of one corner over many blocks. The diagonal of
 a quad joins its two lighter corners, so the shadow of a corner does not
 streak along the face.
 
+## Smooth light
+
+With [nLighting](../../src/nLighting/README.md), each vertex carries the
+light of the sky and the light of blocks, in red, green, and blue. Taken from
+the one cell in front of the face, the light would change in steps at every
+block edge. The mesher uses [smooth lighting](glossary.md#smooth-lighting)
+instead: at each corner of a face, the average of the cells that ambient
+occlusion reads, the cell in front of the face, the two beside the corner,
+and the one in the corner. A block that hides all its faces holds no light,
+so it is left out of the average rather than counted as dark: a wall beside
+a lit floor darkens the corner by its ambient occlusion only, and light does
+not turn around a corner closed on both sides. The average of four whole
+levels falls on quarter levels; the vertex keeps half levels, so the average
+is rounded to the nearest half.
+
+A large quad would spread the light of one corner over many blocks, so faces
+merge only when their light is the same at their four corners: a floor under
+the open sky is still one quad, and the floor around a torch is one quad per
+block. The diagonal of a quad with corners of different light joins its two
+lighter corners, light and ambient occlusion together.
+
+Models, and the shapes that other modules mesh, take the light of their own
+cell at every vertex: their faces do not follow the grid of cells, and a
+torch or a plant has one cell. The time of day is not in the vertex: the
+shader applies the [day and night
+multiplier](glossary.md#day-and-night-multiplier) to the sky light, so that
+the sun going down remeshes nothing.
+
 ## Copy, then result
 
 The mesher runs in background jobs, while the world goes on changing. A
@@ -58,6 +86,15 @@ and cast its shadows; the job reads only that copy. Its result comes back to
 the loop thread, during the extraction of nRenderer, and is given to the
 chunk geometry. If the chunk changed meanwhile, the result is discarded, and
 the chunk is remeshed from a new copy.
+
+With nLighting, the copy also holds the light of the same cells, copied from
+nLighting at the same moment: the job sees blocks and light that agree. A
+chunk whose light changes is marked like a chunk whose blocks change, and its
+neighbors too when the change touches its border, so a remesh that runs on an
+old light is discarded the same way. A torch placed by a player lights its
+surroundings at the next frame: its light usually spreads within the same
+tick, before the remesh copies it; a change larger than the budget of
+nLighting for a tick reaches the image over the next ticks.
 
 A chunk is marked when a batch changes it, and its neighbors too when the
 change touches its border; marking it again does nothing until its remesh

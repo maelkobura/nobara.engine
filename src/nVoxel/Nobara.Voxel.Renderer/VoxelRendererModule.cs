@@ -13,7 +13,8 @@ namespace Nobara.Voxel.Renderer;
 
 /// <summary>
 /// The client extension of nVoxel that meshes chunks: it turns the blocks of
-/// every grid into the chunk geometry of nRenderer.
+/// every grid into the chunk geometry of nRenderer, lit by nLighting when it
+/// is active.
 /// </summary>
 public sealed class VoxelRendererModule : IModule
 {
@@ -42,6 +43,10 @@ public sealed class VoxelRendererModule : IModule
             context.Resolve<IVoxelBatches>(),
             context.Resolve<IWorldSessions>(),
             context.Resolve<IShapeRegistry>());
+        if (context.IsModuleActive(LightingBridge.LightingModuleId))
+        {
+            _remesher.Lighting = UseLighting(context, _remesher);
+        }
     }
 
     /// <inheritdoc/>
@@ -66,5 +71,10 @@ public sealed class VoxelRendererModule : IModule
     {
         _extractor?.Dispose();
         _extractor = null;
+        _remesher?.Lighting?.Dispose();
     }
+
+    // A method of its own, so that the types of nLighting load only when it runs.
+    private static MeshLighting? UseLighting(ModuleContext context, ChunkRemesher remesher) =>
+        LightingBridge.Create(context, remesher.OnLightChanged);
 }

@@ -16,6 +16,7 @@ using Nobara.Game;
 using Nobara.Graphics;
 using Nobara.Items;
 using Nobara.Items.Build;
+using Nobara.Lighting;
 using Nobara.Renderer;
 using Nobara.Renderer.Build;
 using Nobara.ResourceCompiler;
@@ -48,6 +49,7 @@ internal sealed class MeshingHarness : IDisposable
             <RenderTint>#7CBD6B</RenderTint>
           </Properties>
         </Block>
+        <Block><Name>Lantern</Name><Content><Shape>shape:nobara.cube</Shape></Content><Properties><RenderTexture>texture://Example/World/Stone</RenderTexture><LightEmission>15</LightEmission></Properties></Block>
         <Block><Name>Glass</Name><Content><Shape>shape:nobara.cube</Shape><Opacity>translucent</Opacity></Content><Properties><RenderTexture>texture://Example/World/Glass</RenderTexture></Properties></Block>
         <Block><Name>Leaves</Name><Content><Shape>shape:nobara.cube</Shape><Opacity>cutout</Opacity></Content><Properties><RenderTexture>texture://Example/World/Leaves</RenderTexture></Properties></Block>
         <Block>
@@ -80,6 +82,9 @@ internal sealed class MeshingHarness : IDisposable
 
     /// <summary>Gets or sets the blocks of the test game; <see cref="StandardBlocks"/> by default.</summary>
     public string Blocks { get; set; } = StandardBlocks;
+
+    /// <summary>Gets or sets whether nLighting is in the distribution; it is not by default, as before light existed.</summary>
+    public bool Lighting { get; set; }
 
     /// <summary>Gets or sets whether the provider fills the chunks below Y = 0 with stone.</summary>
     public bool FlatTerrain { get; set; } = true;
@@ -134,7 +139,7 @@ internal sealed class MeshingHarness : IDisposable
             distribution.Settings.Add(new F.SettingValue { Key = key, Operation = operation, Value = value });
         }
 
-        foreach (string id in ModuleIds)
+        foreach (string id in Lighting ? [.. ModuleIds, "nobara.lighting"] : ModuleIds)
         {
             distribution.Modules.Add(new F.DistributionModule { Id = id, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
         }
@@ -336,6 +341,7 @@ internal sealed class MeshingHarness : IDisposable
                 "nobara.graphics" => Embedded(typeof(GraphicsModule)),
                 "nobara.renderer" => Embedded(typeof(RendererModule)),
                 VoxelRendererModule.ModuleId => Embedded(typeof(VoxelRendererModule)),
+                "nobara.lighting" => Embedded(typeof(LightingModule)),
                 "example.window" => BackendManifest("example.window", "nobara.frames"),
                 "example.graphics" => BackendManifest("example.graphics", "nobara.graphics"),
                 _ => GameManifest(),
@@ -355,6 +361,7 @@ internal sealed class MeshingHarness : IDisposable
             "nobara.graphics" => new LoadedModule(typeof(GraphicsModule).Assembly, () => new GraphicsModule()),
             "nobara.renderer" => new LoadedModule(typeof(RendererModule).Assembly, () => new RendererModule()),
             VoxelRendererModule.ModuleId => new LoadedModule(typeof(VoxelRendererModule).Assembly, () => new VoxelRendererModule()),
+            "nobara.lighting" => new LoadedModule(typeof(LightingModule).Assembly, () => new LightingModule()),
             "example.window" => new LoadedModule(null, () => new WindowBackendModule(harness.Windows)),
             "example.graphics" => new LoadedModule(null, () => new GraphicsBackendModule(harness.Backend)),
             _ => new LoadedModule(null, () => harness.Probe = new WorldProbe(harness), Open),

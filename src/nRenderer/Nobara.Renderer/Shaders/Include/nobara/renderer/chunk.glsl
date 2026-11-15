@@ -16,8 +16,9 @@ layout(location = 0) in uvec4 nobara_ChunkVertexData;
 layout(location = 1) in uvec4 nobara_ChunkSection;
 
 // A group of sections, as nRenderer writes it every frame: the position of the
-// camera in the group (whole chunk and position in the chunk), and the scale
-// and rotation of the group.
+// camera in the group (whole chunk and position in the chunk), the scale and
+// rotation of the group, and the light around the group (ChunkGeometry.SetGroupLight):
+// sky, then the red, green, and blue light of blocks, from 0 to 15.
 struct NobaraChunkGroup
 {
     ivec4 cameraChunk;
@@ -26,6 +27,7 @@ struct NobaraChunkGroup
     ivec4 previousChunk;
     vec4 previousLocal;
     mat4 previousBasis;
+    vec4 light;
 };
 
 layout(std430, binding = 7) readonly buffer NobaraChunkGroups
@@ -112,9 +114,26 @@ vec3 nobara_chunkTint(NobaraChunkVertex v)
     return nobara_chunkTints[v.tint].rgb;
 }
 
-// The light of a vertex, from 0 to 1 per channel: the sky light scaled by the
-// day and night multiplier, then the brightest of the sky and the blocks.
+// The light of a vertex alone, from 0 to 1 per channel: the sky light scaled
+// by the day and night multiplier, then the brightest of the sky and the
+// blocks. It leaves out the light around the group of the vertex; the next
+// function adds it.
 vec3 nobara_chunkLight(NobaraChunkVertex v, float daylight)
 {
     return max(vec3(v.skyLight * daylight), v.blockLight) / 15.0;
+}
+
+// The light of a vertex of a section, from 0 to 1 per channel. The sky light
+// of the vertex is scaled by the sky light around its group, then by
+// skyLight, the day and night multiplier of the view (RenderView.SkyLight).
+// The light of blocks around the group reaches the vertex as far as the sky
+// of its grid does. The brightest of the sky and the blocks wins, channel by
+// channel. With the defaults (open sky around the group, a white multiplier),
+// it is the brightest of the sky light and the light of blocks of the vertex.
+vec3 nobara_chunkLight(uvec4 section, NobaraChunkVertex v, vec3 skyLight)
+{
+    vec4 around = nobara_chunkGroups[section.w].light;
+    float exposure = v.skyLight / 15.0;
+    vec3 sky = vec3(exposure * around.x) * skyLight;
+    return max(max(sky, v.blockLight), exposure * around.yzw) / 15.0;
 }

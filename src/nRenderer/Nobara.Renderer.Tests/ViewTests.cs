@@ -154,6 +154,19 @@ public sealed class ViewTests : IDisposable
     }
 
     [Fact]
+    public void TheSkyLightMultiplierIsWhiteByDefaultAndEachChannelIsFromZeroToOne()
+    {
+        Assert.Equal(new ColorF(1, 1, 1, 1), View.SkyLight);
+
+        View.SkyLight = new ColorF(0.2f, 0.25f, 0.4f, 0);
+
+        Assert.Equal(new ColorF(0.2f, 0.25f, 0.4f, 1), View.SkyLight);
+        Assert.Throws<ArgumentOutOfRangeException>(() => View.SkyLight = new ColorF(1.5f, 1, 1, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => View.SkyLight = new ColorF(1, -0.1f, 1, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => View.SkyLight = new ColorF(1, 1, float.NaN, 1));
+    }
+
+    [Fact]
     public void AViewDrawsToATextureInsteadOfTheScreen()
     {
         Texture color = _harness.Device.CreateTexture(TextureDescription.Texture2D(PixelFormat.Rgba8Unorm, 256, 128, TextureUsage.RenderTarget | TextureUsage.Sampled) with { Name = "capture" });

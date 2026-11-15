@@ -155,10 +155,13 @@ A grid does not receive the light of the terrain block by block, and gives
 it none. nLighting reads instead a terrain light sample for each grid that
 is not the terrain: the average light of the terrain at the center and the
 eight corners of the grid, without the points in a solid block or in a chunk
-that is not loaded. It is meant for the renderer, which is to scale the
-light of the grid by it, so that a ship that flies into a cave grows darker;
-the renderer does not read it yet. The sample is read again at the
-end of a tick when the grid moved or when the light of the terrain changed.
+that is not loaded. nVoxel.Renderer gives it to the chunk group of the grid,
+and the shader scales the sky light of each vertex of the grid by the sky of
+the sample, and adds the light of blocks of the sample as far as the sky of
+the grid reaches: a ship that flies into a cave grows darker, a torch of the
+cave lights its deck, and its closed hold keeps the light of its own lamps.
+The sample is read again at the end of a tick when the grid moved or when
+the light of the terrain changed.
 
 A split or a merge needs nothing of its own: the blocks that leave a grid
 and those that arrive in another are ordinary changes, and the propagation
@@ -202,6 +205,17 @@ The chunks nearest a point of interest go first:
 
 Each round deals the chunks to the lanes in that order, so the light near
 the players is done first and the far light follows.
+
+## Day and night
+
+The sky channel tells how much a block is exposed to the sky, not how bright
+the sky is: the time of day never changes it, and never starts a
+propagation. The renderer applies the time of day instead, as a [day and
+night multiplier](glossary.md#day-and-night-multiplier) of the sky channel
+in the shader, set by the game on its view. Night falls without a remesh,
+and a torch keeps its light. A gameplay module that needs the brightness a
+player sees scales the sky channel of the brightness query by the time of
+day itself.
 
 ## Same blocks, same light
 

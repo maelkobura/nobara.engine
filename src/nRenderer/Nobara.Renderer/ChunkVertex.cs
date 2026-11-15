@@ -51,8 +51,11 @@ public enum ChunkNormal
 [HotPath]
 public readonly record struct ChunkLight(float Sky, float Red, float Green, float Blue)
 {
-    /// <summary>Gets the light at its full value: 15 in every channel, as chunks are lit before the computation of light exists.</summary>
+    /// <summary>Gets the light at its full value: 15 in every channel, for chunks meshed without a computation of light.</summary>
     public static ChunkLight Full => new(15, 15, 15, 15);
+
+    /// <summary>Gets the light of the open sky without light of blocks: 15 in the sky channel, 0 in the others. It is the light around a group by default (<see cref="ChunkGeometry.SetGroupLight"/>).</summary>
+    public static ChunkLight OpenSky => new(15, 0, 0, 0);
 
     /// <summary>Gets light without color.</summary>
     /// <param name="sky">The light of the sky.</param>

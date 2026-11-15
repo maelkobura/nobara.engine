@@ -224,6 +224,7 @@ public sealed partial class ChunkGeometry
         slot.Current = transform;
         slot.MovedTick = ulong.MaxValue;
         slot.PyramidValid = false;
+        slot.Light = ChunkLight.OpenSky;
         slot.Graph ??= new VisibilityGraph();
         GroupCount++;
         return new ChunkGroupId(index, slot.Generation);
@@ -273,6 +274,48 @@ public sealed partial class ChunkGeometry
     /// <exception cref="ArgumentException">The group does not exist.</exception>
     [HotPath]
     public void SetGroupVisible(ChunkGroupId group, bool visible) => GetGroup(group).Visible = visible;
+
+    /// <summary>
+    /// Sets the light around a group, which the light of its vertices
+    /// receives in the shader: <see cref="ChunkLight.OpenSky"/> by default,
+    /// which keeps the light of the vertices. For a grid that moves in the
+    /// terrain, such as a ship, it is the light of the terrain where the grid
+    /// is: a ship in a cave gets darker.
+    /// </summary>
+    /// <param name="group">The group.</param>
+    /// <param name="light">The light around the group, each channel from 0 to 15.</param>
+    /// <remarks>
+    /// The shader library scales the sky light of a vertex by
+    /// <see cref="ChunkLight.Sky"/> / 15, and adds the light of blocks of the
+    /// surroundings, scaled by the sky light of the vertex: a vertex that the
+    /// sky of its grid does not reach, such as one inside a ship, receives
+    /// nothing from the surroundings (<c>nobara_chunkLight</c>). The light is not
+    /// interpolated: it applies from the next frame.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">The world is not being extracted.</exception>
+    /// <exception cref="ArgumentException">The group does not exist.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A channel is outside 0 to 15.</exception>
+    [HotPath]
+    public void SetGroupLight(ChunkGroupId group, ChunkLight light)
+    {
+        ref GroupSlot slot = ref GetGroup(group);
+        if (!(IsLevel(light.Sky) && IsLevel(light.Red) && IsLevel(light.Green) && IsLevel(light.Blue)))
+        {
+            throw new ArgumentOutOfRangeException(nameof(light), "Each channel of the light around a group is from 0 to 15.");
+        }
+
+        slot.Light = light;
+    }
+
+    /// <summary>Gets the light around a group (<see cref="SetGroupLight"/>).</summary>
+    /// <param name="group">The group.</param>
+    /// <returns>The light.</returns>
+    /// <exception cref="ArgumentException">The group does not exist.</exception>
+    public ChunkLight GetGroupLight(ChunkGroupId group)
+    {
+        CheckGroup(group);
+        return _groups[group.Index].Light;
+    }
 
     /// <summary>Gets the last transform given to a group.</summary>
     /// <param name="group">The group.</param>
@@ -530,6 +573,9 @@ public sealed partial class ChunkGeometry
     private static void ReturnTransparent(TransparentFaces? faces) => faces?.Return();
 
     [HotPath]
+    private static bool IsLevel(float level) => level >= 0 && level <= 15;
+
+    [HotPath]
     private ref GroupSlot GetGroup(ChunkGroupId group)
     {
         CheckWritable();
@@ -581,6 +627,7 @@ public sealed partial class ChunkGeometry
         public WorldTransform Previous;
         public WorldTransform Current;
         public ulong MovedTick;
+        public ChunkLight Light;
         public VisibilityGraph? Graph;
 
         // The camera seen from the group, for the frame.
