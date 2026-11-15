@@ -9,6 +9,7 @@ using Nobara.Context;
 using Nobara.Core;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
+using Nobara.Core.Mathematics;
 using Nobara.Entity;
 using Nobara.Game;
 using Nobara.Items.Build;
@@ -36,9 +37,11 @@ internal sealed class LightingHarness : IDisposable
         <Block><Name>Mist</Name><Content><Shape>shape:nobara.cube</Shape><Opacity>translucent</Opacity></Content><Properties><LightFilter>2</LightFilter></Properties></Block>
         """;
 
-    public LightingHarness(bool colored = false, string blocks = Blocks, bool developmentMode = true)
+    public LightingHarness(bool colored = false, string blocks = Blocks, bool developmentMode = true, int budget = int.MaxValue, bool lighting = true)
     {
         DevelopmentMode = developmentMode;
+        Budget = budget;
+        WithLighting = lighting;
         Root = Path.Combine(Path.GetTempPath(), "nobara-lighting-tests", Guid.NewGuid().ToString("N"));
         Colored = colored;
         OwnerResources = Bundle(blocks);
@@ -47,6 +50,12 @@ internal sealed class LightingHarness : IDisposable
     public string Root { get; }
 
     public bool Colored { get; }
+
+    /// <summary>Gets the operations of the propagation per tick; the tests of the propagation itself have no limit.</summary>
+    public int Budget { get; }
+
+    /// <summary>Gets whether the distribution has nLighting, as a server target may not.</summary>
+    public bool WithLighting { get; }
 
     /// <summary>Gets whether the engine checks the accesses of jobs, which slows every read of a block.</summary>
     public bool DevelopmentMode { get; }
@@ -75,12 +84,14 @@ internal sealed class LightingHarness : IDisposable
         };
         foreach (string id in new[] { "nobara.game", "nobara.context", "nobara.entity", "nobara.items", "nobara.blocks", "nobara.voxel", LightingModule.Id, OwnerId })
         {
+            if (id == LightingModule.Id && !WithLighting) continue;
             distribution.Modules.Add(new F.DistributionModule { Id = id, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
         }
 
         var owner = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
-        foreach (string dependency in new[] { LightingModule.Id, "nobara.voxel", "nobara.items", "nobara.blocks", "nobara.context", "nobara.game" })
+        foreach (string dependency in new[] { LightingModule.Id, "nobara.voxel", "nobara.items", "nobara.blocks", "nobara.context", "nobara.game", "nobara.entity" })
         {
+            if (dependency == LightingModule.Id && !WithLighting) continue;
             owner.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });
         }
 
@@ -180,7 +191,7 @@ internal sealed class LightingHarness : IDisposable
                 "nobara.items" => Manifest("nobara.items", "Items", "nobara.game"),
                 "nobara.blocks" => Manifest("nobara.blocks", "Blocks", "nobara.items"),
                 "nobara.voxel" => Manifest("nobara.voxel", "Voxel", "nobara.game", "nobara.items", "nobara.blocks", "nobara.entity", "nobara.context"),
-                LightingModule.Id => Manifest(LightingModule.Id, "Lighting", "nobara.voxel", "nobara.blocks", "nobara.game", "nobara.context"),
+                LightingModule.Id => Manifest(LightingModule.Id, "Lighting", "nobara.voxel", "nobara.blocks", "nobara.game", "nobara.context", "nobara.entity"),
                 _ => owner,
             };
             return new ModuleImage(module.Id, "memory:" + module.Id, manifest.ToByteArray());
@@ -233,6 +244,7 @@ internal sealed class LightingHarness : IDisposable
                     break;
                 case LightingModule.Id:
                     manifest.Settings.Add(Setting(LightingSettings.Color, F.SettingDeclaration.Types.Type.Bool, harness.Colored ? "true" : "false"));
+                    manifest.Settings.Add(Setting(LightingSettings.OperationsPerTick, F.SettingDeclaration.Types.Type.Int, harness.Budget.ToString(System.Globalization.CultureInfo.InvariantCulture)));
                     break;
             }
 
@@ -261,6 +273,8 @@ internal sealed class Probe(Action<Probe>? configure) : IModule
 
     public ILighting Lighting { get; private set; } = null!;
 
+    public IEntityWorlds Entities { get; private set; } = null!;
+
     public ILightSources Sources { get; private set; } = null!;
 
     public List<Grid> Grids { get; } = [];
@@ -278,8 +292,13 @@ internal sealed class Probe(Action<Probe>? configure) : IModule
         Batches = context.Resolve<IVoxelBatches>();
         Loading = context.Resolve<IChunkLoading>();
         Sessions = context.Resolve<IWorldSessions>();
-        Lighting = context.Resolve<ILighting>();
-        Sources = context.Resolve<ILightSources>();
+        Entities = context.Resolve<IEntityWorlds>();
+        if (context.TryResolve(out ILighting? lighting))
+        {
+            Lighting = lighting;
+            Sources = context.Resolve<ILightSources>();
+        }
+
         configure?.Invoke(this);
         context.Resolve<IStateStack>().Register(context, "state:example.light.play", () => new PlayState(Sessions));
         Sessions.SubscribeEnding(context, _ =>
@@ -295,6 +314,17 @@ internal sealed class Probe(Action<Probe>? configure) : IModule
     }
 
     public uint State(string name) => Blocks.Get($"block:example.light.{name}").DefaultState;
+
+    /// <summary>Creates a grid with bounds, which computes its height map on demand, at a place in the world.</summary>
+    public Grid CreateBoundedGrid(GridBounds bounds, WorldTransform transform)
+    {
+        Grid grid = Worlds.CreateGrid(Context, DimensionId.Default, new GridOptions { Bounds = bounds, Transform = transform });
+        Grids.Add(grid);
+        return grid;
+    }
+
+    /// <summary>Holds a chunk of the terrain until the session ends.</summary>
+    public void Hold(int x, int y, int z) => Tickets.Add(Loading.AddTicket(Context, Terrain, new ChunkCoordinate(x, y, z), TicketLevel.Loaded));
 
     /// <summary>Creates a grid that keeps every chunk it writes, where an absent chunk is air.</summary>
     public Grid CreateGrid()
@@ -347,6 +377,36 @@ internal sealed class Probe(Action<Probe>? configure) : IModule
     private sealed class PlayState(IWorldSessions sessions) : ApplicationState
     {
         public override void Enter() => sessions.Start();
+    }
+}
+
+/// <summary>
+/// A terrain of stone up to <see cref="GroundTop"/>, and a full layer of stone
+/// at <see cref="Roof"/> when it is set.
+/// </summary>
+internal sealed class TestTerrain(Func<uint> stone) : IChunkProvider
+{
+    private uint _stone;
+
+    public int GroundTop { get; init; } = -1;
+
+    public int Roof { get; init; } = int.MinValue;
+
+    public bool Accepts(in ChunkRequest request)
+    {
+        _stone = stone();
+        return request.IsTerrain;
+    }
+
+    public void Produce(in ChunkRequest request, Span<uint> states)
+    {
+        int baseY = request.Chunk.Y * VoxelCoordinates.ChunkSize;
+        for (int y = 0; y < 32; y++)
+        {
+            int height = baseY + y;
+            if (height > GroundTop && height != Roof) continue;
+            states.Slice(y * 1024, 1024).Fill(_stone);
+        }
     }
 }
 

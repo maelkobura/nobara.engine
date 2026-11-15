@@ -4,9 +4,12 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Nobara.Blocks;
 using Nobara.Core;
 using Nobara.Core.Resources;
+using Nobara.Entity;
+using Nobara.Game;
 using Nobara.Voxel;
 
 namespace Nobara.Lighting;
@@ -17,12 +20,27 @@ namespace Nobara.Lighting;
 /// <c>context.Resolve&lt;ILightSources&gt;()</c>.
 /// </summary>
 /// <remarks>
-/// The sources are the block states whose <c>&lt;LightEmission&gt;</c> is not
-/// zero, variants applied. The propagation reads nothing else. The tables
-/// are built when nLighting starts; read them on any thread afterward.
+/// The static sources are the block states whose <c>&lt;LightEmission&gt;</c>
+/// is not zero, variants applied: the propagation reads nothing else. Their
+/// tables are built when nLighting starts; read them on any thread
+/// afterward. The dynamic sources are the entities that carry
+/// <see cref="DynamicLight"/>, read once per tick; read them on the loop
+/// thread.
 /// </remarks>
 public interface ILightSources
 {
+    /// <summary>Gets component <c>nobara.lighting.dynamic_light</c>, which makes an entity a dynamic light; registered while nLighting initializes.</summary>
+    ComponentType<DynamicLight> DynamicLight { get; }
+
+    /// <summary>
+    /// Gets the dynamic lights of a dimension, as the last tick read them:
+    /// the entities of its world that carry <see cref="Nobara.Lighting.DynamicLight"/>
+    /// and <c>nobara.entity.transform</c>, with a radius above 0.
+    /// </summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <returns>The sources, valid until the next tick; empty for a dimension without a world.</returns>
+    ReadOnlySpan<DynamicLightSource> GetDynamicSources(DimensionId dimension);
+
     /// <summary>Gets the states that emit light, in increasing order.</summary>
     /// <exception cref="InvalidOperationException">nLighting did not start.</exception>
     IReadOnlyList<uint> StaticSources { get; }
@@ -71,7 +89,7 @@ internal readonly struct StateLight
     /// <summary>Gets the emitted light, packed as a block channel.</summary>
     public ushort Emission { get; }
 
-    /// <summary>Gets the filter, packed as a block channel.</summary>
+    /// <summary>Gets the filter, packed as a light value: the sky component in the top four bits, then the block channel.</summary>
     public ushort Filter { get; }
 
     /// <summary>Gets the faces that light does not cross, one bit per <see cref="BlockFace"/>.</summary>
@@ -94,6 +112,9 @@ internal sealed class LightSourceRegistry : ILightSources
 
     private readonly FreeProperty _emission;
     private readonly FreeProperty _filter;
+    private readonly Dictionary<DimensionId, List<DynamicLightSource>> _dynamic = [];
+    private ComponentType<DynamicLight> _dynamicLight;
+    private bool _registered;
     private StateLight[] _states = [];
     private ReadOnlyCollection<uint> _sources = ReadOnlyCollection<uint>.Empty;
     private IBlockRegistry? _blocks;
@@ -107,9 +128,53 @@ internal sealed class LightSourceRegistry : ILightSources
     /// <summary>Gets the number of components of the block channel: 3 with color, 1 without.</summary>
     public int Components { get; private set; } = 1;
 
-    public bool IsColored => Components == 3;
+    public bool IsColored
+    {
+        [HotPath]
+        get => Components == 3;
+    }
 
     public IReadOnlyList<uint> StaticSources => _blocks is null ? throw NotStarted() : _sources;
+
+    public ComponentType<DynamicLight> DynamicLight => _registered ? _dynamicLight : throw new InvalidOperationException("The dynamic light component is registered while nLighting initializes.");
+
+    [HotPath]
+    public ReadOnlySpan<DynamicLightSource> GetDynamicSources(DimensionId dimension) =>
+        _dynamic.TryGetValue(dimension, out List<DynamicLightSource>? sources) ? CollectionsMarshal.AsSpan(sources) : [];
+
+    /// <summary>Registers the component of the dynamic lights.</summary>
+    public void Initialize(ModuleContext context, IEntityWorlds entities)
+    {
+        _dynamicLight = entities.RegisterComponent<DynamicLight>(context, "nobara.lighting.dynamic_light");
+        _registered = true;
+    }
+
+    /// <summary>Empties the dynamic lights of every dimension, before the tick reads them again.</summary>
+    internal void ClearDynamic()
+    {
+        foreach (List<DynamicLightSource> sources in _dynamic.Values) sources.Clear();
+    }
+
+    /// <summary>Adds a dynamic light read by the tick.</summary>
+    internal void AddDynamic(DimensionId dimension, in DynamicLightSource source)
+    {
+        if (!_dynamic.TryGetValue(dimension, out List<DynamicLightSource>? sources))
+        {
+            sources = [];
+            _dynamic.Add(dimension, sources);
+        }
+
+        sources.Add(source);
+    }
+
+    /// <summary>Packs a color as the block channel of this context: without color, its brightest component.</summary>
+    [HotPath]
+    internal LightColor Normalize(LightColor color)
+    {
+        if (IsColored) return color;
+        int level = Math.Max(color.Red, Math.Max(color.Green, color.Blue));
+        return new LightColor(level, level, level);
+    }
 
     /// <summary>Gets the light of every state, by state index.</summary>
     internal StateLight[] States
@@ -156,7 +221,10 @@ internal sealed class LightSourceRegistry : ILightSources
                 }
             }
 
-            states[state] = new StateLight(emission, filter, faces, flags);
+            // The sky is white light: a filter takes its smallest component from it, as without color.
+            int skyFilter = Math.Min(filter >> 8, Math.Min((filter >> 4) & 15, filter & 15));
+            if (!colored) skyFilter = filter & 15;
+            states[state] = new StateLight(emission, (ushort)(filter | (skyFilter << 12)), faces, flags);
             if (emission != 0) sources.Add(state);
         }
 
@@ -182,6 +250,16 @@ internal sealed class LightSourceRegistry : ILightSources
         return !before.Equals(after) || (after.Flags & StateLight.Instance) != 0;
     }
 
+    /// <summary>Tells whether a change of state can close a face that light crossed, or open one: the light of the cell is then removed whole.</summary>
+    [HotPath]
+    internal bool FacesDiffer(uint oldState, uint newState)
+    {
+        if (oldState >= (uint)_states.Length || newState >= (uint)_states.Length) return true;
+        ref readonly StateLight before = ref _states[oldState];
+        ref readonly StateLight after = ref _states[newState];
+        return before.Faces != after.Faces || ((before.Flags | after.Flags) & StateLight.Instance) != 0;
+    }
+
     private StateLight Get(uint state)
     {
         if (_blocks is null) throw NotStarted();
@@ -190,7 +268,7 @@ internal sealed class LightSourceRegistry : ILightSources
     }
 
     private LightColor ToColor(ushort packed) =>
-        IsColored ? new LightColor(packed >> 8, (packed >> 4) & 15, packed & 15) : new LightColor(packed & 15, packed & 15, packed & 15);
+        IsColored ? new LightColor((packed >> 8) & 15, (packed >> 4) & 15, packed & 15) : new LightColor(packed & 15, packed & 15, packed & 15);
 
     private static InvalidOperationException NotStarted() => new("The light sources are read after nLighting starts.");
 

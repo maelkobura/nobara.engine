@@ -61,6 +61,15 @@ the block registry of nBlocks, such as `block:example.blocks.lamp`. The type
 describes the blocks; the blocks placed in a world belong to the module that
 stores them. See [the `Block` reference](../reference/formats/block.md).
 
+### Brightness query
+
+The service of nLighting that gives the light at a block, channel by
+channel: the sky channel, the block channel, and the light of the
+[dynamic light sources](#dynamic-light-source) near it, never combined with
+the time of day. Gameplay modules use it, for example to decide where
+creatures appear. See [the nLighting module
+sheet](../../src/nLighting/README.md#brightness-query).
+
 ### Build target
 
 A way to build a game, declared in `build.nobara`: a platform, a side, and
@@ -345,6 +354,14 @@ player chooses it with the configuration keys of [nFrames](#nframes). See
 
 A game, as a set of modules declared in a project file and an engine file
 and fixed when it is built. The result is a distribution manifest.
+
+### Dynamic light source
+
+An entity that carries light, such as a torch held in the hand, through the
+component `nobara.lighting.dynamic_light`. Its light is not spread through
+the blocks: the [brightness query](#brightness-query) adds it by its
+distance, so it costs nothing when it moves. See [voxel
+lighting](voxel-lighting.md#dynamic-light-sources).
 
 ### Emergency hook
 
@@ -694,6 +711,13 @@ level lost at each block, declared by the free property `<LightFilter>`;
 with color, each component on its own. See [voxel
 lighting](voxel-lighting.md#sources-and-filters).
 
+### Light focus
+
+A point of interest of nLighting, such as the camera of a client: when the
+[propagation budget](#propagation-budget) does not cover a change in one
+tick, the chunks nearest the points of interest are lit first. See [voxel
+lighting](voxel-lighting.md#a-budget-per-tick).
+
 ### Loading task
 
 A share of the work that a world session waits for before it is active,
@@ -862,8 +886,9 @@ sheet](../../src/nItems/README.md).
 ### nLighting
 
 The platform module that computes the light of voxel grids: the sky and
-block channels of each block, the sources and filters of the blocks, and the
-propagation of block light. See [its module
+block channels of each block, the sources and filters of the blocks, their
+propagation within a budget per tick, the light of the terrain around the
+other grids, and the brightness query. See [its module
 sheet](../../src/nLighting/README.md).
 
 ### nRenderer
@@ -952,6 +977,13 @@ A use of an item that lasts, such as eating or drawing a bow, started by a
 handler and timed by nItems on the dimension clock of its actor: the pause
 and a frozen dimension suspend it. An actor has one at a time. See [the
 nItems module sheet](../../src/nItems/README.md#prolonged-uses).
+
+### Propagation budget
+
+The number of operations that the propagation of nLighting may do in one
+tick, set by the key `lighting.operationsPerTick`. A larger change takes a
+few ticks, nearest the [light focuses](#light-focus) first. See [voxel
+lighting](voxel-lighting.md#a-budget-per-tick).
 
 ### Propagation queue
 
@@ -1125,7 +1157,9 @@ Where a module runs: client, server, or both.
 ### Sky light
 
 The light channel that tells how much a block is exposed to the sky, from 0
-to 15. See [voxel lighting](voxel-lighting.md#two-channels-per-block).
+to 15: 15 above the highest opaque block of its column, and spread from there
+under it. It does not follow the time of day. See [voxel
+lighting](voxel-lighting.md#the-sky).
 
 ### SPIR-V
 
@@ -1194,6 +1228,14 @@ and so a tick system.
 
 A named group of objects of one registry, such as `#example.wood`, to which
 several modules may add members. See [the `.nof` reference](../reference/formats/nof.md#tags).
+
+### Terrain light sample
+
+The light of the terrain around a grid that is not the terrain, such as a
+ship, read at the center and the eight corners of the grid. It is meant for
+the renderer, to scale the light of the grid by it, so that a ship that
+enters a cave grows darker, while each grid keeps its own light. See [voxel
+lighting](voxel-lighting.md#grids).
 
 ### Text focus
 

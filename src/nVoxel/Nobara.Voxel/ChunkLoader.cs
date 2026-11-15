@@ -83,6 +83,8 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
     private readonly List<ChunkProviderHandle> _providers = [];
     private readonly List<ChunkResidencySubscription> _subscriptions = [];
     private readonly List<LoadingRegistration> _tickets = [];
+    private readonly List<AreaTicket> _areas = [];
+    private AreaTicketList? _areaView;
     private readonly Dictionary<string, long> _ticketsByOwner = new(StringComparer.Ordinal);
     private readonly HashSet<string> _countedOwners = new(StringComparer.Ordinal);
     private readonly RequestOrder _requestOrder = new();
@@ -122,6 +124,8 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
     }
 
     public int PendingChunks => _requests.Count + _inFlight.Count;
+
+    public IReadOnlyList<AreaTicketView> AreaTickets => _areaView ??= new AreaTicketList(_areas);
 
     /// <summary>Gets the resident chunks whose tickets make them tick, in a stable order.</summary>
     internal List<ChunkEntry> ActiveChunks
@@ -249,7 +253,11 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
         foreach (LoadingRegistration ticket in _tickets)
         {
             if (ticket is ChunkTicket chunkTicket && ReferenceEquals(chunkTicket.Grid, grid)) ticket.IsDetached = true;
-            if (ticket is AreaTicket areaTicket && ReferenceEquals(areaTicket.Grid, grid)) ticket.IsDetached = true;
+            if (ticket is AreaTicket areaTicket && ReferenceEquals(areaTicket.Grid, grid))
+            {
+                ticket.IsDetached = true;
+                _areas.Remove(areaTicket);
+            }
         }
 
         _heightMaps.OnGridDestroying(grid);
@@ -368,6 +376,7 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
         }
 
         _tickets.Clear();
+        _areas.Clear();
         foreach (string owner in _ticketsByOwner.Keys.ToArray()) _ticketsByOwner[owner] = 0;
         _unloadDelay = _module.Settings.GetInt(VoxelSettings.UnloadDelay);
         _freezeInactive = _module.Settings.GetBool(VoxelSettings.FreezeInactiveDimensions);
@@ -395,6 +404,7 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
         _activeByDimension.Clear();
         _pending = 0;
         foreach (LoadingRegistration ticket in _tickets) ticket.IsDetached = true;
+        _areas.Clear();
         foreach (DimensionId dimension in _frozenByVoxel)
         {
             if (_time.HasDimension(dimension)) _time.SetFrozen(dimension, false);
@@ -420,6 +430,7 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
     private void Track(ModuleContext owner, LoadingRegistration ticket)
     {
         _tickets.Add(ticket);
+        if (ticket is AreaTicket area) _areas.Add(area);
         _ticketsByOwner[owner.Module.Id] = _ticketsByOwner.GetValueOrDefault(owner.Module.Id) + 1;
         if (_countedOwners.Add(owner.Module.Id))
         {
@@ -431,6 +442,7 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
     private void Untrack(LoadingRegistration ticket)
     {
         if (!_tickets.Remove(ticket)) return;
+        if (ticket is AreaTicket area) _areas.Remove(area);
         _ticketsByOwner[ticket.OwnerId] = _ticketsByOwner.GetValueOrDefault(ticket.OwnerId) - 1;
     }
 
@@ -904,4 +916,26 @@ internal sealed class ChunkLoader : IChunkLoading, IChunkResidencyObserver, IVox
             }
         }
     }
+}
+
+/// <summary>The area tickets in effect, seen without their handles.</summary>
+internal sealed class AreaTicketList(List<AreaTicket> tickets) : IReadOnlyList<AreaTicketView>
+{
+    public int Count => tickets.Count;
+
+    public AreaTicketView this[int index]
+    {
+        get
+        {
+            AreaTicket ticket = tickets[index];
+            return new AreaTicketView(ticket.OwnerId, ticket.Grid, ticket.Center, ticket.Area, ticket.Level);
+        }
+    }
+
+    public IEnumerator<AreaTicketView> GetEnumerator()
+    {
+        for (int i = 0; i < tickets.Count; i++) yield return this[i];
+    }
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 }

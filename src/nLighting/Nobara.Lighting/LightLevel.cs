@@ -116,6 +116,7 @@ public readonly struct LightColor : IEquatable<LightColor>
     /// <param name="green">The green component, from 0 to 15.</param>
     /// <param name="blue">The blue component, from 0 to 15.</param>
     /// <exception cref="ArgumentOutOfRangeException">A component is outside 0 to 15.</exception>
+    [HotPath]
     public LightColor(int red, int green, int blue)
     {
         if (red is < 0 or > 15) throw new ArgumentOutOfRangeException(nameof(red), red, "A light component goes from 0 to 15.");
@@ -176,4 +177,13 @@ public static class LightingSettings
     /// block channel has one level and the light takes half the memory.
     /// </summary>
     public const string Color = "lighting.color";
+
+    /// <summary>
+    /// The operations that the propagation may do in one tick, across its
+    /// jobs: cells taken from its queues, and cells whose light starts to
+    /// change. A <c>distribution</c> key, read when the context starts.
+    /// When a change needs more, the light catches up over the next ticks,
+    /// nearest the points of interest first.
+    /// </summary>
+    public const string OperationsPerTick = "lighting.operationsPerTick";
 }

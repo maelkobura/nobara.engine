@@ -9,20 +9,34 @@ using Nobara.Voxel;
 namespace Nobara.Lighting;
 
 /// <summary>
-/// The propagation of the block channel by queues: a removal phase, then an
-/// addition phase, each in rounds of jobs with one chunk per index. A front
-/// that crosses a face of its chunk waits for the next round, in the work of
-/// the chunk on that side; a front toward a chunk that is not loaded is
-/// dropped, and the border it came from is spread again when that chunk loads.
+/// The propagation of the light by queues, on four components (sky, red,
+/// green, blue): removal rounds while any removal remains, then addition
+/// rounds, each a job with one lane per index. A front that crosses a face of
+/// its chunk waits for the next round, in the work of the chunk on that side;
+/// a front toward a chunk that is not loaded is dropped, and the border it
+/// came from is spread again when that chunk loads.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The result is the only fixed point of "each block holds the brightest of
-/// its emission and of its neighbors' light minus one level and its filter",
+/// its sources and of its neighbors' light minus one level and its filter",
 /// whatever the order of the rounds and of the cells: two contexts that apply
-/// the same changes hold the same light. Only integers are used.
+/// the same changes hold the same light. Only integers are used. The sources
+/// are the emission of the block and, for the sky component, 15 above the
+/// highest opaque block of the column.
+/// </para>
+/// <para>
+/// A pass may stop when its budget of operations runs out and go on at the
+/// next tick; changes that arrive in between join it. A removal that crosses
+/// a face also drops the light that waits on that face and may have come from
+/// the cells it removes, so no stale front lights a block later.
+/// </para>
 /// </remarks>
 internal sealed class Propagator
 {
+    /// <summary>The fewest operations a lane may do in a round, so that a small remaining budget still makes progress.</summary>
+    public const int MinimumQuota = 1024;
+
     private readonly ModuleContext _context;
     private readonly LightSourceRegistry _sources;
     private readonly IShapeRegistry _shapes;
@@ -32,6 +46,9 @@ internal sealed class Propagator
     private readonly List<LightChunk> _work = [];
     private readonly Stack<WorkState> _pool = new();
     private readonly Scratch?[] _scratch;
+
+    // A cached delegate: sorting with an IComparer would create one at each call.
+    private static readonly Comparison<LightChunk> ByPriority = static (x, y) => x.Priority.CompareTo(y.Priority);
 
     public Propagator(ModuleContext context, LightSourceRegistry sources, IShapeRegistry shapes, JobData blocks, JobData light)
     {
@@ -44,17 +61,21 @@ internal sealed class Propagator
         _scratch = new Scratch[context.Jobs.WorkerCount + 1];
     }
 
-    /// <summary>Gets the chunks that have work, or that changed in the current pass.</summary>
+    /// <summary>Gets the chunks that have work, or that changed in the current tick.</summary>
     public List<LightChunk> Active => _active;
 
-    /// <summary>Gets the rounds of jobs of the last pass.</summary>
+    /// <summary>Gets the rounds of jobs of the last run.</summary>
     public int LastRounds { get; private set; }
+
+    /// <summary>Gets or sets the number of the current tick, stamped on the work that chunks get.</summary>
+    public long Tick { get; set; }
 
     /// <summary>Gets the work of a chunk, taking it from the pool when it has none.</summary>
     public WorkState Work(LightChunk chunk)
     {
         if (chunk.Work is { } work) return work;
         work = _pool.Count > 0 ? _pool.Pop() : new WorkState();
+        work.Since = Tick;
         chunk.Work = work;
         _active.Add(chunk);
         return work;
@@ -84,41 +105,45 @@ internal sealed class Propagator
         _active.Clear();
     }
 
-    /// <summary>Runs the rounds until no front remains. Call it on the loop thread, inside the accesses of the tick system.</summary>
-    public void Run()
+    /// <summary>
+    /// Runs rounds until no front remains or the budget is spent. Call it on
+    /// the loop thread, inside the accesses of the tick system.
+    /// </summary>
+    /// <param name="budget">The operations the run may do; <see cref="long.MaxValue"/> for no limit. A round that starts may go past it by a little.</param>
+    /// <returns>The operations done.</returns>
+    public long Run(long budget)
     {
         int rounds = 0;
-        while (Collect(removal: true))
+        long used = 0;
+        while (used < budget)
         {
-            Execute(removal: true);
-            Merge(removal: true);
-            rounds++;
-        }
-
-        while (Collect(removal: false))
-        {
-            Execute(removal: false);
-            Merge(removal: false);
+            bool removal = Collect(removal: true);
+            if (!removal && !Collect(removal: false)) break;
+            used += Execute(removal, budget - used);
+            Merge(removal);
             rounds++;
         }
 
         LastRounds = rounds;
+        return used;
     }
 
-    /// <summary>Returns the works to the pool once the changes of the pass are read.</summary>
-    public void Finish()
+    /// <summary>Returns the works of the chunks that have none left to the pool, once the changes of the tick are read.</summary>
+    public void Release()
     {
-        foreach (LightChunk chunk in _active)
+        for (int i = _active.Count - 1; i >= 0; i--)
         {
+            LightChunk chunk = _active[i];
             if (chunk.Work is { } work)
             {
+                if (work.HasRemovalWork || work.HasAdditionWork) continue;
                 work.Clear();
                 _pool.Push(work);
                 chunk.Work = null;
             }
-        }
 
-        _active.Clear();
+            _active.RemoveAt(i);
+        }
     }
 
     [HotPath]
@@ -127,6 +152,7 @@ internal sealed class Propagator
         Scratch scratch = _scratch[lane]!;
         for (int i = lane; i < _work.Count; i += lanes)
         {
+            if (scratch.IsSpent) return;
             LightChunk chunk = _work[i];
             if (removal) Remove(chunk, chunk.Work!, scratch);
             else Add(chunk, chunk.Work!, scratch);
@@ -138,19 +164,33 @@ internal sealed class Propagator
         _work.Clear();
         foreach (LightChunk chunk in _active)
         {
-            WorkState work = chunk.Work!;
-            if (removal ? work.HasRemovalWork : work.HasAdditionWork) _work.Add(chunk);
+            WorkState? work = chunk.Work;
+            if (work is not null && (removal ? work.HasRemovalWork : work.HasAdditionWork)) _work.Add(chunk);
         }
 
-        return _work.Count > 0;
+        if (_work.Count == 0) return false;
+
+        // The nearest chunks first: lane i takes chunks i, i + lanes, and so on, and stops when its share of the budget is spent.
+        _work.Sort(ByPriority);
+        return true;
     }
 
-    private void Execute(bool removal)
+    private long Execute(bool removal, long remaining)
     {
         int lanes = Math.Min(_work.Count, _scratch.Length);
-        for (int i = 0; i < lanes; i++) _scratch[i] ??= new Scratch();
+        int quota = remaining >= int.MaxValue ? int.MaxValue : (int)Math.Max(MinimumQuota, (remaining + lanes - 1) / lanes);
+        for (int i = 0; i < lanes; i++)
+        {
+            Scratch scratch = _scratch[i] ??= new Scratch();
+            scratch.Operations = 0;
+            scratch.Quota = quota;
+        }
+
         var job = new PropagationJob(this, lanes, removal);
         _context.Jobs.ScheduleFor(job, lanes, 1, new JobAccess([_blocks], [_light])).Complete();
+        long used = 0;
+        for (int i = 0; i < lanes; i++) used += _scratch[i]!.Operations;
+        return used;
     }
 
     // Hands the fronts that left each chunk to the chunk on that side.
@@ -186,25 +226,34 @@ internal sealed class Propagator
         }
     }
 
-    // The removal phase of one chunk: its seeds, the removals that entered it, then its queue.
+    // The removal phase of one chunk: what its lane left last time, its seeds, the removals that entered it, then its queue.
     [HotPath]
     private void Remove(LightChunk chunk, WorkState work, Scratch scratch)
     {
         _light.CheckWrite();
+        List<uint> queued = work.RemovalQueue;
+        for (int i = 0; i < queued.Count; i++) scratch.PushRemoval((int)(queued[i] & 0xFFFF), (ushort)(queued[i] >> 16));
+        queued.Clear();
+
         List<uint> seeds = work.Seeds;
-        for (int i = 0; i < seeds.Count; i++)
+        int seed = 0;
+        for (; seed < seeds.Count && !scratch.IsSpent; seed++)
         {
-            int index = (int)(seeds[i] & 0xFFFF);
-            ushort removed = (ushort)(seeds[i] >> 16);
+            int index = (int)(seeds[seed] & 0xFFFF);
+            ushort removed = (ushort)(seeds[seed] >> 16);
+            scratch.Operations++;
 
             // A changed cell may now close a face that its light crossed: its removal leaves through every face.
             for (int face = 0; face < 6; face++) RemoveToward(chunk, work, scratch, index, face, removed);
         }
 
-        seeds.Clear();
+        if (seed == seeds.Count) seeds.Clear();
+        else seeds.RemoveRange(0, seed);
+
         if (work.HasIncomingRemoval)
         {
             ushort[] incoming = work.IncomingRemoval;
+            ushort[] waiting = work.IncomingAdd;
             for (int face = 0; face < 6; face++)
             {
                 int start = face * Faces.Cells;
@@ -213,6 +262,10 @@ internal sealed class Propagator
                     ushort removed = incoming[start + slot];
                     if (removed == 0) continue;
                     incoming[start + slot] = 0;
+
+                    // Light that waits on this face and is dimmer than the removed value may have come from the removed cell.
+                    ref ushort front = ref waiting[start + slot];
+                    if (front != 0) front = Faces.KeepAtLeast(front, removed);
                     int index = Faces.Cell(face, slot);
                     if (!IsOpen(chunk, index, face)) continue;
                     RemoveAt(chunk, work, scratch, index, removed);
@@ -224,7 +277,20 @@ internal sealed class Propagator
 
         while (scratch.HasRemovals)
         {
+            if (scratch.IsSpent)
+            {
+                // Out of budget: the rest of the queue waits in the chunk for the next round or tick.
+                while (scratch.HasRemovals)
+                {
+                    int left = scratch.PopRemoval(out ushort value);
+                    queued.Add((uint)left | ((uint)value << 16));
+                }
+
+                return;
+            }
+
             int index = scratch.PopRemoval(out ushort removed);
+            scratch.Operations++;
             int faces = ClosedFaces(chunk, index);
             for (int face = 0; face < 6; face++)
             {
@@ -252,11 +318,11 @@ internal sealed class Propagator
     [HotPath]
     private void RemoveAt(LightChunk chunk, WorkState work, Scratch scratch, int index, ushort removed)
     {
-        ushort current = chunk.GetBlock(index);
+        ushort current = chunk.Get(index);
         if (current == 0) return;
         ushort gone = 0;
         bool spread = false;
-        for (int shift = 0; shift < 12; shift += 4)
+        for (int shift = 0; shift < 16; shift += 4)
         {
             int level = (removed >> shift) & 15;
             int here = (current >> shift) & 15;
@@ -267,15 +333,16 @@ internal sealed class Propagator
 
         if (gone != 0)
         {
-            ushort kept = (ushort)(current & ~Mask(gone));
-            ushort emission = (ushort)(_sources.States[chunk.Blocks.GetState(index)].Emission & Mask(gone));
-            if (emission != 0)
+            ushort mask = Mask(gone);
+            ushort kept = (ushort)(current & ~mask);
+            ushort source = (ushort)(SourceOf(chunk, index) & mask);
+            if (source != 0)
             {
-                kept |= emission;
+                kept |= source;
                 spread = true;
             }
 
-            chunk.SetBlock(index, kept);
+            chunk.Set(index, kept);
             scratch.PushRemoval(index, gone);
         }
 
@@ -330,8 +397,16 @@ internal sealed class Propagator
 
         while (scratch.HasAdditions)
         {
+            if (scratch.IsSpent)
+            {
+                // Out of budget: the cells left in the queue spread their light at the next round or tick.
+                while (scratch.HasAdditions) work.MarkPending(scratch.PopAddition());
+                return;
+            }
+
             int index = scratch.PopAddition();
-            ushort light = chunk.GetBlock(index);
+            scratch.Operations++;
+            ushort light = chunk.Get(index);
             if (light == 0) continue;
             int faces = ClosedFaces(chunk, index);
             for (int face = 0; face < 6; face++)
@@ -360,11 +435,19 @@ internal sealed class Propagator
     private static void Raise(LightChunk chunk, Scratch scratch, int index, ushort light)
     {
         if (light == 0) return;
-        ushort current = chunk.GetBlock(index);
+        ushort current = chunk.Get(index);
         ushort brighter = Faces.Max(current, light);
         if (brighter == current) return;
-        chunk.SetBlock(index, brighter);
+        chunk.Set(index, brighter);
         scratch.PushAddition(index);
+    }
+
+    /// <summary>Gets the light that a cell makes by itself: the emission of its state, and the full sky when the cell is exposed.</summary>
+    [HotPath]
+    internal ushort SourceOf(LightChunk chunk, int index)
+    {
+        ushort emission = _sources.States[chunk.Blocks.GetState(index)].Emission;
+        return chunk.IsExposed(index) ? (ushort)(emission | 0xF000) : emission;
     }
 
     [HotPath]
@@ -385,7 +468,7 @@ internal sealed class Propagator
     // The bits of the components that are not zero.
     [HotPath]
     private static ushort Mask(ushort value) =>
-        (ushort)(((value & 0xF00) != 0 ? 0xF00 : 0) | ((value & 0x0F0) != 0 ? 0x0F0 : 0) | ((value & 0x00F) != 0 ? 0x00F : 0));
+        (ushort)(((value & 0xF000) != 0 ? 0xF000 : 0) | ((value & 0xF00) != 0 ? 0xF00 : 0) | ((value & 0x0F0) != 0 ? 0x0F0 : 0) | ((value & 0x00F) != 0 ? 0x00F : 0));
 
     private readonly struct PropagationJob : IJobFor
     {

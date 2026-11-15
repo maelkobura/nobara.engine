@@ -249,7 +249,8 @@ public sealed class PropagationTests(ITestOutputHelper output) : IDisposable
         using Engine engine = _harness.Start();
         Probe probe = _harness.Owner;
         Grid grid = probe.CreateGrid();
-        probe.Set(grid, (1, 1, 1, probe.State("stone")));
+        // Glass that filters no level of the sky changes no light; stone would shade the block under it.
+        probe.Set(grid, (1, 1, 1, probe.State("redglass")));
         _harness.Tick(engine);
         Assert.True(probe.Internal.TryGetChunk(grid, new ChunkCoordinate(0, 0, 0), out LightChunk? chunk));
         Assert.True(chunk!.IsUniform);
