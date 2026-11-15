@@ -157,9 +157,10 @@ from the block data of each block.
 - The light of a chunk is one value while every block holds it, and an array
   in native memory otherwise; the array is released when the light becomes
   uniform again, at the end of a pass.
-- The propagation runs in jobs, one chunk per index; the jobs declare the
-  blocks of nVoxel (`IVoxelWorlds.ChunkAccess`) as read and the light as
-  written. A pass, and the system when nothing changed, allocate nothing once
+- The propagation runs in jobs, one lane per index, at most one per worker:
+  a lane works through its share of the chunks that have work, so a chunk has
+  one writer in a round. The jobs declare the blocks of nVoxel
+  (`IVoxelWorlds.ChunkAccess`) as read and the light as written. A pass, and the system when nothing changed, allocate nothing once
   their buffers have grown.
 - An instance-dependent shape is evaluated in those jobs: its `Evaluate`
   reads only its block data.

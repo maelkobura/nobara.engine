@@ -89,9 +89,11 @@ flowchart LR
 
 ## Jobs and chunk faces
 
-A pass runs in rounds of jobs, at the `Late` stage of the tick. In a round,
-each chunk that has work is one index of a parallel job, which empties the
-queues of that chunk and writes only its light. A front that crosses a face
+A pass runs in rounds of jobs, at the `Late` stage of the tick. A round is
+a parallel job with one index per lane, at most one lane per worker. The
+chunks that have work are dealt to the lanes in turn; a lane empties the
+queues of each of its chunks, one after the other, with its own buffers, and
+writes only their light. A chunk thus has a single writer in a round. A front that crosses a face
 of the chunk waits on that face; between two rounds, the loop thread hands it
 to the chunk on the other side, which goes on in the next round. Rounds
 follow until no front remains.

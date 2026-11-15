@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using System.Collections.ObjectModel;
 using System.Globalization;
 using Nobara.Blocks;
 using Nobara.Core;
@@ -94,7 +95,7 @@ internal sealed class LightSourceRegistry : ILightSources
     private readonly FreeProperty _emission;
     private readonly FreeProperty _filter;
     private StateLight[] _states = [];
-    private uint[] _sources = [];
+    private ReadOnlyCollection<uint> _sources = ReadOnlyCollection<uint>.Empty;
     private IBlockRegistry? _blocks;
 
     public LightSourceRegistry(ModuleContext context)
@@ -161,7 +162,7 @@ internal sealed class LightSourceRegistry : ILightSources
 
         if (problems.Count > 0) throw new BlockLoadException(problems);
         _states = states;
-        _sources = [.. sources];
+        _sources = Array.AsReadOnly(sources.ToArray());
         _blocks = blocks;
     }
 

@@ -217,6 +217,7 @@ public sealed class PropagationTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(14, probe.Block(grid, 50, 16, 50));
         Assert.Equal(13, probe.Block(grid, 50, 17, 50));
         Assert.Equal(1, probe.Block(grid, 50, 29, 50));
+        Assert.Equal(16, probe.Lighting.Statistics.LastPassChunks);
         TimeSpan placing = probe.Lighting.Statistics.LastPassDuration;
         changes.Clear();
         harness.Tick(engine, 3);

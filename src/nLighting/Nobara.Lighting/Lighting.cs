@@ -322,8 +322,8 @@ internal sealed class Lighting : ILighting, ITickSystem, IDisposable
     {
         if (_propagator.Active.Count == 0) return;
         long start = Stopwatch.GetTimestamp();
-        int worked = _propagator.Active.Count;
         _propagator.Run();
+        _lastPassChunks = _propagator.Active.Count;
         foreach (LightChunk chunk in _propagator.Active)
         {
             if (!chunk.Changed) continue;
@@ -335,7 +335,6 @@ internal sealed class Lighting : ILighting, ITickSystem, IDisposable
         }
 
         _propagator.Finish();
-        _lastPassChunks = Math.Max(worked, _propagator.Active.Count);
         _lastPassRounds = _propagator.LastRounds;
         _lastPassDuration = Stopwatch.GetElapsedTime(start);
         for (int i = 0; i < _changes.Count; i++)
