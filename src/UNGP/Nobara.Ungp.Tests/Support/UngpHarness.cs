@@ -274,7 +274,7 @@ internal sealed class UngpHarness : IDisposable
 
     private static byte[] GameManifest()
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         manifest.Dependencies.Add(new F.Dependency { Id = RendererModule.ModuleId, Range = "^1.0" });
         manifest.Dependencies.Add(new F.Dependency { Id = UngpModule.ModuleId, Range = "^1.0" });
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.graphics", Range = "^1.0" });

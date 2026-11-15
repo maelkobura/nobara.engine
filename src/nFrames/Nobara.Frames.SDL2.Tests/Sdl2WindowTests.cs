@@ -211,7 +211,7 @@ public sealed unsafe class Sdl2WindowTests : IDisposable
 
         private static byte[] GameManifest()
         {
-            var manifest = new F.ModuleManifest { Format = 1, Id = "example.game", Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+            var manifest = new F.ModuleManifest { Format = 1, Id = "example.game", Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
             manifest.Dependencies.Add(new F.Dependency { Id = "nobara.frames", Range = "^1.0" });
             return manifest.ToByteArray();
         }

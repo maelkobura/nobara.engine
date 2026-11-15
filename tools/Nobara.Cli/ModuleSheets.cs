@@ -149,7 +149,7 @@ internal static partial class ModuleSheets
 
     private static string LevelText(ModuleManifest module)
     {
-        string level = module.Level == ModuleLevel.Platform ? "Platform module" : "Business module";
+        string level = module.Level == ModuleLevel.Platform ? "Platform module" : "Game module";
         var text = new StringBuilder($"{level}, {Where(module.Side)}.");
         if (module.BackendRequired != ModuleSide.None)
         {

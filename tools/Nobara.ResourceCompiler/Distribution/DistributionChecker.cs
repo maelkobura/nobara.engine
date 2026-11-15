@@ -51,7 +51,7 @@ public sealed class DistributionCheckResult
     public bool Success => Diagnostics.All(d => d.Severity != DiagnosticSeverity.Error);
 
     /// <summary>
-    /// Gets the active modules in load order: platform modules, then business
+    /// Gets the active modules in load order: platform modules, then game
     /// modules, each group sorted by dependencies. Empty when a cycle was found.
     /// </summary>
     public IReadOnlyList<ModuleManifest> ActiveModules { get; }
@@ -70,7 +70,7 @@ public static class DistributionChecker
     private const string MissingManifest = "NRC200";
     private const string MissingDependency = "NRC201";
     private const string VersionOutOfRange = "NRC202";
-    private const string PlatformOnBusiness = "NRC203";
+    private const string PlatformOnGame = "NRC203";
     private const string Cycle = "NRC204";
     private const string Conflict = "NRC205";
     private const string Reservation = "NRC206";
@@ -218,9 +218,9 @@ public static class DistributionChecker
                     bag.Error(VersionOutOfRange, $"module '{module.Id}' accepts '{dependency.Id}' in '{dependency.Range}' ({kind}), but the distribution has version {target.Version}", dependency.Location);
                 }
 
-                if (module.Level == ModuleLevel.Platform && target.Level == ModuleLevel.Business)
+                if (module.Level == ModuleLevel.Platform && target.Level == ModuleLevel.Game)
                 {
-                    bag.Error(PlatformOnBusiness, $"platform module '{module.Id}' depends on business module '{dependency.Id}'; a platform module never depends on a business module, even optionally", dependency.Location);
+                    bag.Error(PlatformOnGame, $"platform module '{module.Id}' depends on game module '{dependency.Id}'; a platform module never depends on a game module, even optionally", dependency.Location);
                 }
             }
         }
@@ -344,9 +344,9 @@ public static class DistributionChecker
             return null;
         }
 
-        // A platform module never depends on a business module, so putting
+        // A platform module never depends on a game module, so putting
         // the platform modules first keeps the dependency order.
-        return order.Where(m => m.Level == ModuleLevel.Platform).Concat(order.Where(m => m.Level == ModuleLevel.Business)).ToList();
+        return order.Where(m => m.Level == ModuleLevel.Platform).Concat(order.Where(m => m.Level == ModuleLevel.Game)).ToList();
     }
 
     private static void CheckUnique(IEnumerable<ModuleManifest> modules, Func<ModuleManifest, IEnumerable<Declared>> names, string code, string what, StringComparer comparer, DiagnosticBag bag)

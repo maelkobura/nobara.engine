@@ -61,7 +61,7 @@ most once, except the entries of the lists. XML comments are allowed anywhere.
 | [`<Id>`](#id) | Yes | Identifier of the module. |
 | `<ShortName>` | No | Short name: letters, digits, and underscores, starting with a letter, without dots. It qualifies free properties (`<Motion.Weight>`) and may prefix configuration keys. |
 | `<Version>` | Yes | A semantic version with three numbers, an optional pre-release suffix, and optional build metadata: `1.2.0`, `2.0.0-beta.1`, `1.0.0+7`. It becomes the version of the assembly and of the package. |
-| `<Level>` | Yes | `platform` or `business`. A platform module never depends on a business module. |
+| `<Level>` | Yes | `platform` or `game`. A platform module never depends on a game module. |
 | `<Side>` | Yes | `client`, `server`, or `both`. |
 | [`<Dependencies>`](#dependencies) | No | Modules this module depends on. |
 | [`<Libraries>`](#libraries) | No | Third-party NuGet packages that are not modules. |

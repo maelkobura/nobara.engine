@@ -6,7 +6,7 @@
 <NobaraModule format="1">
   <Id>example.ticker</Id>
   <Version>1.0.0</Version>
-  <Level>business</Level>
+  <Level>game</Level>
   <Side>server</Side>
   <Libraries>
     <Package id="System.IO.Hashing" version="9.0.0" />

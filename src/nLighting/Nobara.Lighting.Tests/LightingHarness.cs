@@ -78,7 +78,7 @@ internal sealed class LightingHarness : IDisposable
             distribution.Modules.Add(new F.DistributionModule { Id = id, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
         }
 
-        var owner = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
+        var owner = new F.ModuleManifest { Format = 1, Id = OwnerId, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
         foreach (string dependency in new[] { LightingModule.Id, "nobara.voxel", "nobara.items", "nobara.blocks", "nobara.context", "nobara.game" })
         {
             owner.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });

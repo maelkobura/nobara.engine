@@ -50,13 +50,13 @@ internal sealed class EventHarness : IDisposable
         return loop;
     }
 
-    /// <summary>Adds a business module that depends on the event module.</summary>
+    /// <summary>Adds a game module that depends on the event module.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
     /// <param name="policy">The error policy of the module, or <see langword="null"/> for the default.</param>
     public EventHarness Module(string id, Action<Probe>? behavior = null, F.Policy? policy = null)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.event", Range = "^1.0" });
         _probes.Add((manifest, behavior));
         if (policy is { } value)

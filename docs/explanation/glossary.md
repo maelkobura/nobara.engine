@@ -67,12 +67,6 @@ A way to build a game, declared in `build.nobara`: a platform, a side, and
 the modules it leaves out. [`nobara build`](../reference/cli.md#nobara-build-target)
 turns each target into an installed game and an archive.
 
-### Business module
-
-A module that implements a feature of a game, such as a world generator or a
-mob. It depends on platform modules and on other business modules. See
-[Architecture](architecture.md#overview).
-
 ### Change version
 
 A counter of an [entity world](#entity-world) that a write to a tracked
@@ -490,6 +484,12 @@ A value of a resource that its own type does not declare, written in its
 `<Properties>` block for other modules to read, such as `Weight`. See [the
 `.nof` reference](../reference/formats/nof.md#free-properties).
 
+### Game module
+
+A module that implements a feature of a game, such as a world generator or a
+mob. It depends on platform modules and on other game modules. See
+[Architecture](architecture.md#overview).
+
 ### Game time
 
 The time of the simulated world, as opposed to real time: the tick number of
@@ -620,7 +620,7 @@ reference](../reference/cli.md#the-installed-game).
 
 A way of using an item that handlers are attached to, such as `Use`,
 `UseOnBlock`, `UseOnEntity`, or `Attack`; a module may declare more. Which
-input triggers which kind is the business of the game. See [the nItems module
+input triggers which kind is up to the game. See [the nItems module
 sheet](../../src/nItems/README.md#usage).
 
 ### Isolation class
@@ -661,7 +661,7 @@ conflicting jobs, and checks the declarations in development mode.
 ### Level
 
 The classification of a module declared in its manifest: platform or
-business. The core uses it only for load order and for the dependency rule.
+game. The core uses it only for load order and for the dependency rule.
 
 ### Lever
 
@@ -936,7 +936,7 @@ sheet](../../src/nGraphics/README.md#pipelines-and-resource-sets).
 
 A module that provides a reusable foundation for other modules, such as
 rendering, voxel storage, or physics. A platform module never depends on a
-business module.
+game module.
 
 ### Profiler
 

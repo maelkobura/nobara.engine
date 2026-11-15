@@ -104,7 +104,7 @@ internal sealed class BlocksHarness : IDisposable
         return result.Bundle!;
     }
 
-    /// <summary>Adds a business module that depends on nItems and nBlocks.</summary>
+    /// <summary>Adds a game module that depends on nItems and nBlocks.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="nof">Its resources, or <see langword="null"/> for none.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
@@ -112,7 +112,7 @@ internal sealed class BlocksHarness : IDisposable
     /// <param name="policy">The error policy of the module, or <see langword="null"/> for the default.</param>
     public BlocksHarness Module(string id, string? nof = null, Action<Probe>? behavior = null, string shortName = "", F.Policy? policy = null)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both, ShortName = shortName };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both, ShortName = shortName };
         foreach (string dependency in new[] { ItemsModule.ModuleId, BlocksModule.ModuleId })
         {
             manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });

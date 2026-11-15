@@ -24,7 +24,7 @@ enum Side {
 enum Level {
   LEVEL_UNSPECIFIED = 0;
   LEVEL_PLATFORM = 1;
-  LEVEL_BUSINESS = 2;
+  LEVEL_GAME = 2;
 }
 
 // The compiled form of module.nobara.

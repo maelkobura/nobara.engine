@@ -6,7 +6,7 @@
 <NobaraModule format="1">
   <Id>example.rogue</Id>
   <Version>1.0.0</Version>
-  <Level>business</Level>
+  <Level>game</Level>
   <Side>both</Side>
   <Conflicts>
     <Module id="example.base" />

@@ -31,11 +31,11 @@ public enum ModuleSide
 /// <summary>The level of a module.</summary>
 public enum ModuleLevel
 {
-    /// <summary>A reusable foundation: stored in <c>system/</c>, never depends on a business module.</summary>
+    /// <summary>A reusable foundation: stored in <c>system/</c>, never depends on a game module.</summary>
     Platform,
 
     /// <summary>A feature of a game: stored in <c>game/</c>.</summary>
-    Business,
+    Game,
 }
 
 /// <summary>The scope of a configuration key.</summary>

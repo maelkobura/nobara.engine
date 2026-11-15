@@ -51,7 +51,7 @@ when empty (write "None"):
 
 1. Purpose: one sentence.
 2. Status: `experimental` or `stable`.
-3. Level: core, critical platform, optional platform, or business; client,
+3. Level: core, critical platform, optional platform, or game; client,
    server, or both.
 4. Dependencies: required and optional.
 5. Entry points: services exposed, tick steps joined, context states

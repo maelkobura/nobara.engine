@@ -99,13 +99,13 @@ public sealed class CompositionTests : IDisposable
     }
 
     [Fact]
-    public void Refuses_a_platform_module_that_depends_on_a_business_module()
+    public void Refuses_a_platform_module_that_depends_on_a_game_module()
     {
         _distribution
             .Module("example.mobs")
             .Module("example.physics", m => m.Uses("example.mobs").Level = F.Level.Platform);
 
-        CompositionProblem problem = Refused(CompositionProblemKind.PlatformDependsOnBusiness);
+        CompositionProblem problem = Refused(CompositionProblemKind.PlatformDependsOnGame);
 
         Assert.Equal("example.physics", problem.ModuleId);
         Assert.Contains("'example.mobs'", problem.Message);
@@ -294,7 +294,7 @@ public sealed class CompositionTests : IDisposable
             .Module("example.loot")
             .Module("example.physics", m => m.Requires("example.time").Level = F.Level.Platform)
             .Module("example.time", m => m.Level = F.Level.Platform)
-            .Module("example.particles", m => m.Level = F.Level.Business)
+            .Module("example.particles", m => m.Level = F.Level.Game)
             .Module("example.sparks", m => m.Uses("example.particles"));
 
         using Engine engine = _distribution.Load();
@@ -309,7 +309,7 @@ public sealed class CompositionTests : IDisposable
     private sealed class FixedSource(TestDistribution distribution) : IModuleSource
     {
         public ModuleImage Discover(ExpectedModule module) =>
-            new(module.Id, "memory:" + module.Id, new F.ModuleManifest { Format = 1, Id = module.Id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both }.ToByteArray());
+            new(module.Id, "memory:" + module.Id, new F.ModuleManifest { Format = 1, Id = module.Id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both }.ToByteArray());
 
         public LoadedModule Load(ModuleImage image)
         {

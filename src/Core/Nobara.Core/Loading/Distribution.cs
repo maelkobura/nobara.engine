@@ -144,7 +144,7 @@ internal sealed class Distribution
 
     public ModuleInfo CreateInfo(F.ModuleManifest manifest, bool required)
     {
-        ModuleLevel level = manifest.Level == F.Level.Platform ? ModuleLevel.Platform : ModuleLevel.Business;
+        ModuleLevel level = manifest.Level == F.Level.Platform ? ModuleLevel.Platform : ModuleLevel.Game;
 
         // Required and platform modules always stop the game.
         ErrorPolicy policy = required || level == ModuleLevel.Platform

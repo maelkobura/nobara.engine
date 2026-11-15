@@ -104,7 +104,7 @@ internal sealed class EntityHarness : IDisposable
         return result.Bundle!;
     }
 
-    /// <summary>Adds a business module that depends on the entity module.</summary>
+    /// <summary>Adds a game module that depends on the entity module.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
     /// <param name="policy">The error policy of the module, or <see langword="null"/> for the default.</param>
@@ -113,7 +113,7 @@ internal sealed class EntityHarness : IDisposable
     /// <param name="shortName">The short name of the module, or <see langword="null"/>.</param>
     public EntityHarness Module(string id, Action<Probe>? behavior, F.Policy? policy = null, string? nof = null, F.Side side = F.Side.Both, string? shortName = null)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = side };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = side };
         if (shortName is not null)
         {
             manifest.ShortName = shortName;

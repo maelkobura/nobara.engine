@@ -24,7 +24,7 @@ public sealed class ResourceWatcherTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "nobara-hotreload-tests", Guid.NewGuid().ToString("N"));
     private readonly MemoryLogSink _log = new();
     private readonly byte[] _schemas = DescriptorSet(GadgetsReflection.Descriptor);
-    private readonly F.ModuleManifest _manifest = new() { Format = 1, Id = ModuleId, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Both };
+    private readonly F.ModuleManifest _manifest = new() { Format = 1, Id = ModuleId, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
     private readonly List<ResourceReload> _reloads = [];
     private int _power;
     private string _manual = string.Empty;

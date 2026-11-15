@@ -153,12 +153,12 @@ internal static class Composition
                         $"Module '{module.Info.Id}' depends on '{dependency.ModuleId}' {dependency.Range}, but the distribution has version {target.Info.Version}."));
                 }
 
-                if (module.Info.Level == ModuleLevel.Platform && target.Info.Level == ModuleLevel.Business)
+                if (module.Info.Level == ModuleLevel.Platform && target.Info.Level == ModuleLevel.Game)
                 {
                     problems.Add(new CompositionProblem(
-                        CompositionProblemKind.PlatformDependsOnBusiness,
+                        CompositionProblemKind.PlatformDependsOnGame,
                         module.Info.Id,
-                        $"Platform module '{module.Info.Id}' depends on business module '{dependency.ModuleId}'."));
+                        $"Platform module '{module.Info.Id}' depends on game module '{dependency.ModuleId}'."));
                 }
             }
         }
@@ -275,14 +275,14 @@ internal static class Composition
         return cycles;
     }
 
-    // Platform modules first, then business modules; within a level, a module
+    // Platform modules first, then game modules; within a level, a module
     // comes after its present dependencies, required or optional, and ties
     // keep the order of the distribution.
     private static List<DiscoveredModule> Order(List<DiscoveredModule> modules, Dictionary<string, DiscoveredModule> byId)
     {
         var order = new List<DiscoveredModule>(modules.Count);
         var placed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (ModuleLevel level in new[] { ModuleLevel.Platform, ModuleLevel.Business })
+        foreach (ModuleLevel level in new[] { ModuleLevel.Platform, ModuleLevel.Game })
         {
             var group = modules.Where(m => m.Info.Level == level).ToList();
 

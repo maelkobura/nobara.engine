@@ -60,7 +60,7 @@ sheet](../../../src/nContext/README.md#start-and-stop).
 
 ## `<ErrorPolicy>`
 
-`default` is the policy of the business modules that are not required and
+`default` is the policy of the game modules that are not required and
 have no policy of their own: `stop` (the default), `disable`, or `log`.
 `<Module id="…" policy="…"/>` sets the policy of one module.
 

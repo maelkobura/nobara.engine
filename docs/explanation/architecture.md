@@ -1,7 +1,7 @@
 # Architecture
 
 This page explains how Nobara is divided into a core, platform modules, and
-business modules, and how a game is assembled from them. Terms in *italics*
+game modules, and how a game is assembled from them. Terms in *italics*
 on first use are defined in [the glossary](glossary.md).
 
 The core lives in `src/Core/`; see [its module sheet](../../src/Core/README.md)
@@ -18,16 +18,16 @@ modules, fixed when the game is built.
 | --- | --- | --- |
 | Core | Loads modules, runs the loop, schedules jobs, holds configuration and the service registry. | None: the core is not a module. |
 | Platform module | A reusable foundation that other modules build on. | Rendering, block and item registries, voxel storage, physics, networking, user interface, event bus. |
-| Business module | A feature of one game. | A world generator, a particle effect, a mob. |
+| Game module | A feature of one game. | A world generator, a particle effect, a mob. |
 
 The model resembles an operating system. The core is the kernel shared by
-every system, platform modules form the environment, and business modules
-are the applications. A business module is written for a given environment
+every system, platform modules form the environment, and game modules
+are the applications. A game module is written for a given environment
 and runs only in distributions that provide it.
 
 ```mermaid
 flowchart TD
-    D[Distribution] --> B[Business modules]
+    D[Distribution] --> B[Game modules]
     B --> P[Platform modules]
     P --> C[Core]
     B --> B
@@ -54,8 +54,8 @@ roles such as "renderer" or "user interface".
   works without it. Code that uses an optional dependency is isolated in
   dedicated classes so that the module loads without the dependency's
   assembly.
-- A platform module never depends on a business module, even optionally. A
-  business module can depend on platform modules and on other business
+- A platform module never depends on a game module, even optionally. A
+  game module can depend on platform modules and on other game
   modules.
 - A module runs on the client, on the server, or on both. The headless
   server is the same distribution filtered to the server side.

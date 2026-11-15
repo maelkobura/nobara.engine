@@ -64,8 +64,8 @@ public sealed class DistributionCheckerTests
     {
         Module("nobara.game")
             .Module("nobara.blocks", Depends("nobara.game"))
-            .Module("example.mobs", Depends("nobara.blocks"), level: "business")
-            .Module("example.zombie", Depends("example.mobs") + "<States><State id=\"state:example.boot\" /></States>", level: "business", required: true);
+            .Module("example.mobs", Depends("nobara.blocks"), level: "game")
+            .Module("example.zombie", Depends("example.mobs") + "<States><State id=\"state:example.boot\" /></States>", level: "game", required: true);
         _engine = "<States client=\"state:example.boot\" server=\"state:example.boot\" />";
 
         DistributionCheckResult result = Check();
@@ -122,9 +122,9 @@ public sealed class DistributionCheckerTests
     }
 
     [Fact]
-    public void Refuses_a_platform_module_that_depends_on_a_business_module()
+    public void Refuses_a_platform_module_that_depends_on_a_game_module()
     {
-        Module("nobara.a", Depends("example.b", optional: true)).Module("example.b", level: "business");
+        Module("nobara.a", Depends("example.b", optional: true)).Module("example.b", level: "game");
 
         Refuses(Check(), "NRC203", "nobara.a", "example.b");
     }
@@ -185,7 +185,7 @@ public sealed class DistributionCheckerTests
     [Fact]
     public void Refuses_a_disabled_or_logged_module_required_by_a_module_that_stops()
     {
-        Module("example.stats", level: "business").Module("example.hud", Depends("example.stats"), level: "business");
+        Module("example.stats", level: "game").Module("example.hud", Depends("example.stats"), level: "game");
         _engine = "<ErrorPolicy default=\"stop\"><Module id=\"example.stats\" policy=\"disable\" /></ErrorPolicy>";
 
         Refuses(Check(), "NRC215", "example.stats", "example.hud");
@@ -194,14 +194,14 @@ public sealed class DistributionCheckerTests
     [Fact]
     public void Accepts_a_cascade_whose_dependents_are_disabled_too()
     {
-        Module("example.stats", level: "business").Module("example.hud", Depends("example.stats"), level: "business");
+        Module("example.stats", level: "game").Module("example.hud", Depends("example.stats"), level: "game");
         _engine = "<ErrorPolicy default=\"disable\" />";
 
         Assert.True(Check().Success);
     }
 
     [Theory]
-    [InlineData(true, "business")]
+    [InlineData(true, "game")]
     [InlineData(false, "platform")]
     public void Refuses_a_policy_other_than_stop_for_a_required_or_platform_module(bool required, string level)
     {
@@ -237,7 +237,7 @@ public sealed class DistributionCheckerTests
     [Fact]
     public void Refuses_an_initial_state_that_no_active_module_provides()
     {
-        Module("example.menu", "<States><State id=\"state:example.menu\" side=\"client\" /></States>", level: "business");
+        Module("example.menu", "<States><State id=\"state:example.menu\" side=\"client\" /></States>", level: "game");
         _engine = "<States client=\"state:example.menu\" server=\"state:example.menu\" />";
 
         DistributionCheckResult result = Check();
@@ -249,8 +249,8 @@ public sealed class DistributionCheckerTests
     [Fact]
     public void Refuses_a_state_declared_twice()
     {
-        Module("example.a", "<States><State id=\"state:example.menu\" /></States>", level: "business")
-            .Module("example.b", "<States><State id=\"state:example.menu\" /></States>", level: "business");
+        Module("example.a", "<States><State id=\"state:example.menu\" /></States>", level: "game")
+            .Module("example.b", "<States><State id=\"state:example.menu\" /></States>", level: "game");
 
         Refuses(Check(), "NRC209", "state:example.menu", "example.a", "example.b");
     }
@@ -329,7 +329,7 @@ public sealed class DistributionCheckerTests
     [Fact]
     public void Matches_a_local_module_by_the_folder_of_its_manifest()
     {
-        Module("example.mobs", level: "business", listed: false);
+        Module("example.mobs", level: "game", listed: false);
         _entries.Add("<Local path=\"example.mobs\" required=\"true\" />");
 
         DistributionCheckResult result = Check();

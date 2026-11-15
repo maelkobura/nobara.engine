@@ -78,7 +78,7 @@ composition is refused:
 | --- | --- |
 | A required dependency is missing, or disabled by the target. | `NRC201`, `NCLI004` |
 | A module or a dependency is outside its version range. | `NRC202` |
-| A platform module depends on a business module. | `NRC203` |
+| A platform module depends on a game module. | `NRC203` |
 | The dependencies form a cycle. | `NRC204` |
 | Two active modules conflict. | `NRC205` |
 | Two active modules reserve the same resource. | `NRC206` |
@@ -98,7 +98,7 @@ out/<target>/
   bin/            .NET runtime, core, entry assembly with the distribution manifest
   lib/            libraries that modules use
   system/         platform modules
-  game/           business modules
+  game/           game modules
   <Name>.exe      client target; <Name>Server.exe for a server target
 ```
 

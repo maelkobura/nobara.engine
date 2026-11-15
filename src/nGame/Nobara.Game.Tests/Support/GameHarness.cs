@@ -66,7 +66,7 @@ internal sealed class GameHarness : IDisposable
         return loop;
     }
 
-    /// <summary>Adds a business module that depends on the game module.</summary>
+    /// <summary>Adds a game module that depends on the game module.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
     /// <param name="policy">The error policy of the module, or <see langword="null"/> for the default.</param>
@@ -74,7 +74,7 @@ internal sealed class GameHarness : IDisposable
     /// <param name="dependsOn">Other modules of the test it depends on.</param>
     public GameHarness Module(string id, Action<Probe>? behavior = null, F.Policy? policy = null, F.Side side = F.Side.Both, params string[] dependsOn)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = side };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = side };
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.game", Range = "^1.0" });
         if (WithEvents)
         {

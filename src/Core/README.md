@@ -105,7 +105,7 @@ server.
 | Step | Once per | What happens |
 | --- | --- | --- |
 | 0. Discovery | Process | Integrity, manifests, and checks of the composition. No module code runs. |
-| 1. Loading | Process | Assemblies are loaded: platform modules, then business modules, each after its dependencies. |
+| 1. Loading | Process | Assemblies are loaded: platform modules, then game modules, each after its dependencies. |
 | 2. Registration | Context | Each module publishes its services. Resolving one throws. |
 | 3. Initialization | Context | Each module resolves the services of its dependencies and creates its state. |
 | 4. Start | Context | Last preparations. |
@@ -374,7 +374,7 @@ integrated server; the server for a dedicated server):
   dependent;
 - every present dependency, optional or not, is in its version range;
 - no dependency cycle, optional dependencies included;
-- no platform module depends on a business module;
+- no platform module depends on a game module;
 - no two active modules conflict or reserve the same exclusive resource;
 - every base module has an active backend on the sides where it requires one.
 

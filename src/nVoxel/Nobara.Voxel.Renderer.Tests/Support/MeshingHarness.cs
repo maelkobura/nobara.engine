@@ -310,7 +310,7 @@ internal sealed class MeshingHarness : IDisposable
 
     private static byte[] GameManifest()
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         foreach (string dependency in new[] { "nobara.game", "nobara.context", "nobara.items", "nobara.blocks", "nobara.voxel", "nobara.graphics", "nobara.renderer", VoxelRendererModule.ModuleId })
         {
             manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });

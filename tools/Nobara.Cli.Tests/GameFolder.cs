@@ -56,7 +56,7 @@ internal sealed class GameFolder : IDisposable
     /// <param name="folder">The folder of the module, relative to the game.</param>
     /// <param name="id">The identifier, which names the project.</param>
     /// <param name="body">The elements of the manifest after the identifier and the version.</param>
-    public GameFolder Module(string folder, string id, string body = "", string level = "business", string side = "both", string version = "1.0.0")
+    public GameFolder Module(string folder, string id, string body = "", string level = "game", string side = "both", string version = "1.0.0")
     {
         Write($"{folder}/module.nobara", $"""<NobaraModule format="1"><Id>{id}</Id><Version>{version}</Version><Level>{level}</Level><Side>{side}</Side>{body}</NobaraModule>""");
         Write($"{folder}/{id}.csproj", "<Project Sdk=\"Nobara.Sdk/1.0.0\">\n</Project>\n");

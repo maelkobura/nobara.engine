@@ -53,7 +53,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_a_required_dependency_that_the_target_disables()
     {
-        Modules(("example.mobs", "", "business", "both"), ("example.zombie", Depends("example.mobs"), "business", "both"));
+        Modules(("example.mobs", "", "game", "both"), ("example.zombie", Depends("example.mobs"), "game", "both"));
         _game.Build(serverExtra: "<Disable module=\"example.mobs\" />");
 
         Refused("server", "error NRC201: module 'example.zombie' requires 'example.mobs', which is not active on the server side of target 'server'", Path.Combine(_game.Root, "src", "example.zombie", "module.nobara"));
@@ -62,7 +62,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_a_required_dependency_that_no_source_provides()
     {
-        Modules(("example.zombie", Depends("example.missing"), "business", "both"));
+        Modules(("example.zombie", Depends("example.missing"), "game", "both"));
 
         // The resolution of the modules fails before any target is built; NuGet names the package.
         CliResult result = _game.Run("build", "client");
@@ -77,7 +77,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_a_dependency_cycle()
     {
-        Modules(("example.a", Depends("example.b"), "business", "both"), ("example.b", Depends("example.a"), "business", "both"));
+        Modules(("example.a", Depends("example.b"), "game", "both"), ("example.b", Depends("example.a"), "game", "both"));
 
         Refused("client", "error NRC204: the dependencies form a cycle", "example.a -> example.b -> example.a");
     }
@@ -85,7 +85,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_two_active_modules_in_conflict()
     {
-        Modules(("example.a", "<Conflicts><Module id=\"example.b\" /></Conflicts>", "business", "both"), ("example.b", "", "business", "both"));
+        Modules(("example.a", "<Conflicts><Module id=\"example.b\" /></Conflicts>", "game", "both"), ("example.b", "", "game", "both"));
 
         Refused("client", "error NRC205: module 'example.a' conflicts with 'example.b'");
     }
@@ -94,7 +94,7 @@ public sealed class RefusalTests : IDisposable
     public void Refuses_a_disputed_reservation()
     {
         string reserve = "<Reserves><Resource name=\"window.main\" /></Reserves>";
-        Modules(("example.a", reserve, "business", "client"), ("example.b", reserve, "business", "client"));
+        Modules(("example.a", reserve, "game", "client"), ("example.b", reserve, "game", "client"));
 
         Refused("client", "error NRC206: modules 'example.a' and 'example.b' both reserve 'window.main'");
     }
@@ -102,7 +102,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_an_error_policy_that_the_cascade_would_defeat()
     {
-        Modules(("example.stats", "", "business", "both"), ("example.hud", Depends("example.stats"), "business", "both"));
+        Modules(("example.stats", "", "game", "both"), ("example.hud", Depends("example.stats"), "game", "both"));
         _game.Engine("<ErrorPolicy default=\"stop\"><Module id=\"example.stats\" policy=\"disable\" /></ErrorPolicy>");
 
         Refused("client", "error NRC215: 'example.stats' has the error policy 'disable', but 'example.hud' requires it", Path.Combine(_game.Root, "engine.nobara"));
@@ -123,7 +123,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_an_initial_state_that_no_active_module_provides()
     {
-        Modules(("example.menu", "<States><State id=\"state:example.menu\" side=\"client\" /></States>", "business", "both"));
+        Modules(("example.menu", "<States><State id=\"state:example.menu\" side=\"client\" /></States>", "game", "both"));
         _game.Engine("<States client=\"state:example.menu\" server=\"state:example.boot\" />");
 
         Refused("server", "error NRC210: the initial server state 'state:example.boot' is not provided by an active module", Path.Combine(_game.Root, "engine.nobara"));
@@ -141,7 +141,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_an_unknown_configuration_key_in_the_engine_file()
     {
-        Modules(("example.mobs", "<Settings><Setting key=\"example.mobs.count\" scope=\"distribution\" type=\"int\" default=\"1\" /></Settings>", "business", "both"));
+        Modules(("example.mobs", "<Settings><Setting key=\"example.mobs.count\" scope=\"distribution\" type=\"int\" default=\"1\" /></Settings>", "game", "both"));
         _game.Engine("<Settings><Set key=\"example.mobs.cuont\" value=\"2\" /></Settings>");
 
         Refused("client", "error NRC212: <Set> names the unknown key 'example.mobs.cuont'", Path.Combine(_game.Root, "engine.nobara"));
@@ -151,8 +151,8 @@ public sealed class RefusalTests : IDisposable
     public void Refuses_two_modules_that_need_different_versions_of_a_library()
     {
         Modules(
-            ("example.a", "<Libraries><Package id=\"Example.Compression\" version=\"[1.0.0]\" /></Libraries>", "business", "both"),
-            ("example.b", "<Libraries><Package id=\"Example.Compression\" version=\"2.0.0\" /></Libraries>", "business", "both"));
+            ("example.a", "<Libraries><Package id=\"Example.Compression\" version=\"[1.0.0]\" /></Libraries>", "game", "both"),
+            ("example.b", "<Libraries><Package id=\"Example.Compression\" version=\"2.0.0\" /></Libraries>", "game", "both"));
 
         Refused("client", "error NCLI002: modules 'example.a' and 'example.b' need incompatible versions of library 'Example.Compression': [1.0.0] and 2.0.0", Path.Combine(_game.Root, "src", "example.b", "module.nobara"));
     }
@@ -160,7 +160,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_a_platform_that_this_version_does_not_build()
     {
-        Modules(("example.mobs", "", "business", "both"));
+        Modules(("example.mobs", "", "game", "both"));
         _game.Write("build.nobara", """<NobaraBuild format="1"><Target name="linux"><Platform>linux-x64</Platform><Side>server</Side></Target></NobaraBuild>""");
 
         Refused("linux", "error NCLI001: target 'linux' is for 'linux-x64'; this version builds 'win-x64' only", Path.Combine(_game.Root, "build.nobara"));
@@ -169,7 +169,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_an_unknown_target()
     {
-        Modules(("example.mobs", "", "business", "both"));
+        Modules(("example.mobs", "", "game", "both"));
 
         CliResult result = _game.Run("build", "console");
 
@@ -180,7 +180,7 @@ public sealed class RefusalTests : IDisposable
     [Fact]
     public void Refuses_to_pack_a_target_that_is_not_built()
     {
-        Modules(("example.mobs", "", "business", "both"));
+        Modules(("example.mobs", "", "game", "both"));
 
         CliResult result = _game.Run("package", "client");
 

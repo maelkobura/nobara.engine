@@ -24,11 +24,11 @@ public enum Side
 /// <summary>The level of a module, which only decides the load order and the dependency rule.</summary>
 public enum ModuleLevel
 {
-    /// <summary>A reusable foundation, loaded from <c>system/</c> before every business module.</summary>
+    /// <summary>A reusable foundation, loaded from <c>system/</c> before every game module.</summary>
     Platform,
 
     /// <summary>A feature of a game, loaded from <c>game/</c>.</summary>
-    Business,
+    Game,
 }
 
 /// <summary>What the core does when a module throws an exception.</summary>

@@ -96,14 +96,14 @@ internal sealed class InputHarness : IDisposable
         return result.Bundle!;
     }
 
-    /// <summary>Adds a business module that depends on nInput.</summary>
+    /// <summary>Adds a game module that depends on nInput.</summary>
     /// <param name="id">The identifier of the module.</param>
     /// <param name="nof">Its resources, or <see langword="null"/> for none.</param>
     /// <param name="behavior">Sets up each instance of the module.</param>
     /// <param name="dependsOn">Other modules of the test it depends on, with their compiled form for the compiler.</param>
     public InputHarness Module(string id, string? nof = null, Action<Probe>? behavior = null, params (string Id, CompiledModule Compiled)[] dependsOn)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         manifest.Dependencies.Add(new F.Dependency { Id = InputModule.ModuleId, Range = "^1.0" });
         manifest.Dependencies.Add(new F.Dependency { Id = "nobara.frames", Range = "^1.0" });
         foreach ((string dependency, _) in dependsOn)
@@ -119,7 +119,7 @@ internal sealed class InputHarness : IDisposable
     /// <summary>Gets the compiled form of a test module, for a module that overrides its resources.</summary>
     public static CompiledModule Compiled(string id, string nof)
     {
-        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Business, Side = F.Side.Client };
+        var manifest = new F.ModuleManifest { Format = 1, Id = id, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
         manifest.Dependencies.Add(new F.Dependency { Id = InputModule.ModuleId, Range = "^1.0" });
         return new CompiledModule(manifest, null, Bundle(id, nof));
     }
