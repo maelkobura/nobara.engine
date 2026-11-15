@@ -75,6 +75,22 @@ compilation, so the content hash of a resource changes when a resource it
 references changes. A file with an error is parsed again on the next
 compilation, so its errors are reported again.
 
+The bytes that plugins make of a binary file in `ProcessFile`, such as SPIR-V
+compiled from a GLSL source or Ogg Vorbis encoded from a WAV file, are kept
+too, keyed by the content of the file and the compiled content of the
+resources that reference it; the plugins are part of the fingerprint of the
+cache. A file is processed again only when one of them changed, and the
+warnings of its last processing are reported again.
+`CompilationResult.ProcessedFiles` lists the files processed by the
+compilation. A file whose processing reported an error is processed again
+on the next compilation. A file that the plugins give back unchanged is not
+copied into the cache.
+
+The fingerprint holds the version of each plugin assembly, not of the
+assemblies or native libraries that a plugin loads: after a change of one of
+those alone, such as an encoder, delete the cache file (or clean the
+project) to process the files again.
+
 ### One file at a time
 
 `ResourceCompiler.CompileFile(path)` parses one file again and links it with

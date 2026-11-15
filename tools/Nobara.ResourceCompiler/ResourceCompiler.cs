@@ -47,13 +47,14 @@ public sealed record EmbeddedFile(string Path, string SourcePath, byte[]? Conten
 /// <summary>The outcome of <see cref="ResourceCompiler.Compile"/>.</summary>
 public sealed class CompilationResult
 {
-    internal CompilationResult(IReadOnlyList<Diagnostic> diagnostics, ResourceBundle? bundle, IReadOnlyList<EmbeddedFile> files, IReadOnlyList<string> compiled, IReadOnlyList<string> reused)
+    internal CompilationResult(IReadOnlyList<Diagnostic> diagnostics, ResourceBundle? bundle, IReadOnlyList<EmbeddedFile> files, IReadOnlyList<string> compiled, IReadOnlyList<string> reused, IReadOnlyList<string>? processed = null)
     {
         Diagnostics = diagnostics;
         Bundle = bundle;
         Files = files;
         CompiledFiles = compiled;
         ReusedFiles = reused;
+        ProcessedFiles = processed ?? [];
     }
 
     /// <summary>Gets whether no error was reported.</summary>
@@ -73,6 +74,14 @@ public sealed class CompilationResult
 
     /// <summary>Gets the <c>.nof</c> files whose previous result was reused, relative to the resources folder.</summary>
     public IReadOnlyList<string> ReusedFiles { get; }
+
+    /// <summary>
+    /// Gets the binary files that a plugin processed in this compilation,
+    /// relative to the resources folder. A file whose content and referencing
+    /// resources did not change since a previous compilation reuses the bytes
+    /// that the plugins produced then, and is not listed.
+    /// </summary>
+    public IReadOnlyList<string> ProcessedFiles { get; }
 }
 
 /// <summary>The outcome of <see cref="ResourceCompiler.CompileFile"/>.</summary>
@@ -109,10 +118,11 @@ public sealed class FileCompilationResult
 /// </remarks>
 public sealed class ResourceCompiler
 {
-    private const string CacheFormatVersion = "1";
+    private const string CacheFormatVersion = "2";
 
     private readonly ResourceCompilerOptions _options;
     private readonly Dictionary<string, FileUnit> _units = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ProcessedFile> _processed = new(StringComparer.Ordinal);
     private readonly List<Diagnostic> _setupDiagnostics;
     private readonly SchemaSet _schemas;
     private readonly PluginSet _plugins;
@@ -183,11 +193,12 @@ public sealed class ResourceCompiler
             return new CompilationResult(diagnostics.Items.ToList(), null, [], compiled, reused);
         }
 
-        (ResourceBundle bundle, List<EmbeddedFile> embedded) = LinkAll(units, diagnostics);
+        var processed = new List<string>();
+        (ResourceBundle bundle, List<EmbeddedFile> embedded) = LinkAll(units, diagnostics, processed);
         SaveCache();
         return diagnostics.HasErrors
-            ? new CompilationResult(diagnostics.Items.ToList(), null, [], compiled, reused)
-            : new CompilationResult(diagnostics.Items.ToList(), bundle, embedded, compiled, reused);
+            ? new CompilationResult(diagnostics.Items.ToList(), null, [], compiled, reused, processed)
+            : new CompilationResult(diagnostics.Items.ToList(), bundle, embedded, compiled, reused, processed);
     }
 
     /// <summary>
@@ -209,7 +220,7 @@ public sealed class ResourceCompiler
             return new FileCompilationResult(diagnostics.Items.ToList(), [], []);
         }
 
-        (ResourceBundle bundle, _) = LinkAll(_units.Values.ToList(), diagnostics);
+        (ResourceBundle bundle, _) = LinkAll(_units.Values.ToList(), diagnostics, []);
         if (diagnostics.HasErrors)
         {
             return new FileCompilationResult(diagnostics.Items.ToList(), [], []);
@@ -270,7 +281,7 @@ public sealed class ResourceCompiler
         return unit;
     }
 
-    private (ResourceBundle Bundle, List<EmbeddedFile> Files) LinkAll(List<FileUnit> units, DiagnosticBag diagnostics)
+    private (ResourceBundle Bundle, List<EmbeddedFile> Files) LinkAll(List<FileUnit> units, DiagnosticBag diagnostics, List<string> processed)
     {
         var fileHashes = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (FileInput input in units.SelectMany(u => u.Files))
@@ -281,8 +292,10 @@ public sealed class ResourceCompiler
         var linker = new Linker(_options.ModuleId, _resources, _schemas, diagnostics);
         ResourceBundle bundle = linker.Link(units, _options.Dependencies, fileHashes);
         var embedded = new List<EmbeddedFile>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (string path in bundle.Files)
         {
+            seen.Add(path);
             string source = Path.Combine(_resources, path.Replace('/', Path.DirectorySeparatorChar));
             List<Resource> owners = bundle.Resources
                 .Where(r => r.Override is null && r.References.Contains("file:" + path))
@@ -292,26 +305,42 @@ public sealed class ResourceCompiler
             IReadOnlyList<ResourcePlugin> plugins = owner is null ? [] : _plugins.For(owner.Element);
             if (plugins.Count == 0)
             {
+                _processed.Remove(path);
                 embedded.Add(new EmbeddedFile(path, source, null));
                 continue;
             }
 
+            List<FileReference> references = owners
+                .Where(r => string.Equals(r.Element, owner!.Element, StringComparison.Ordinal))
+                .Select(r => new FileReference(r.ObjectId, r.Element, r.Content.Memory))
+                .ToList();
             byte[] content = File.ReadAllBytes(source);
+            byte[] key = ProcessKey(content, owner!.ObjectId, references);
+            if (_processed.TryGetValue(path, out ProcessedFile? cached) && cached.Key.Span.SequenceEqual(key))
+            {
+                foreach (CachedDiagnostic warning in cached.Warnings)
+                {
+                    diagnostics.Warning(warning.Code, warning.Message, new Location(source, (int)(warning.Source?.Line ?? 0), (int)(warning.Source?.Column ?? 0)));
+                }
+
+                embedded.Add(new EmbeddedFile(path, source, cached.Unchanged ? null : cached.Content.ToByteArray()));
+                continue;
+            }
+
+            processed.Add(path);
+            byte[] original = content;
+            var local = new DiagnosticBag();
             foreach (ResourcePlugin plugin in plugins)
             {
-                List<FileReference> references = owners
-                    .Where(r => string.Equals(r.Element, owner!.Element, StringComparison.Ordinal))
-                    .Select(r => new FileReference(r.ObjectId, r.Element, r.Content.Memory))
-                    .ToList();
-                var context = new FileContext(path, content, owner!.ObjectId, references, (code, message, line, column, isError) =>
+                var context = new FileContext(path, content, owner.ObjectId, references, (code, message, line, column, isError) =>
                 {
                     if (isError)
                     {
-                        diagnostics.Error(code, message, new Location(source, line, column));
+                        local.Error(code, message, new Location(source, line, column));
                     }
                     else
                     {
-                        diagnostics.Warning(code, message, new Location(source, line, column));
+                        local.Warning(code, message, new Location(source, line, column));
                     }
                 });
                 try
@@ -320,14 +349,56 @@ public sealed class ResourceCompiler
                 }
                 catch (Exception exception)
                 {
-                    diagnostics.Error("NRC602", $"plugin {plugin.GetType().FullName} failed on the file '{path}': {exception.Message}", new Location(source, 0, 0));
+                    local.Error("NRC602", $"plugin {plugin.GetType().FullName} failed on the file '{path}': {exception.Message}", new Location(source, 0, 0));
                 }
+            }
+
+            diagnostics.AddRange(local.Items);
+            if (local.HasErrors)
+            {
+                _processed.Remove(path);
+            }
+            else
+            {
+                // Warnings are kept so that a reused file reports them again, like a reused .nof.
+                // A file the plugins give back as it is, such as an Ogg Vorbis sound, is not copied into the cache.
+                bool unchanged = content.AsSpan().SequenceEqual(original);
+                var entry = new ProcessedFile { Path = path, Key = ByteString.CopyFrom(key), Unchanged = unchanged, Content = unchanged ? ByteString.Empty : ByteString.CopyFrom(content) };
+                foreach (Diagnostic warning in local.Items)
+                {
+                    entry.Warnings.Add(new CachedDiagnostic { Code = warning.Code, Message = warning.Message, Source = new SourcePosition { File = path, Line = (uint)warning.Line, Column = (uint)warning.Column } });
+                }
+
+                _processed[path] = entry;
             }
 
             embedded.Add(new EmbeddedFile(path, source, content));
         }
 
+        // A full link sees every file; the link of one file for hot reload sees them all too.
+        foreach (string stale in _processed.Keys.Where(k => !seen.Contains(k)).ToList())
+        {
+            _processed.Remove(stale);
+        }
+
         return (bundle, embedded);
+    }
+
+    // What the plugins make of a file depends on its bytes and on the
+    // resources that reference it; the plugins themselves are part of the
+    // fingerprint, which discards the whole cache when they change.
+    private static byte[] ProcessKey(byte[] content, string owner, List<FileReference> references)
+    {
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(SHA256.HashData(content));
+        hash.AppendData(Encoding.UTF8.GetBytes(owner + "\n"));
+        foreach (FileReference reference in references)
+        {
+            hash.AppendData(Encoding.UTF8.GetBytes(reference.ObjectId + "\n" + reference.Element + "\n"));
+            hash.AppendData(SHA256.HashData(reference.ContentBytes.Span));
+        }
+
+        return hash.GetHashAndReset();
     }
 
     private bool FilesUnchanged(FileUnit unit) =>
@@ -357,6 +428,11 @@ public sealed class ResourceCompiler
                 {
                     _units[unit.Path] = unit;
                 }
+
+                foreach (ProcessedFile file in cache.Processed)
+                {
+                    _processed[file.Path] = file;
+                }
             }
         }
         catch (Exception exception) when (exception is IOException or InvalidProtocolBufferException)
@@ -374,6 +450,7 @@ public sealed class ResourceCompiler
 
         var cache = new CompilationCache { Format = 1, Fingerprint = ByteString.CopyFrom(_fingerprint) };
         cache.Files.AddRange(_units.Values.OrderBy(u => u.Path, StringComparer.Ordinal));
+        cache.Processed.AddRange(_processed.Values.OrderBy(f => f.Path, StringComparer.Ordinal));
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_options.CacheFile))!);
         File.WriteAllBytes(_options.CacheFile, cache.ToByteArray());
     }
