@@ -155,6 +155,84 @@ public sealed class PluginAndIncrementalTests : IDisposable
     }
 
     [Fact]
+    public void Reuses_a_processed_file_whose_content_and_resources_did_not_change()
+    {
+        _module.CacheFile = Path.Combine(_module.Root, "obj", "resources.cache");
+        _module.Plugins.Add(new TestPlugin());
+        _module.Write("Textures/notes.txt", "hello\n#warning slow\n");
+        _module.Write("textures.nof", NofText("Example/Textures", "<Texture><Name>Notes</Name><Content><File>Textures/notes.txt</File></Content></Texture>"));
+        CompilationResult first = _module.Compile();
+
+        _module.Plugins.Clear();
+        _module.Plugins.Add(new TestPlugin());
+        CompilationResult second = _module.Compile();
+
+        Assert.Equal(["Textures/notes.txt"], first.ProcessedFiles);
+        Assert.Empty(second.ProcessedFiles);
+        Assert.Equal(first.Files.Single().Content, second.Files.Single().Content);
+        Diagnostic warning = Assert.Single(second.Diagnostics, d => d.Code == "TEST003");
+        Assert.Equal(2, warning.Line);
+    }
+
+    [Fact]
+    public void Embeds_a_file_given_back_unchanged_from_its_source_when_reused()
+    {
+        _module.CacheFile = Path.Combine(_module.Root, "obj", "resources.cache");
+        _module.Plugins.Add(new TestPlugin());
+        _module.Write("Textures/notes.png", "as it is");
+        _module.Write("textures.nof", NofText("Example/Textures", "<Texture><Name>Notes</Name><Content><File>Textures/notes.png</File></Content></Texture>"));
+        _module.Compile();
+
+        CompilationResult second = _module.Compile();
+
+        Assert.Empty(second.ProcessedFiles);
+        Assert.Null(second.Files.Single().Content);
+    }
+
+    [Fact]
+    public void Processes_a_file_again_when_it_changes()
+    {
+        _module.CacheFile = Path.Combine(_module.Root, "obj", "resources.cache");
+        _module.Plugins.Add(new TestPlugin());
+        _module.Write("Textures/notes.txt", "hello");
+        _module.Write("textures.nof", NofText("Example/Textures", "<Texture><Name>Notes</Name><Content><File>Textures/notes.txt</File></Content></Texture>"));
+        _module.Compile();
+
+        _module.Write("Textures/notes.txt", "again");
+        CompilationResult result = _module.Compile();
+
+        Assert.Equal(["Textures/notes.txt"], result.ProcessedFiles);
+        Assert.Equal("AGAIN", System.Text.Encoding.UTF8.GetString(result.Files.Single().Content!));
+    }
+
+    [Fact]
+    public void Processes_a_file_again_when_a_resource_that_references_it_changes()
+    {
+        _module.CacheFile = Path.Combine(_module.Root, "obj", "resources.cache");
+        _module.Plugins.Add(new TestPlugin());
+        _module.Write("Textures/notes.txt", "hello");
+        _module.Write("textures.nof", NofText("Example/Textures", "<Texture><Name>Notes</Name><Content><File>Textures/notes.txt</File></Content></Texture>"));
+        _module.Compile();
+
+        _module.Write("more.nof", NofText("Example/Textures", "<Texture><Name>Copy</Name><Content><File>Textures/notes.txt</File></Content></Texture>"));
+        CompilationResult result = _module.Compile();
+
+        Assert.Equal(["Textures/notes.txt"], result.ProcessedFiles);
+    }
+
+    [Fact]
+    public void Does_not_keep_a_processed_file_that_failed()
+    {
+        _module.CacheFile = Path.Combine(_module.Root, "obj", "resources.cache");
+        _module.Plugins.Add(new TestPlugin());
+        _module.Write("Textures/notes.txt", "#error here");
+        _module.Write("textures.nof", NofText("Example/Textures", "<Texture><Name>Notes</Name><Content><File>Textures/notes.txt</File></Content></Texture>"));
+        Expect.Error(_module.Compile(), "TEST002");
+
+        Expect.Error(_module.Compile(), "TEST002");
+    }
+
+    [Fact]
     public void Compiles_nothing_again_when_nothing_changed()
     {
         _module.CacheFile = Path.Combine(_module.Root, "obj", "resources.cache");

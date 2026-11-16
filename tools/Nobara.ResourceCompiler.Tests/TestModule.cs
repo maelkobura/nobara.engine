@@ -189,6 +189,12 @@ internal sealed class TestPlugin : ResourcePlugin
             context.Error("TEST002", lines[error], error + 1, 1);
         }
 
+        int warning = Array.FindIndex(lines, l => l.StartsWith("#warning", StringComparison.Ordinal));
+        if (warning >= 0)
+        {
+            context.Warning("TEST003", lines[warning], warning + 1, 1);
+        }
+
         return context.Path.EndsWith(".txt", StringComparison.Ordinal) ? System.Text.Encoding.UTF8.GetBytes(text.ToUpperInvariant()) : context.Content;
     }
 

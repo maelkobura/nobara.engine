@@ -19,6 +19,22 @@ message CompilationCache {
   // version, schemas, plugins, module identifier.
   bytes fingerprint = 2;
   repeated FileUnit files = 3;
+  repeated ProcessedFile processed = 4;
+}
+
+// What the plugins made of one binary file. It is reused while the file and
+// the resources that reference it do not change.
+message ProcessedFile {
+  // Path relative to the resources folder, with forward slashes.
+  string path = 1;
+  // Hash of the file and of the compiled content of the resources that
+  // reference it; the plugins are part of the fingerprint.
+  bytes key = 2;
+  // The bytes to embed; empty when unchanged is set.
+  bytes content = 3;
+  repeated CachedDiagnostic warnings = 4;
+  // The plugins gave the file back as it is: it is embedded from its source.
+  bool unchanged = 5;
 }
 
 // What the compilation of one source file produced before linking.
