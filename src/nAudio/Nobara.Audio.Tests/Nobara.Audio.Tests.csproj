@@ -29,12 +29,15 @@
   <!--
     The tests compile the resources of Resources/ with the resource compiler
     and the plugin of nAudio, then load them with the real module nAudio, on
-    a client with an empty audio backend, or on a server.
+    a client with test audio backends, or on a server, with nGame for the pause.
   -->
   <ItemGroup>
     <ProjectReference Include="..\Nobara.Audio\Nobara.Audio.csproj" />
     <ProjectReference Include="..\Nobara.Audio.Build\Nobara.Audio.Build.csproj" />
     <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\nGame\Nobara.Game\Nobara.Game.csproj" />
+    <!-- The sample of the guide attaches sounds to entities. -->
+    <ProjectReference Include="..\..\nEntity\Nobara.Entity\Nobara.Entity.csproj" />
     <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
     <ProjectReference Include="..\..\..\tools\Nobara.HotReload\Nobara.HotReload.csproj" />
   </ItemGroup>

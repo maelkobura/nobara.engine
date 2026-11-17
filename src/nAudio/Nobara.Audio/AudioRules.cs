@@ -19,6 +19,13 @@ internal static class AudioRules
 
     public const string MasterBus = "bus:nobara.audio.master";
 
+    public const string UiBus = "bus:nobara.audio.ui";
+
+    public const string MusicBus = "bus:nobara.audio.music";
+
+    /// <summary>Gets whether a bus goes on while the game is paused, with the buses below it: <c>ui</c> and <c>music</c>.</summary>
+    public static bool IgnoresPause(string busId) => busId is UiBus or MusicBus;
+
     /// <summary>The Vorbis quality of a WAV or FLAC source when neither the variant nor the event gives one.</summary>
     public const float DefaultQuality = 0.4f;
 

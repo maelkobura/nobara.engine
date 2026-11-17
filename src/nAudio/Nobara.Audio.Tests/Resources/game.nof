@@ -55,6 +55,32 @@
   </Sound>
 
   <Sound>
+    <Name>Hum</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="1" maxDistance="64" rolloff="Linear"/>
+      <Loop>true</Loop>
+      <Variants>
+        <Variant file="Sounds/step.wav"/>
+      </Variants>
+      <Mono>true</Mono>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>Pop</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="1" maxDistance="200"/>
+      <MaxInstances>200</MaxInstances>
+      <Variants>
+        <Variant file="Sounds/step.wav"/>
+      </Variants>
+      <Mono>true</Mono>
+    </Content>
+  </Sound>
+
+  <Sound>
     <Name>Wind</Name>
     <Content>
       <Category>bus:example.sounds.machines</Category>

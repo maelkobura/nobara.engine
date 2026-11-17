@@ -16,6 +16,10 @@ player is described in [the core page](../../src/Core/README.md#configuration-ke
 
 | Key | Scope | Module |
 | --- | --- | --- |
+| `audio.backend` | user | [nAudio](../../src/nAudio/README.md#configuration) |
+| `audio.hrtf` | user | [nAudio](../../src/nAudio/README.md#configuration) |
+| `audio.maxInstances` | distribution | [nAudio](../../src/nAudio/README.md#configuration) |
+| `audio.realVoices` | distribution | [nAudio](../../src/nAudio/README.md#configuration) |
 | `blocks.maxStatesPerType` | distribution | [nBlocks](../../src/nBlocks/README.md#configuration) |
 | `debug.tools` | distribution | [nDebug](../../src/nDebug/README.md#configuration) |
 | `frames.backend` | user | [nFrames](../../src/nFrames/README.md#configuration) |

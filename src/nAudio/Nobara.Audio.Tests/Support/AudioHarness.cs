@@ -7,6 +7,7 @@ using Nobara.Audio.Build;
 using Nobara.Core;
 using Nobara.Core.Loading;
 using Nobara.Core.Logging;
+using Nobara.Game;
 using Nobara.HotReload;
 using Nobara.ResourceCompiler;
 using Nobara.ResourceCompiler.Nof;
@@ -15,9 +16,9 @@ using F = Nobara.Formats;
 namespace Nobara.Audio.Tests.Support;
 
 /// <summary>
-/// An engine whose modules live in memory: the real nAudio, an empty audio
-/// backend on a client, and a game module whose resources the tests compile
-/// from a copy of <c>Resources/</c>.
+/// An engine whose modules live in memory: the real nAudio and nGame, a module
+/// of test audio backends on a client, and a game module whose resources the
+/// tests compile from a copy of <c>Resources/</c>. Time is a manual clock.
 /// </summary>
 internal sealed class AudioHarness : IDisposable
 {
@@ -25,7 +26,10 @@ internal sealed class AudioHarness : IDisposable
 
     private const string Backend = "example.audio";
 
+    private const string GameModuleId = "nobara.game";
+
     private readonly List<string> _folders = [];
+    private readonly List<F.SettingValue> _settings = [];
     private CompilationResult? _game;
 
     public AudioHarness()
@@ -36,6 +40,12 @@ internal sealed class AudioHarness : IDisposable
     /// <summary>Gets the scratch folder of the data folders.</summary>
     public string Root { get; }
 
+    /// <summary>Gets or sets the error policy of the distribution; <c>stop</c> by default.</summary>
+    public F.Policy Policy { get; set; } = F.Policy.Stop;
+
+    /// <summary>Gets or sets the error policy of the game module, or <see langword="null"/> for that of the distribution.</summary>
+    public F.Policy? GamePolicy { get; set; }
+
     /// <summary>Gets or sets whether the engine runs in development mode, which reloads resources.</summary>
     public bool DevelopmentMode { get; set; }
 
@@ -45,10 +55,39 @@ internal sealed class AudioHarness : IDisposable
     /// <summary>Gets nAudio, as the compiler reads it from its assembly.</summary>
     public static CompiledModule Audio { get; } = CompiledModule.FromAssembly(typeof(AudioModule).Assembly.Location)!;
 
+    /// <summary>Gets the audio backends the backend module registers, in order.</summary>
+    public List<TestAudioBackend> Backends { get; } = [new TestAudioBackend("test")];
+
+    /// <summary>Gets the clock of the engine.</summary>
+    public ManualClock Clock { get; } = new();
+
+    /// <summary>Gets the device of the first backend that opened one.</summary>
+    public TestAudioDevice Device => Backends.Select(b => b.Device).First(d => d is not null)!;
+
+    public IAudioSystem System => Probe.Context.Resolve<IAudioSystem>();
+
     /// <summary>Gets the game module, once loaded.</summary>
     public Probe Probe { get; private set; } = null!;
 
     public ISoundRegistry Sounds => Probe.Context.Resolve<ISoundRegistry>();
+
+    /// <summary>Gives a key a value: the default of a user key, or the value of a distribution key.</summary>
+    public AudioHarness Setting(string key, string value)
+    {
+        bool distribution = key is AudioSettings.RealVoices or AudioSettings.MaxInstances;
+        _settings.Add(new F.SettingValue { Key = key, Operation = distribution ? F.SettingValue.Types.Operation.Set : F.SettingValue.Types.Operation.Default, Value = value });
+        return this;
+    }
+
+    /// <summary>Runs frames of a given length of real time.</summary>
+    public void Frames(Engine engine, int count, double seconds = 1.0 / 60)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            Clock.Advance(TimeSpan.FromSeconds(seconds));
+            engine.MainContext.RunFrame();
+        }
+    }
 
     /// <summary>Copies the resources of the tests to a new folder, which a test may change.</summary>
     public string CopyResources()
@@ -129,9 +168,15 @@ internal sealed class AudioHarness : IDisposable
             Id = "example",
             Name = "Example",
             Version = "0.1.0",
-            ErrorPolicy = new F.ErrorPolicy { DefaultPolicy = F.Policy.Stop },
+            ErrorPolicy = new F.ErrorPolicy { DefaultPolicy = Policy },
         };
-        string[] modules = side == Side.Client ? [AudioModule.ModuleId, Backend, Game] : [AudioModule.ModuleId, Game];
+        if (GamePolicy is { } policy)
+        {
+            distribution.ErrorPolicy.Modules.Add(new F.ModulePolicy { Module = Game, Policy = policy });
+        }
+
+        distribution.Settings.AddRange(_settings);
+        string[] modules = side == Side.Client ? [GameModuleId, AudioModule.ModuleId, Backend, Game] : [GameModuleId, AudioModule.ModuleId, Game];
         foreach (string id in modules)
         {
             distribution.Modules.Add(new F.DistributionModule { Id = id, Version = "1.0.0", Hash = ByteString.CopyFrom(new byte[32]) });
@@ -149,6 +194,7 @@ internal sealed class AudioHarness : IDisposable
             LogSinks = [Log],
             MinimumLogLevel = LogLevel.Debug,
             DevelopmentMode = DevelopmentMode,
+            TimeProvider = Clock,
         });
         try
         {
@@ -205,6 +251,7 @@ internal sealed class AudioHarness : IDisposable
     {
         var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
         manifest.Dependencies.Add(new F.Dependency { Id = AudioModule.ModuleId, Range = "^1.0" });
+        manifest.Dependencies.Add(new F.Dependency { Id = GameModuleId, Range = "^1.0" });
         return manifest.ToByteArray();
     }
 
@@ -215,6 +262,7 @@ internal sealed class AudioHarness : IDisposable
             byte[] manifest = module.Id switch
             {
                 AudioModule.ModuleId => Embedded(typeof(AudioModule)),
+                GameModuleId => Embedded(typeof(GameModule)),
                 Backend => BackendManifest(),
                 _ => GameManifest(),
             };
@@ -224,8 +272,10 @@ internal sealed class AudioHarness : IDisposable
         public LoadedModule Load(ModuleImage image) => image.Id switch
         {
             AudioModule.ModuleId => new LoadedModule(typeof(AudioModule).Assembly, () => new AudioModule()),
-            Backend => new LoadedModule(null, () => new EmptyModule()),
-            _ => new LoadedModule(null, () => harness.Probe = new Probe(), harness.OpenGameResource),
+            GameModuleId => new LoadedModule(typeof(GameModule).Assembly, () => new GameModule()),
+            Backend => new LoadedModule(null, () => new BackendModule(harness)),
+            // The code of the tests is the code of the game module: an exception it throws is charged to it.
+            _ => new LoadedModule(typeof(Probe).Assembly, () => harness.Probe = new Probe(), harness.OpenGameResource),
         };
     }
 
@@ -246,9 +296,16 @@ internal sealed class AudioHarness : IDisposable
         return file is null ? null : new MemoryStream(file.Content ?? File.ReadAllBytes(file.SourcePath), writable: false);
     }
 
-    /// <summary>The audio backend: nothing until nAudio has a registry of backends.</summary>
-    private sealed class EmptyModule : IModule
+    /// <summary>The module of the audio backends: it registers those of the harness.</summary>
+    private sealed class BackendModule(AudioHarness harness) : IModule
     {
+        public void Initialize(ModuleContext context)
+        {
+            foreach (TestAudioBackend backend in harness.Backends)
+            {
+                context.Resolve<IAudioBackends>().Register(context, backend);
+            }
+        }
     }
 }
 

@@ -6,21 +6,31 @@ defined in [the glossary](../../docs/explanation/glossary.md).
 
 ## Purpose
 
-nAudio keeps the audio data of a game: the resource type `Sound`, the
-[sound events](../../docs/explanation/glossary.md#sound-event) that modules
-play, with their [variants](../../docs/explanation/glossary.md#variant) and
-their settings, and the resource type `Bus`, the tree of
-[buses](../../docs/explanation/glossary.md#bus) that mixes them. It
-provides the default tree, numbers the sound events, and, on a client,
-decodes their Ogg Vorbis files with NVorbis in background jobs, in memory or
-in blocks for [streaming](../../docs/explanation/glossary.md#streaming). Its
-build plugin converts WAV and FLAC sources to Ogg Vorbis when the module that
-declares them is built.
+nAudio keeps the audio data of a game and plays it. It defines the resource
+type `Sound`, the [sound events](../../docs/explanation/glossary.md#sound-event)
+that modules play, with their [variants](../../docs/explanation/glossary.md#variant)
+and their settings, and the resource type `Bus`, the tree of
+[buses](../../docs/explanation/glossary.md#bus) that mixes them. It provides
+the default tree, numbers the sound events, and, on a client, decodes their
+Ogg Vorbis files with NVorbis in background jobs, in memory or in blocks for
+[streaming](../../docs/explanation/glossary.md#streaming). Its build plugin
+converts WAV and FLAC sources to Ogg Vorbis when the module that declares them
+is built.
 
-nAudio does not play sounds yet: voices, mixing, spatialization, and the
-playback API are not implemented, nor is any audio backend. It knows nothing
-of blocks: the sounds of blocks are free properties that the modules that
-play them read.
+On a client, nAudio plays sounds through a neutral API, on the device of an
+audio [backend](../../docs/explanation/glossary.md#backend) that an extension
+registers: [voices](../../docs/explanation/glossary.md#voice), real or
+[virtual](../../docs/explanation/glossary.md#virtual-voice), the volumes of
+the buses, the [listener](../../docs/explanation/glossary.md#listener), sounds
+at a position or attached to a
+[sound anchor](../../docs/explanation/glossary.md#sound-anchor),
+[persistent emitters](../../docs/explanation/glossary.md#persistent-emitter),
+and the chain of [emission processors](../../docs/explanation/glossary.md#emission-processor)
+with [reverberation buses](../../docs/explanation/glossary.md#reverberation-bus).
+The layers are described in [the voices of nAudio](../../docs/explanation/audio-voices.md).
+
+nAudio knows nothing of blocks: the sounds of blocks are free properties that
+the modules that play them read.
 
 ## Status
 
@@ -33,12 +43,18 @@ Platform module, on the client and on the server. Requires an active backend on 
 <!-- nobara:generated:end -->
 
 A server loads the sound events and the buses, so that both sides number them
-the same way, but decodes nothing and needs no backend.
+the same way, but decodes nothing, needs no backend, and plays nothing: its
+`IAudioSystem` is inactive.
 
 ## Dependencies
 
 <!-- nobara:generated:begin dependencies -->
-No module.
+| Module | Versions | Kind |
+| --- | --- | --- |
+| `nobara.debug` | `^1.0` | Optional |
+| `nobara.game` | `^1.0` | Optional |
+| `nobara.graphics` | `^1.0` | Optional |
+| `nobara.renderer` | `^1.0` | Optional |
 
 Third-party libraries: `NVorbis` 0.10.5.
 <!-- nobara:generated:end -->
@@ -48,11 +64,29 @@ build plugin uses Nobara.AudioToolkit (MIT, with libogg and libvorbis under
 the BSD 3-clause license) to read WAV and FLAC files and to encode Ogg
 Vorbis; neither the toolkit nor its native library reaches a game.
 
+Each optional dependency is used by one isolation class:
+
+- nGame (`GamePause`): the pause of the game pauses the sounds of the world;
+  without nGame, nothing pauses.
+- nDebug (`AudioDebugWindow`): the "Audio" tool window.
+- nRenderer and nGraphics, with nDebug: the same window draws the sounds in
+  the world with the debug drawing of nRenderer, while the window shows and
+  the engine runs in development mode.
+
 ## Entry points
 
 | Member | Use |
 | --- | --- |
-| `ISoundRegistry` | The sound events (`Sounds`, `Get`, `TryGet`), the buses (`Buses`, `Master`, `GetBus`, `TryGetBus`), the decoded variants (`TryGetClip`, `CompleteDecoding`), and the streams (`OpenStream`). |
+| `ISoundRegistry` | The sound events (`Sounds`, `Get`, `TryGet`), the buses (`Buses`, `Master`, `GetBus`, `TryGetBus`), the decoded variants (`TryGetClip`, `CompleteDecoding`), and the streams (`OpenStream`, from the start or from a frame). |
+| `IAudioSystem` | Playback: `Play`, `PlayAt`, `PlayAttached`, the listener (`ClaimListener`), the emitters (`CreateEmitter`), the volumes of the buses (`GetBusVolume`, `SetBusVolume`, `GetEffectiveVolume`, `IsPaused`, `SaveBusVolumes`), the processors (`AddProcessor`), the reverberation buses (`CreateReverbBus`), the device (`IsActive`, `BackendName`, `Capabilities`, `RealVoiceLimit`), and the counts of the last frame (`Statistics`). |
+| `SoundInstance` | The handle of one play, a value: `IsActive`, `IsReal`, `SetVolume`, `FadeTo`, `SetPitch`, `SetPosition`, `Stop`. |
+| `AudioListener` | The listener: `Move`, `Teleport`; dispose it to give it back. |
+| `ISoundAnchor` | What a sound or an emitter follows: an entity, a moving grid. |
+| `SoundEmitter`, `EmitterRepeat` | A persistent emitter, in a loop or at random intervals: `Volume`, `Pitch`, `IsActive`, `SetPosition`, `Suspend`, `Resume`. |
+| `IEmissionProcessor`, `EmissionContext`, `EmissionParameters`, `AudioRegistration` | The chain of emission processors. |
+| `ReverbBus`, `ReverbParameters` | A reverberation bus and its neutral parameters. |
+| `IAudioBackends`, `IAudioBackend`, `AudioDevice`, `AudioDeviceOptions`, `AudioCapabilities`, `AudioFeatures`, `AudioBuffer`, `VoiceParameters`, `ListenerParameters`, `HrtfMode` | The interface of a backend, for the extensions that provide one. |
+| `AudioSettings` | The names of the configuration keys. |
 | `SoundEvent` | A sound event: its numeric `Index`, its bus, its volume and pitch (`SoundRange`), its spatial settings (`SoundSpatial`, `SoundRolloff`), its priority (`SoundPriority`), its limit of instances, whether it loops and streams, its variants, and the weighted draw `PickVariant`. |
 | `SoundVariant` | One file of an event: its weight, its own volume and pitch factors, its channels, its sample rate, and its length. |
 | `AudioBus` | A bus: its index, its parent and children, whether the player adjusts it, and the i18n key of its name. |
@@ -61,9 +95,11 @@ Vorbis; neither the toolkit nor its native library reaches a game.
 | `AudioLoadException`, `AudioProblem` | Why the sounds or the buses cannot be loaded. |
 | `AudioModule` | The identifier of the module, the type prefixes `sound` and `bus`, and the identifier of the master bus. |
 
-Resolve the registry with `context.Resolve<ISoundRegistry>()`, from the
-initialization of a module that depends on `nobara.audio`, and call it on the
-loop thread of the context.
+Resolve the services with `context.Resolve<ISoundRegistry>()` and
+`context.Resolve<IAudioSystem>()`, from the initialization of a module that
+depends on `nobara.audio`, and call them on the loop thread of the context.
+The guide [Play a sound](../../docs/guides/play-a-sound.md) walks through
+them.
 
 ### Sound events
 
@@ -133,6 +169,112 @@ A looping stream goes back to the start of the file inside a block, with no
 gap. A stream that does not loop marks its last block with `IsLast`.
 Samples are interleaved 16-bit integers, left then right for stereo.
 
+### Playing sounds
+
+A play returns a `SoundInstance`, a handle that the caller may ignore. The
+play starts in the phase `Render` of the frame, after the ticks: nAudio draws
+the variant, the volume, and the pitch from a seed, gives the play a voice,
+and computes its gain from the volume of the event, the volume of the play,
+the buses, the attenuation by distance, and the emission processors.
+
+- `Play` plays without position, for the interface. A spatial event plays as
+  it is too.
+- `PlayAt` plays at a position; `SoundInstance.SetPosition` moves it.
+- `PlayAttached` follows an anchor, at an offset in the frame of the anchor,
+  and stops when the anchor has no transform any more.
+
+A sound that does not loop ends at the end of its file. `Stop` ends a play at
+once or with a fade; `FadeTo` moves its volume over a time. A handle is
+revoked when its play ends, by itself or not: every call on it then does
+nothing.
+
+### Voices
+
+Every play is a voice. The device mixes a limited number of them, at most
+`audio.realVoices`: at each frame, nAudio gives them to the voices that
+matter most, by priority of the event, then by gain, then by age. A voice
+already real counts 1.25 times its gain, so that two close voices do not
+swap at each frame. The other voices are virtual: they go on in time without
+being heard, and a looping one resumes at the point it reached when it is
+heard again. A voice whose gain is under 0.001 (about -60 dB), out of the
+range of its event, or not decoded yet, stays virtual.
+
+The most instances of an event that play at once is its `<MaxInstances>`, or
+`audio.maxInstances` when the event gives none. Over the limit, the weakest
+instance ends, be it the new one: a louder play replaces the weakest, and a
+weaker one is ignored.
+
+### Positions and the listener
+
+The module that owns the camera claims the listener and moves it at every
+tick, with the rules of the render world: the first `Move` of a tick makes
+the pose heard until then the previous pose, and nAudio hears the listener
+and the sounds between their two poses, by the fraction of tick of the frame.
+`Teleport` is not interpolated. Velocities, for the Doppler effect, come from
+the moves of the last tick.
+
+Every position is subtracted from the position of the listener in double
+precision before anything reaches the device: a device receives positions
+relative to the listener, never farther than the range of the sound, however
+far the listener is from the origin of the world. Without a listener, no
+spatial sound is heard.
+
+The gain of a spatial sound is 1 up to its reference distance, then falls
+with its rolloff: `Inverse` (reference / distance), `Linear` (to 0 at the
+maximum distance), or `Exponential` (the square of reference / distance). Over
+the last tenth of its range, the gain fades to 0, so that a sound does not
+cut at its maximum distance. nAudio computes the gain itself; a backend
+applies no distance model of its own.
+
+### Buses and pause
+
+The volume of an adjustable bus, from 0 to 1, multiplies the volumes of the
+buses below it. `SetBusVolume` changes it from the next frame;
+`SaveBusVolumes` writes the volumes that differ from 1 to
+[`config/audio.xml`](../../docs/reference/formats/audio-config.md), which
+nAudio reads when it initializes.
+
+While nGame pauses the game, the sounds of every bus but `ui`, `music`, and
+the buses below them pause where they are, and their emitters wait.
+
+### Emitters
+
+A persistent emitter plays its event at a position or on an anchor, in a loop
+or again after a random time between two bounds. It is created once and
+changed while it lives. A looping emitter keeps one voice, virtual when it is
+not heard; a repeating emitter skips the plays it would not be heard at.
+`IsActive` follows the state of what it belongs to; `Suspend` and `Resume`
+follow the life of what holds it, such as a chunk that unloads and loads
+again.
+
+### Emission processors and reverberation
+
+A module adds an emission processor to change every voice from the world
+around it: a factor of its gain, the cutoff of a low-pass filter, and the
+level of a send to a reverberation bus. The chain runs at every frame for
+every voice, in the order of registration; nAudio smooths what it produces
+with a time constant of 50 ms before it reaches the device. A processor that
+needs a feature the device lacks is disabled, with a warning. The chain is
+empty in nAudio itself.
+
+A reverberation bus is an effect with neutral parameters (decay, delay and
+gain of the first reflections, density, diffusion, gain), changed while the
+game runs and smoothed in the same way. It is unavailable, with a warning,
+when the device has no effects or no free slot. nAudio provides no preset:
+the module that knows the space around the listener sets them. The send of a
+voice is taken after its gain, so the volumes of the buses apply to its
+reverberation too.
+
+### Backends
+
+A backend module registers its `IAudioBackend` with `IAudioBackends` during
+its initialization. When it starts, nAudio takes the backend that
+`audio.backend` names, or the first one registered, and opens its device. A
+client without any backend stops at start; a device that cannot open is
+logged as an error, and the game runs without sound. A backend receives only
+neutral types: final gains, positions relative to the listener, cutoffs in
+hertz, and reverberation parameters in seconds and factors.
+
 ## Events
 
 None.
@@ -140,8 +282,20 @@ None.
 ## Configuration
 
 <!-- nobara:generated:begin configuration -->
-None.
+| Key | Scope | Type | Default | Values | Side |
+| --- | --- | --- | --- | --- | --- |
+| `audio.backend` | user | string | `auto` |  | client |
+| `audio.hrtf` | user | enum | `auto` | `auto`, `on`, `off` | client |
+| `audio.maxInstances` | distribution | int | `32` | 0 to … | client |
+| `audio.realVoices` | distribution | int | `64` | 1 to 4096 | client |
 <!-- nobara:generated:end -->
+
+| Key | Effect |
+| --- | --- |
+| `audio.backend` | The name of the audio backend, or `auto` for the first one registered. An unknown name takes the first one, with a warning. A change applies at the next start. |
+| `audio.hrtf` | `auto` (the backend decides, usually on with headphones), `on`, or `off`: whether the backend filters sounds by direction. A change applies at once. |
+| `audio.realVoices` | The most voices of the device used at once, within what the device has. Read at start. |
+| `audio.maxInstances` | The most instances of an event that gives no `<MaxInstances>`; 0 for no limit. Read at start. |
 
 ## Resources
 
@@ -170,8 +324,16 @@ with a warning and take effect at the next start.
 
 ## Constraints
 
-- Call the registry and the streams on the loop thread of the context, from
-  the initialization of nAudio on.
+- Call the services, the handles, and the streams on the loop thread of the
+  context, from the initialization of nAudio on. Nothing reaches the device
+  outside the phase `Render`.
+- An exception thrown by an emission processor is charged to the module that
+  registered it, and one thrown by an anchor to the module of its code; the
+  sound of a failed anchor ends, and the other voices go on. The processors,
+  emitters, and reverberation buses of a disabled module no longer run.
+- Once its voices, buffers, and emitters exist, a frame of nAudio allocates no
+  managed memory (checked by a test); a play may grow the pool of voices
+  once, and a voice that becomes real opens its stream or creates its buffer.
 - A stream takes and gives back its blocks without managed allocation of
   its own; NVorbis allocates while it decodes (see the known limitations).
 - A server decodes nothing: `TryGetClip` is false and `OpenStream` throws.
@@ -181,9 +343,19 @@ with a warning and take effect at the next start.
 
 ## Known limitations
 
-- Nothing plays: no voices, mixing, bus volumes, spatialization, playback
-  API, emitters, or audio backend yet. A client distribution still needs an
-  active backend of `nobara.audio`.
+- No backend ships in this module: a client distribution needs a backend
+  extension of `nobara.audio`.
+- One listener per client: no split screen.
+- The server sends no sound to its clients, and a client does not play
+  ahead the sounds of its own actions for a server: both come with the
+  network.
+- An anchor that teleports is interpolated across the jump, during one tick.
+  When several ticks run in a frame, the previous position is that of the
+  previous frame, not of the tick before the last one, as in the render world.
+- The buffers of the variants that hot reload replaces stay on the device
+  until the game stops.
+- A play whose variant is still decoding stays virtual until the decoding
+  ends.
 - NVorbis 0.10.5 allocates managed memory while it decodes, about 5 bytes per
   decoded sample, and about 70 KB each time a looping stream goes back to its
   start. The allocations are short-lived and made by background jobs.

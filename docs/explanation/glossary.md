@@ -383,6 +383,14 @@ lighting](voxel-lighting.md#dynamic-light-sources).
 Code that a module registers to run before a context stops on an error, such
 as an emergency save of the world.
 
+### Emission processor
+
+A link of the chain of nAudio through which a module changes every voice from
+the world around it: a factor of its gain, the cutoff of a low-pass filter,
+and the level of a send to a [reverberation bus](#reverberation-bus). nAudio
+smooths what the chain produces. See [the voices of
+nAudio](audio-voices.md#emission-processors).
+
 ### Entity
 
 An object of the game world in the entity component system, identified by
@@ -733,6 +741,12 @@ A point of interest of nLighting, such as the camera of a client: when the
 tick, the chunks nearest the points of interest are lit first. See [voxel
 lighting](voxel-lighting.md#a-budget-per-tick).
 
+### Listener
+
+The ears of the player in nAudio: one per client, claimed and moved at every
+tick by the module that owns the camera. Every position is heard relative to
+it. See [the voices of nAudio](audio-voices.md#the-listener).
+
 ### Loading task
 
 A share of the work that a world session waits for before it is active,
@@ -832,8 +846,9 @@ modules compiled into the executable.
 ### nAudio
 
 The audio module: the resource types `Sound` and `Bus`, the tree of buses,
-and the decoding of sounds on the client. See
-[its module sheet](../../src/nAudio/README.md).
+the decoding of sounds on the client, and their playback through the
+neutral API of its backends: voices, the listener, emitters, and emission
+processors. See [its module sheet](../../src/nAudio/README.md).
 
 ### nBlocks
 
@@ -964,6 +979,13 @@ hierarchy, and what happens to it when the parent is destroyed. The child is
 placed relative to its parent, and its world transform follows. See [the
 nEntity module sheet](../../src/nEntity/README.md#hierarchy).
 
+### Persistent emitter
+
+A sound that a place or an object of the world keeps playing, in a loop or at
+random intervals, such as a machine or a waterfall: created once, changed
+while it lives, suspended and resumed with what holds it. See [the module
+sheet of nAudio](../../src/nAudio/README.md#emitters).
+
 ### Phase
 
 A named part of the loop of a context, such as input, simulation, or
@@ -1029,6 +1051,12 @@ A key, mouse button, mouse movement, wheel movement, or typed text, as the
 window backend received it, before any interpretation. [nFrames](#nframes)
 hands the raw input events of each frame to the input module. See [its
 module sheet](../../src/nFrames/README.md#raw-input).
+
+### Real voice
+
+A [voice](#voice) that holds a voice of the audio device and is heard. The
+device mixes a limited number of them; nAudio gives them to the voices that
+matter most at each frame.
 
 ### Reload handler
 
@@ -1115,6 +1143,13 @@ A kind of resource, such as `Block`, defined by a message of a `.proto`
 schema marked with `(nobara.resource_type)`. See [the schema options
 reference](../reference/formats/proto-options.md).
 
+### Reverberation bus
+
+An effect of nAudio that voices send part of their signal to, with neutral
+parameters (decay, reflections, density, diffusion, gain) that a module
+changes while the game runs. See [the voices of
+nAudio](audio-voices.md#emission-processors).
+
 ### Reversed depth
 
 A depth buffer where the near plane has depth 1 and the far plane depth 0.
@@ -1188,6 +1223,13 @@ The light of each corner of a face of a cube, averaged from the cells around
 the corner instead of taken from the one cell in front of the face, so that
 light fades across faces instead of in steps. See [the meshing of
 chunks](chunk-meshing.md#smooth-light).
+
+### Sound anchor
+
+What a sound or a [persistent emitter](#persistent-emitter) of nAudio
+follows, such as an entity or a moving grid: an object that gives its
+transform in the world while it exists. A sound attached to it stops when it
+is gone.
 
 ### Sound event
 
@@ -1334,6 +1376,12 @@ One file of a [sound event](#sound-event), with its weight in the draw and
 its own volume and pitch factors. The event draws one variant each time it
 plays; the same seed draws the same variant.
 
+### Virtual voice
+
+A [voice](#voice) that has no voice of the audio device: it goes on in time
+without being heard, and becomes a [real voice](#real-voice) again when it
+matters enough. See [the voices of nAudio](audio-voices.md#real-and-virtual-voices).
+
 ### Visibility graph
 
 The search, from the chunk of the camera, across the faces of chunks: it
@@ -1353,6 +1401,12 @@ What nRenderer draws a frame of: a camera, a target (the screen or a
 texture), a viewport in that target, and the [render
 pipeline](#render-pipeline) that draws it. See [the nRenderer module
 sheet](../../src/nRenderer/README.md#views-and-cameras).
+
+### Voice
+
+One play of a [sound event](#sound-event) in nAudio, from its start to its
+end: real when the audio device mixes it, virtual otherwise. A
+`SoundInstance` is the handle of one voice.
 
 ### Window
 

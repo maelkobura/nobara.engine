@@ -121,5 +121,4 @@ encoded again. Check the diagnostics:
 From its initialization, a module that depends on nAudio finds the events in
 the registry, `ISoundRegistry`, by identifier; their `Index` is the same on
 every side. See [the sound events](../../src/nAudio/README.md#sound-events)
-in the module sheet. nAudio does not play sounds yet; see the known limitations of
-[its module sheet](../../src/nAudio/README.md#known-limitations).
+in the module sheet. To play them, see [Play a sound](play-a-sound.md).

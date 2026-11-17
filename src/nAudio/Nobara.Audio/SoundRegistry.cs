@@ -146,7 +146,9 @@ internal sealed class SoundRegistry : ISoundRegistry
         }
     }
 
-    public SoundStream OpenStream(SoundVariant variant, bool loop)
+    public SoundStream OpenStream(SoundVariant variant, bool loop) => OpenStream(variant, loop, 0);
+
+    public SoundStream OpenStream(SoundVariant variant, bool loop, long startFrame)
     {
         ArgumentNullException.ThrowIfNull(variant);
         RequireFrozen();
@@ -155,7 +157,7 @@ internal sealed class SoundRegistry : ISoundRegistry
             throw new InvalidOperationException("A server decodes no sound: only a client opens streams.");
         }
 
-        return new SoundStream(_jobs, variant, loop);
+        return new SoundStream(_jobs, variant, loop, startFrame);
     }
 
     /// <summary>Builds the tree of buses and numbers the sounds, then starts decoding on a client.</summary>

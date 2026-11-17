@@ -55,7 +55,7 @@ public sealed class RegistryTests : IDisposable
         ISoundRegistry sounds = _harness.Sounds;
 
         Assert.Equal(
-            ["sound:example.sounds.click", "sound:example.sounds.music", "sound:example.sounds.step", "sound:example.sounds.wind"],
+            ["sound:example.sounds.click", "sound:example.sounds.hum", "sound:example.sounds.music", "sound:example.sounds.pop", "sound:example.sounds.step", "sound:example.sounds.wind"],
             sounds.Sounds.Select(s => s.ObjectId));
         Assert.All(sounds.Sounds, s => Assert.Same(s, sounds.Sounds[s.Index]));
 
@@ -140,7 +140,7 @@ public sealed class RegistryTests : IDisposable
         ISoundRegistry sounds = _harness.Sounds;
 
         Assert.False(sounds.Decodes);
-        Assert.Equal(4, sounds.Sounds.Count);
+        Assert.Equal(6, sounds.Sounds.Count);
         Assert.Equal(0, ((SoundRegistry)sounds).PendingCount);
         Assert.False(sounds.TryGetClip(sounds.Get("sound:example.sounds.click").Variants[0], out _));
         Assert.Throws<InvalidOperationException>(() => sounds.OpenStream(sounds.Get("sound:example.sounds.music").Variants[0], loop: false));

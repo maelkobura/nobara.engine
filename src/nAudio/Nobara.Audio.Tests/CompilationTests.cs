@@ -49,7 +49,7 @@ public sealed class CompilationTests : IDisposable
         CompilationResult result = AudioHarness.Compiled(_resources);
 
         Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Warning);
-        Assert.Equal(4, result.Bundle!.Resources.Count(r => r.Type == "sound"));
+        Assert.Equal(6, result.Bundle!.Resources.Count(r => r.Type == "sound"));
         Assert.Contains(result.Bundle.Resources, r => r.ObjectId == "bus:example.sounds.machines");
         Dictionary<string, byte[]> files = AudioHarness.Files(result);
 
