@@ -105,12 +105,30 @@ internal sealed partial class AudioMixer
         }
     }
 
+    /// <summary>Reads an anchor; an exception of its code is charged to the module closest to it, and the anchor counts as gone.</summary>
+    private bool ReadAnchor(ISoundAnchor anchor, out WorldTransform transform)
+    {
+        try
+        {
+            return anchor.TryGetTransform(out transform);
+        }
+        catch (Exception exception) when (exception is not EngineStopException)
+        {
+            _context.ReportFault(exception);
+            transform = default;
+            return false;
+        }
+    }
+
+    /// <summary>Gets whether the module of a registration still runs: a disabled module plays nothing.</summary>
+    private static bool IsRunning(ModuleContext module) => module.IsModuleActive(module.Module.Id);
+
     private void UpdateEmitters(float delta, bool newTick, bool hasListener, in WorldPosition listener)
     {
         for (int i = 0; i < _emitters.Count; i++)
         {
             SoundEmitter emitter = _emitters[i];
-            bool wanted = emitter.IsActive && !emitter.IsSuspended;
+            bool wanted = emitter.IsActive && !emitter.IsSuspended && IsRunning(emitter.Module);
             SoundInstance playing = emitter.Playing;
             if (!wanted)
             {
@@ -183,7 +201,7 @@ internal sealed partial class AudioMixer
         return instance;
     }
 
-    private static bool EmitterPosition(SoundEmitter emitter, out WorldPosition position)
+    private bool EmitterPosition(SoundEmitter emitter, out WorldPosition position)
     {
         if (emitter.Anchor is null)
         {
@@ -191,7 +209,7 @@ internal sealed partial class AudioMixer
             return true;
         }
 
-        if (emitter.Anchor.TryGetTransform(out WorldTransform transform))
+        if (ReadAnchor(emitter.Anchor, out WorldTransform transform))
         {
             position = transform.TransformPoint(emitter.Offset);
             return true;
@@ -228,7 +246,7 @@ internal sealed partial class AudioMixer
 
         if (voice.Placement == Placement.Anchor && (newTick || !voice.AnchorSampled))
         {
-            if (!voice.Anchor!.TryGetTransform(out WorldTransform transform))
+            if (!ReadAnchor(voice.Anchor!, out WorldTransform transform))
             {
                 End(slot);
                 return;
@@ -301,10 +319,23 @@ internal sealed partial class AudioMixer
             for (int i = 0; i < _processors.Count; i++)
             {
                 ProcessorEntry entry = _processors[i];
-                if (!entry.Disabled)
+                if (!entry.Disabled && IsRunning(entry.Registration.Module))
                 {
-                    entry.Processor.Process(_emission, ref emission);
+                    try
+                    {
+                        entry.Processor.Process(_emission, ref emission);
+                    }
+                    catch (Exception exception) when (exception is not EngineStopException)
+                    {
+                        entry.Registration.Module.ReportFault(exception);
+                    }
                 }
+            }
+
+            // A reverberation bus of a disabled module takes no send.
+            if (emission.Reverb is { } reverb && !IsRunning(reverb.Module))
+            {
+                emission.Reverb = null;
             }
         }
 
@@ -636,7 +667,7 @@ internal sealed partial class AudioMixer
         for (int i = 0; i < _reverbs.Count; i++)
         {
             ReverbBus reverb = _reverbs[i];
-            if (reverb.Slot < 0 || !reverb.Changed)
+            if (reverb.Slot < 0 || !reverb.Changed || !IsRunning(reverb.Module))
             {
                 continue;
             }

@@ -108,7 +108,9 @@ public sealed class BackendTests : IDisposable
         instance.SetVolume(0.5f);
         instance.Stop();
         using SoundEmitter emitter = audio.CreateEmitter(_harness.Probe.Context, pop, default);
+        audio.SaveBusVolumes();
         engine.MainContext.RunFrame();
+        Assert.False(File.Exists(audio.VolumesFilePath));
         Assert.DoesNotContain(_harness.Log.Entries, e => e.Level >= LogLevel.Warning);
     }
 

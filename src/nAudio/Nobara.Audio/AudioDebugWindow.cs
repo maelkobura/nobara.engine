@@ -12,14 +12,15 @@ using Nobara.Renderer;
 namespace Nobara.Audio;
 
 /// <summary>
-/// The only place where nAudio uses nDebug and nRenderer, its optional
-/// dependencies: the "Audio" tool window, which shows the device, the voices
+/// The only place where nAudio uses nDebug, nRenderer, and nGraphics, its
+/// optional dependencies: the "Audio" tool window, which shows the device, the voices
 /// with their scores, the volumes of the buses (adjustable), the emitters, the
 /// reverberation buses, and the processors; and, when nRenderer is present,
 /// the drawing of the sounds in the world.
 /// </summary>
 [UsesOptionalDependency(DebugModuleId)]
 [UsesOptionalDependency(RendererModuleId)]
+[UsesOptionalDependency(GraphicsModuleId)]
 internal sealed class AudioDebugWindow : IDisposable
 {
     /// <summary>The identifier of nDebug.</summary>
@@ -27,6 +28,9 @@ internal sealed class AudioDebugWindow : IDisposable
 
     /// <summary>The identifier of nRenderer.</summary>
     public const string RendererModuleId = "nobara.renderer";
+
+    /// <summary>The identifier of nGraphics, whose colors the drawing uses.</summary>
+    public const string GraphicsModuleId = "nobara.graphics";
 
     private const int ListedVoices = 64;
 

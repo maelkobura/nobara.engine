@@ -205,6 +205,7 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
         _defaultMaxInstances = _context.Settings.GetInt(AudioSettings.MaxInstances);
         _realOwner = new int[_realLimit];
         _realWanted = new bool[_realLimit];
+        _pendingStops.Capacity = _realLimit;
         Array.Fill(_realOwner, -1);
         _reverbSlotUsed = new bool[Math.Max(0, capabilities.MaxReverbSlots)];
         foreach (ReverbBus reverb in _reverbs)
@@ -324,12 +325,8 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
 
     public void SaveBusVolumes()
     {
-        if (_volumes is null)
-        {
-            throw new InvalidOperationException("Only a client keeps the volumes of the player.");
-        }
-
-        _volumes.Save(_sounds, _busVolume);
+        // A server keeps no volumes of the player: nothing to write.
+        _volumes?.Save(_sounds, _busVolume);
     }
 
     public AudioRegistration AddProcessor(ModuleContext module, IEmissionProcessor processor)

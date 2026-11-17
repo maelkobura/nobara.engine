@@ -9,6 +9,7 @@ using Nobara.Core;
 using Nobara.Core.Logging;
 using Nobara.Core.Mathematics;
 using Nobara.Game;
+using F = Nobara.Formats;
 
 namespace Nobara.Audio.Tests;
 
@@ -165,6 +166,46 @@ public sealed class MixingTests : IDisposable
     }
 
     [Fact]
+    public void ChargesAProcessorThatThrowsToItsModuleAndGoesOn()
+    {
+        _harness.GamePolicy = F.Policy.Log;
+        using Engine engine = Start(out _);
+        var processor = new TestProcessor { Throws = true };
+        using AudioRegistration registration = _harness.System.AddProcessor(_harness.Probe.Context, processor);
+        SoundInstance hum = _harness.System.PlayAt(_harness.Sounds.Get("sound:example.sounds.hum"), WorldPosition.FromBlocks(1, 0, 0));
+        _harness.Frames(engine, 3);
+
+        Assert.Equal(3, processor.Calls);
+        Assert.True(hum.IsReal);
+        Assert.Equal(1f, Voice(hum).Parameters.Gain, 1e-4f);
+        Assert.Contains(_harness.Log.Entries, e => e.Level == LogLevel.Error && e.Message.Contains(AudioHarness.Game) && e.ToString().Contains("the processor failed"));
+    }
+
+    [Fact]
+    public void PlaysNothingForAModuleOnceItIsDisabled()
+    {
+        _harness.GamePolicy = F.Policy.Disable;
+        using Engine engine = Start(out _);
+        ModuleContext game = _harness.Probe.Context;
+        var processor = new TestProcessor { Gain = 0.5f };
+        using AudioRegistration registration = _harness.System.AddProcessor(game, processor);
+        using SoundEmitter emitter = _harness.System.CreateEmitter(game, _harness.Sounds.Get("sound:example.sounds.hum"), WorldPosition.FromBlocks(2, 0, 0));
+        _harness.Frames(engine, 1);
+        Assert.True(emitter.Playing.IsReal);
+
+        // The processor throws: the policy disables its module, whose processor and emitter stop.
+        processor.Throws = true;
+        _harness.Frames(engine, 2);
+        int calls = processor.Calls;
+        _harness.Frames(engine, 2);
+
+        Assert.False(engine.MainContext.IsModuleActive(AudioHarness.Game));
+        Assert.Equal(calls, processor.Calls);
+        Assert.False(emitter.Playing.IsActive);
+        Assert.Empty(_harness.Device.Playing);
+    }
+
+    [Fact]
     public void SmoothsTheParametersOfAReverberationBusAndFreesItsSlot()
     {
         using Engine engine = Start(out _);
@@ -282,7 +323,7 @@ public sealed class MixingTests : IDisposable
 
         audio.PlayAttached(hum, anchor);
         using SoundEmitter loop = audio.CreateEmitter(_harness.Probe.Context, hum, WorldPosition.FromBlocks(5, 0, 0));
-        using SoundEmitter repeat = audio.CreateEmitter(_harness.Probe.Context, sounds.Get("sound:example.sounds.pop"), WorldPosition.FromBlocks(6, 0, 0), EmitterRepeat.Every(10, 20));
+        using SoundEmitter repeat = audio.CreateEmitter(_harness.Probe.Context, sounds.Get("sound:example.sounds.pop"), WorldPosition.FromBlocks(6, 0, 0), EmitterRepeat.Every(0.2f, 0.4f));
         _harness.Frames(engine, 120);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
@@ -334,8 +375,18 @@ public sealed class MixingTests : IDisposable
 
         public SoundEvent? Seen { get; private set; }
 
+        public bool Throws { get; set; }
+
+        public int Calls { get; private set; }
+
         public void Process(EmissionContext context, ref EmissionParameters parameters)
         {
+            Calls++;
+            if (Throws)
+            {
+                throw new InvalidOperationException("the processor failed");
+            }
+
             Seen = context.Sound;
             parameters.Gain *= Gain;
             parameters.LowPassCutoff = Math.Min(parameters.LowPassCutoff, Cutoff);

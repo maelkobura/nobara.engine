@@ -53,6 +53,7 @@ the same way, but decodes nothing, needs no backend, and plays nothing: its
 | --- | --- | --- |
 | `nobara.debug` | `^1.0` | Optional |
 | `nobara.game` | `^1.0` | Optional |
+| `nobara.graphics` | `^1.0` | Optional |
 | `nobara.renderer` | `^1.0` | Optional |
 
 Third-party libraries: `NVorbis` 0.10.5.
@@ -68,8 +69,9 @@ Each optional dependency is used by one isolation class:
 - nGame (`GamePause`): the pause of the game pauses the sounds of the world;
   without nGame, nothing pauses.
 - nDebug (`AudioDebugWindow`): the "Audio" tool window.
-- nRenderer, with nDebug: the same window draws the sounds in the world with
-  the debug drawing of nRenderer.
+- nRenderer and nGraphics, with nDebug: the same window draws the sounds in
+  the world with the debug drawing of nRenderer, while the window shows and
+  the engine runs in development mode.
 
 ## Entry points
 
@@ -325,6 +327,10 @@ with a warning and take effect at the next start.
 - Call the services, the handles, and the streams on the loop thread of the
   context, from the initialization of nAudio on. Nothing reaches the device
   outside the phase `Render`.
+- An exception thrown by an emission processor is charged to the module that
+  registered it, and one thrown by an anchor to the module of its code; the
+  sound of a failed anchor ends, and the other voices go on. The processors,
+  emitters, and reverberation buses of a disabled module no longer run.
 - Once its voices, buffers, and emitters exist, a frame of nAudio allocates no
   managed memory (checked by a test); a play may grow the pool of voices
   once, and a voice that becomes real opens its stream or creates its buffer.

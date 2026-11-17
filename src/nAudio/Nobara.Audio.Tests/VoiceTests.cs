@@ -202,6 +202,24 @@ public sealed class VoiceTests : IDisposable
     }
 
     [Fact]
+    public void EndsASoundWhoseAnchorThrowsAndLogsTheError()
+    {
+        _harness.GamePolicy = Nobara.Formats.Policy.Log;
+        using Engine engine = Start(out _);
+        var platform = new Platform(At(4, 0, 0));
+        SoundInstance instance = _harness.System.PlayAttached(_harness.Sounds.Get("sound:example.sounds.hum"), platform);
+        _harness.Frames(engine, 1);
+        Assert.True(instance.IsReal);
+
+        platform.Throws = true;
+        RunToTick(engine);
+
+        Assert.False(instance.IsActive);
+        Assert.Empty(_harness.Device.Playing);
+        Assert.Contains(_harness.Log.Entries, e => e.Level == Nobara.Core.Logging.LogLevel.Error && e.Message.Contains(AudioHarness.Game) && e.ToString().Contains("the anchor failed"));
+    }
+
+    [Fact]
     public void RevokesTheHandleOfAStoppedSoundAndIgnoresItsCalls()
     {
         using Engine engine = Start(out _);
@@ -332,8 +350,15 @@ public sealed class VoiceTests : IDisposable
     {
         public bool Destroyed { get; set; }
 
+        public bool Throws { get; set; }
+
         public bool TryGetTransform(out WorldTransform transform)
         {
+            if (Throws)
+            {
+                throw new InvalidOperationException("the anchor failed");
+            }
+
             transform = WorldTransform.At(position);
             return !Destroyed;
         }

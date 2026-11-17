@@ -79,7 +79,7 @@ public interface IAudioSystem
 
     /// <summary>Plays a sound that follows an anchor, such as an entity or a moving grid, and stops when the anchor is gone.</summary>
     /// <param name="sound">The event.</param>
-    /// <param name="anchor">The anchor.</param>
+    /// <param name="anchor">The anchor. An exception of its code is charged to its module, and ends the sound as if the anchor were gone.</param>
     /// <param name="offset">The position in the frame of the anchor, in blocks.</param>
     /// <param name="volume">A factor of the volume of the event, from 0.</param>
     /// <param name="pitch">A factor of the pitch of the event, greater than 0.</param>
@@ -125,11 +125,11 @@ public interface IAudioSystem
     /// <returns><see langword="true"/> when its sounds wait.</returns>
     bool IsPaused(AudioBus bus);
 
-    /// <summary>Writes the volumes that differ from 1 to <c>config/audio.xml</c>, atomically.</summary>
+    /// <summary>Writes the volumes that differ from 1 to <c>config/audio.xml</c>, atomically; on a server, does nothing.</summary>
     void SaveBusVolumes();
 
     /// <summary>Registers an emission processor at the end of the chain.</summary>
-    /// <param name="module">The module of the processor, charged with its exceptions.</param>
+    /// <param name="module">The module of the processor, charged with its exceptions; the processor does not run while the module is disabled.</param>
     /// <param name="processor">The processor.</param>
     /// <returns>A handle that removes the processor.</returns>
     AudioRegistration AddProcessor(ModuleContext module, IEmissionProcessor processor);

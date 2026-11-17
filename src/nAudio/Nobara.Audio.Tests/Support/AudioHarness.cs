@@ -40,6 +40,12 @@ internal sealed class AudioHarness : IDisposable
     /// <summary>Gets the scratch folder of the data folders.</summary>
     public string Root { get; }
 
+    /// <summary>Gets or sets the error policy of the distribution; <c>stop</c> by default.</summary>
+    public F.Policy Policy { get; set; } = F.Policy.Stop;
+
+    /// <summary>Gets or sets the error policy of the game module, or <see langword="null"/> for that of the distribution.</summary>
+    public F.Policy? GamePolicy { get; set; }
+
     /// <summary>Gets or sets whether the engine runs in development mode, which reloads resources.</summary>
     public bool DevelopmentMode { get; set; }
 
@@ -162,8 +168,13 @@ internal sealed class AudioHarness : IDisposable
             Id = "example",
             Name = "Example",
             Version = "0.1.0",
-            ErrorPolicy = new F.ErrorPolicy { DefaultPolicy = F.Policy.Stop },
+            ErrorPolicy = new F.ErrorPolicy { DefaultPolicy = Policy },
         };
+        if (GamePolicy is { } policy)
+        {
+            distribution.ErrorPolicy.Modules.Add(new F.ModulePolicy { Module = Game, Policy = policy });
+        }
+
         distribution.Settings.AddRange(_settings);
         string[] modules = side == Side.Client ? [GameModuleId, AudioModule.ModuleId, Backend, Game] : [GameModuleId, AudioModule.ModuleId, Game];
         foreach (string id in modules)
@@ -263,7 +274,8 @@ internal sealed class AudioHarness : IDisposable
             AudioModule.ModuleId => new LoadedModule(typeof(AudioModule).Assembly, () => new AudioModule()),
             GameModuleId => new LoadedModule(typeof(GameModule).Assembly, () => new GameModule()),
             Backend => new LoadedModule(null, () => new BackendModule(harness)),
-            _ => new LoadedModule(null, () => harness.Probe = new Probe(), harness.OpenGameResource),
+            // The code of the tests is the code of the game module: an exception it throws is charged to it.
+            _ => new LoadedModule(typeof(Probe).Assembly, () => harness.Probe = new Probe(), harness.OpenGameResource),
         };
     }
 

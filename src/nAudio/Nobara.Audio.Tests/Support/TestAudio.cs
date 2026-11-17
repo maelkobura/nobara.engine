@@ -75,7 +75,11 @@ internal sealed class TestAudioDevice(AudioCapabilities capabilities, HrtfMode h
 
     public override void Play(int voice, AudioBuffer buffer, bool loop, int startFrame)
     {
-        Assert.False(Voices[voice].Playing, $"voice {voice} plays already");
+        if (Voices[voice].Playing)
+        {
+            Assert.Fail($"voice {voice} plays already");
+        }
+
         Assert.True(_bufferFrames.ContainsKey(buffer.Id));
         TestVoice v = Voices[voice];
         (v.Playing, v.Buffer, v.Loop, v.StartFrame, v.Paused, v.Plays) = (true, buffer, loop, startFrame, false, v.Plays + 1);
