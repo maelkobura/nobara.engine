@@ -173,7 +173,7 @@ public sealed class SdkBuildTests : IDisposable
 
         Evaluation evaluation = _workspace.Evaluate(voxel, ["NobaraOptionalModules"], ["ProjectReference", "CompilerVisibleProperty"]);
 
-        Assert.Equal("nobara.lighting;nobara.debug", evaluation.Property("NobaraOptionalModules"));
+        Assert.Equal("nobara.lighting,nobara.debug", evaluation.Property("NobaraOptionalModules"));
         Assert.Equal([lighting], Identities(evaluation.Items("ProjectReference")));
         Assert.Contains("NobaraOptionalModules", Identities(evaluation.Items("CompilerVisibleProperty")));
     }
@@ -182,17 +182,26 @@ public sealed class SdkBuildTests : IDisposable
     public void Passes_the_optional_dependencies_to_analyzers_through_the_analyzer_config()
     {
         string lighting = _workspace.WriteModule("Nobara.Lighting", "<Id>nobara.lighting</Id><Version>1.0.0</Version>");
+        string debug = _workspace.WriteModule("Nobara.Debug", "<Id>nobara.debug</Id><Version>1.0.0</Version>");
         string voxel = _workspace.WriteModule(
             "Nobara.Voxel",
-            """<Id>nobara.voxel</Id><Version>1.0.0</Version><Dependencies><Module id="nobara.lighting" version="^1.0" optional="true" /></Dependencies>""",
+            """
+            <Id>nobara.voxel</Id><Version>1.0.0</Version>
+            <Dependencies>
+              <Module id="nobara.lighting" version="^1.0" optional="true" />
+              <Module id="nobara.debug" version="^1.0" optional="true" />
+            </Dependencies>
+            """,
             "namespace Nobara.Voxel; public static class Grid { }");
-        _workspace.MapModules(("nobara.lighting", lighting));
+        _workspace.MapModules(("nobara.lighting", lighting), ("nobara.debug", debug));
 
         DotnetResult result = _workspace.Build(voxel);
 
         Assert.True(result.ExitCode == 0, result.Output);
         string config = Directory.EnumerateFiles(Path.Combine(_workspace.Root, "Nobara.Voxel", "obj"), "*.GeneratedMSBuildEditorConfig.editorconfig", SearchOption.AllDirectories).Single();
-        Assert.Contains("build_property.NobaraOptionalModules = nobara.lighting", File.ReadAllText(config));
+
+        // Every identifier reaches the analyzers: a semicolon would start a comment in this file.
+        Assert.Contains("build_property.NobaraOptionalModules = nobara.lighting,nobara.debug", File.ReadAllText(config));
     }
 
     [Fact]

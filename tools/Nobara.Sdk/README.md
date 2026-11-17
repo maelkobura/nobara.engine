@@ -121,7 +121,7 @@ clone.
 | `NobaraModulesFile` | Nearest `obj/nobara/modules.props` | Path of the module map. Set it in `Directory.Build.props` or on the command line: it is read before the project file body. |
 | `NobaraProjectKind` | `Module` or `Auxiliary`, from the project name | Read only. |
 | `NobaraModuleVersion` | `<Version>` | Read only. |
-| `NobaraOptionalModules` | Identifiers of the optional dependencies, separated by semicolons | Read only. |
+| `NobaraOptionalModules` | Identifiers of the optional dependencies, separated by commas | Read only. |
 | `NobaraEngineAnalyzers` | `true` for modules and `.Scripting` projects, `false` otherwise | Read only. |
 | `NobaraResourcesDirectory` | `Resources` in the project directory | Folder of the resources. |
 | `NobaraProtobufVersion` | `3.33.0` | Version of `Google.Protobuf` added to modules with schemas. |
@@ -136,6 +136,8 @@ An optional dependency is an ordinary reference. The SDK also passes the
 identifiers of the optional dependencies to the C# compiler in the
 `NobaraOptionalModules` build property, which an analyzer reads as
 `build_property.NobaraOptionalModules` in the global analyzer config options.
+The identifiers are separated by commas, since a semicolon starts a comment
+in the analyzer config file that carries the property.
 An analyzer compares an identifier with an assembly name without case. The
 engine analyzers use it to keep the types of an optional dependency inside
 isolation classes (see [NOB401](../../docs/reference/analyzers.md#nob401)).
