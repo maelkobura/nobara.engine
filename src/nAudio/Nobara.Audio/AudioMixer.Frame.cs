@@ -15,13 +15,25 @@ internal sealed partial class AudioMixer
     /// <inheritdoc/>
     public void Run(in PhaseTime time)
     {
+        float delta = (float)time.Delta.TotalSeconds;
+        if (_device is { IsLost: true } lost)
+        {
+            LoseDevice(lost);
+            _reopenWait = 0;
+            _warnedNoOutput = false;
+        }
+
+        if (_lost && _device is null)
+        {
+            Reopen(delta);
+        }
+
         AudioDevice? device = _device;
         if (device is null)
         {
             return;
         }
 
-        float delta = (float)time.Delta.TotalSeconds;
         bool newTick = time.Tick != _lastTick;
         _lastTick = time.Tick;
         _gamePaused = _pause?.Paused ?? false;

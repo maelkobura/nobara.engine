@@ -160,6 +160,14 @@ public abstract class AudioDevice : IDisposable
     /// <summary>Gets whether the device filters by direction now.</summary>
     public abstract bool HrtfEnabled { get; }
 
+    /// <summary>
+    /// Gets whether the device cannot play any more, because it was unplugged,
+    /// or is not the default output any more. nAudio asks once per frame; when
+    /// it is <see langword="true"/>, nAudio disposes the device, makes every
+    /// voice virtual, and opens the default output of the backend again.
+    /// </summary>
+    public virtual bool IsLost => false;
+
     /// <summary>Copies samples to a buffer of the device.</summary>
     /// <param name="samples">Interleaved 16-bit samples.</param>
     /// <param name="channels">1 or 2.</param>
