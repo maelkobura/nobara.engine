@@ -184,7 +184,7 @@ public sealed class SoundStream : IDisposable
     private bool _ended;
     private bool _disposed;
 
-    internal SoundStream(ModuleJobs jobs, SoundVariant variant, bool loop)
+    internal SoundStream(ModuleJobs jobs, SoundVariant variant, bool loop, long startFrame = 0)
     {
         _jobs = jobs;
         Variant = variant;
@@ -195,6 +195,11 @@ public sealed class SoundStream : IDisposable
         }
 
         _work = new StreamWork(OggVorbis.Open(variant.Encoded), ArrayPool<float>.Shared.Rent(BlockFrames * variant.Channels), variant.Channels, variant.Frames, loop);
+        if (startFrame > 0 && startFrame < variant.Frames)
+        {
+            _work.Seek(startFrame);
+        }
+
         Pump();
     }
 
@@ -375,6 +380,13 @@ internal sealed class StreamWork(VorbisReader reader, float[] scratch, int chann
     public Exception? Error { get; private set; }
 
     public long AllocatedBytes { get; private set; }
+
+    /// <summary>Moves to a frame of the file, before the first block decodes.</summary>
+    public void Seek(long frame)
+    {
+        Reader.SamplePosition = frame;
+        _position = frame;
+    }
 
     [HotPath]
     public void Run()

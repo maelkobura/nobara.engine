@@ -68,4 +68,12 @@ public interface ISoundRegistry
     /// <returns>The stream; dispose it.</returns>
     /// <exception cref="InvalidOperationException">The context is a server, which decodes nothing.</exception>
     SoundStream OpenStream(SoundVariant variant, bool loop);
+
+    /// <summary>Opens a stream that starts at a frame of the file, as a sound that went on in time without being heard. Client only.</summary>
+    /// <param name="variant">Any variant.</param>
+    /// <param name="loop">Whether the stream goes back to the start at the end of the file.</param>
+    /// <param name="startFrame">The frame to start from, from 0 to the length of the variant excluded; 0 outside these bounds.</param>
+    /// <returns>The stream; dispose it.</returns>
+    /// <exception cref="InvalidOperationException">The context is a server, which decodes nothing.</exception>
+    SoundStream OpenStream(SoundVariant variant, bool loop, long startFrame);
 }

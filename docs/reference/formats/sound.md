@@ -42,7 +42,7 @@ module `nobara.audio`; a module that writes sounds declares a dependency on
 | `<Pitch>` | No | A factor of the pitch, written like the volume, greater than 0. 1 when absent. |
 | `<Spatial>` | No | Present when the event plays at a position in the world; see below. |
 | `<Priority>` | No | `Low`, `Normal` (default), or `High`: what keeps a real voice when voices run short. |
-| `<MaxInstances>` | No | The most instances of the event that play at once; 0 or absent for no limit. |
+| `<MaxInstances>` | No | The most instances of the event that play at once; 0 or absent for the limit of the distribution, `audio.maxInstances`. Over the limit, the weakest instance ends, be it the new one. |
 | `<Loop>` | No | `true` when the event loops. |
 | `<Stream>` | No | `true` to decode the event in blocks while it plays, for music and long ambiences, instead of once when it loads. |
 | `<Quality>` | No | The Vorbis quality of the WAV and FLAC sources, from `-0.1` to `1`; 0.4 when absent, about 128 kbit/s for stereo at 44.1 kHz. |
