@@ -57,6 +57,10 @@ public sealed class OptionalDependencyAnalyzer : DiagnosticAnalyzer
         });
     }
 
+    // The SDK separates the identifiers with commas: in the analyzer config file that carries the
+    // property, a semicolon starts a comment. Semicolons are accepted too, for a value set by hand.
+    private static readonly char[] Separators = [',', ';'];
+
     private static ImmutableHashSet<string> ReadIdentifiers(AnalyzerOptions options)
     {
         if (!options.AnalyzerConfigOptionsProvider.GlobalOptions.TryGetValue(KnownNames.OptionalModulesProperty, out string? value))
@@ -64,7 +68,7 @@ public sealed class OptionalDependencyAnalyzer : DiagnosticAnalyzer
             return ImmutableHashSet.Create<string>(StringComparer.OrdinalIgnoreCase);
         }
 
-        return value.Split(';')
+        return value.Split(Separators)
             .Select(id => id.Trim())
             .Where(id => id.Length > 0)
             .ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);

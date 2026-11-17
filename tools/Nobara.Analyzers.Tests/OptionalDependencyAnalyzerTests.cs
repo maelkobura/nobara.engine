@@ -32,7 +32,7 @@ public sealed class OptionalDependencyAnalyzerTests
 
     private static readonly Setup Optional = new()
     {
-        OptionalModules = "nobara.lighting;nobara.debug",
+        OptionalModules = "nobara.lighting,nobara.debug",
         Libraries = [("Nobara.Lighting", Lighting), ("Nobara.Debug", Debug)],
     };
 
