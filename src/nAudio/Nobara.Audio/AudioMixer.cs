@@ -202,10 +202,12 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
         }
     }
 
+    private void PostToLoop(Action action) => _context.Post(static state => ((Action)state!)(), action);
+
     /// <summary>Opens the default output of the backend and sizes the voices to it.</summary>
     private bool OpenDevice()
     {
-        var options = new AudioDeviceOptions(AudioSettings.ParseHrtf(_context.Settings.GetEnum(AudioSettings.Hrtf)), _context.Logger);
+        var options = new AudioDeviceOptions(AudioSettings.ParseHrtf(_context.Settings.GetEnum(AudioSettings.Hrtf)), _context.Logger, PostToLoop);
         try
         {
             _device = _backend!.Open(options);

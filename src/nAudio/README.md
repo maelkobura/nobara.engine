@@ -355,9 +355,10 @@ with one context and maps what nAudio asks for onto OpenAL:
 - The library mixes on a thread of its own, the only thread besides those of
   the engine: it reads what the device sets and writes to the output, and
   nothing else of the engine runs on it. Every call to the device is made on
-  the loop thread, in the phase `Render`. The library reports a change of the
-  default output from that thread; the callback only sets a flag that the loop
-  thread reads.
+  the loop thread. The library reports a change of the default output from
+  that thread; the callback posts a flag to the loop thread, through the
+  synchronization point of the context, and nAudio reads it in the phase
+  `Render`.
 - When the library cannot be loaded, or finds no output, opening fails with a
   `NotSupportedException` that says why; nAudio logs it as an error and the
   game runs without sound.
@@ -442,8 +443,10 @@ with a warning and take effect at the next start.
   loopback device of OpenAL Soft, and the test of the default output has the
   category `Audio`, which the CI skips.
 - A headphone that is unplugged is detected by the library within a fraction
-  of a second; the sound pauses for that time, and plays again from the same
-  point on the new output.
+  of a second; during that time the voices of nAudio go on, so sounds resume
+  where they would be, and the part in between is not heard.
+- While no output exists after a loss, a sound that is already playing waits
+  where it is, and a sound played in the meantime is ignored.
 - The server sends no sound to its clients, and a client does not play
   ahead the sounds of its own actions for a server: both come with the
   network.

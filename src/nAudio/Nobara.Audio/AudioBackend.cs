@@ -51,7 +51,12 @@ public enum HrtfMode
 /// <summary>What nAudio asks a backend for when it opens the device.</summary>
 /// <param name="Hrtf">The mode of HRTF, from <c>audio.hrtf</c>.</param>
 /// <param name="Logger">The journal of nAudio, for the library and its fallbacks.</param>
-public readonly record struct AudioDeviceOptions(HrtfMode Hrtf, Logger Logger);
+/// <param name="Post">
+/// Runs an action on the loop thread at the synchronization point of the
+/// context, from any thread: a library that has threads of its own reports
+/// through it. <see langword="null"/> when nothing can be posted.
+/// </param>
+public readonly record struct AudioDeviceOptions(HrtfMode Hrtf, Logger Logger, Action<Action>? Post = null);
 
 /// <summary>Optional features of an audio device. An emission processor declares those it needs, and is disabled when one is missing.</summary>
 [Flags]

@@ -23,9 +23,12 @@ internal sealed class OpenALHarness : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "nobara-openal-tests", Guid.NewGuid().ToString("N"));
     private readonly List<F.SettingValue> _settings = [];
 
-    public OpenALHarness(bool realModule = false)
+    /// <param name="realModule">Loads the real module, which opens the default output.</param>
+    /// <param name="defaultOutput">With the harness backend, opens the default output instead of the loopback device.</param>
+    public OpenALHarness(bool realModule = false, bool defaultOutput = false)
     {
         RealModule = realModule;
+        Backend = new OpenALBackend(loopback: !defaultOutput);
         Directory.CreateDirectory(_root);
     }
 
@@ -36,7 +39,7 @@ internal sealed class OpenALHarness : IDisposable
     public MemoryLogSink Log { get; } = new();
 
     /// <summary>Gets the loopback backend of the harness.</summary>
-    public OpenALBackend Backend { get; } = new(loopback: true);
+    public OpenALBackend Backend { get; }
 
     /// <summary>Gets the module that keeps its context, once loaded.</summary>
     public ProbeModule Module { get; private set; } = null!;

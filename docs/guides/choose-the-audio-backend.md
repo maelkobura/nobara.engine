@@ -72,8 +72,8 @@ change.
 
 When no output exists, at start or after a change, the game runs without
 sound. At start, it logs an error and does not look for an output again. After
-a change, nAudio tries again every second, and the sounds wait for the output
-to come back.
+a change, nAudio tries again every second, and the sounds that were playing wait for
+the output to come back; a sound played in the meantime is ignored.
 
 ## 6. Check the sound at the headphones
 

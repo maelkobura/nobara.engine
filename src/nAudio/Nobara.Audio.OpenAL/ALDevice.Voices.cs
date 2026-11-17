@@ -152,6 +152,7 @@ internal sealed unsafe partial class ALDevice
     }
 
     /// <inheritdoc/>
+    [HotPath]
     public override void SetVoice(int voice, in VoiceParameters parameters)
     {
         uint source = EnsureSource(voice);

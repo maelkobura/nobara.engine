@@ -31,6 +31,7 @@ internal sealed unsafe partial class ALDevice : AudioDevice
     private readonly AL _al;
     private readonly SoftAlc _soft;
     private readonly Logger _logger;
+    private readonly Action<Action>? _post;
     private readonly bool _loopback;
     private readonly string _description;
     private Device* _device;
@@ -44,13 +45,14 @@ internal sealed unsafe partial class ALDevice : AudioDevice
     private int _defaultChanged;
     private GCHandle _self;
 
-    private ALDevice(ALContext alc, AL al, SoftAlc soft, Device* device, Logger logger, bool loopback)
+    private ALDevice(ALContext alc, AL al, SoftAlc soft, Device* device, Logger logger, Action<Action>? post, bool loopback)
     {
         _alc = alc;
         _al = al;
         _soft = soft;
         _device = device;
         _logger = logger;
+        _post = post;
         _loopback = loopback;
         string? name = loopback ? null : _alc.GetContextProperty(device, GetContextString.DeviceSpecifier);
         _description = loopback ? "OpenAL Soft loopback" : $"OpenAL Soft: {name ?? "default output"}";
@@ -144,7 +146,7 @@ internal sealed unsafe partial class ALDevice : AudioDevice
         }
 
         // The functions that need the device (HRTF) are loaded once it exists.
-        var result = new ALDevice(alc, al, SoftAlc.Load(alc, device), device, options.Logger, loopback);
+        var result = new ALDevice(alc, al, SoftAlc.Load(alc, device), device, options.Logger, options.Post, loopback);
         try
         {
             result.CreateContext(options.Hrtf);
@@ -209,6 +211,18 @@ internal sealed unsafe partial class ALDevice : AudioDevice
 
     /// <summary>Tells the device that the default output changed, as the library does from its own thread.</summary>
     internal void NotifyDefaultChanged() => Volatile.Write(ref _defaultChanged, 1);
+
+    // From the thread of the library: the flag is set on the loop thread, at the synchronization point of the context.
+    private void ReportDefaultChanged()
+    {
+        if (_post is null)
+        {
+            NotifyDefaultChanged();
+            return;
+        }
+
+        _post(NotifyDefaultChanged);
+    }
 
     /// <inheritdoc/>
     protected override void Dispose(bool disposing)
@@ -378,6 +392,8 @@ internal sealed unsafe partial class ALDevice : AudioDevice
         }
     }
 
+    // The library has one callback for the process: clearing it here would clear that of a device opened since.
+    // nAudio closes a device before it opens the next one, so no other device holds it.
     private void UnregisterEvents()
     {
         if (!_self.IsAllocated)
@@ -398,7 +414,7 @@ internal sealed unsafe partial class ALDevice : AudioDevice
         if (eventType == SoftAlc.DefaultDeviceChangedEvent && deviceType == SoftAlc.PlaybackDeviceType
             && GCHandle.FromIntPtr((IntPtr)userParam).Target is ALDevice self)
         {
-            self.NotifyDefaultChanged();
+            self.ReportDefaultChanged();
         }
     }
 }
