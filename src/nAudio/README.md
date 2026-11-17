@@ -1,8 +1,9 @@
 # nAudio
 
-This page is the module sheet of nAudio, the audio module. It describes what
-the module provides to other modules and the rules it enforces. Terms are
-defined in [the glossary](../../docs/explanation/glossary.md).
+This page is the module sheet of nAudio, the audio module, and of its backend
+extension nAudio.OpenAL. It describes what they provide to other modules and
+the rules they enforce. Terms are defined in [the
+glossary](../../docs/explanation/glossary.md).
 
 ## Purpose
 
@@ -38,8 +39,16 @@ the modules that play them read.
 
 ## Level
 
+nAudio:
+
 <!-- nobara:generated:begin level -->
 Platform module, on the client and on the server. Requires an active backend on the client.
+<!-- nobara:generated:end -->
+
+nAudio.OpenAL:
+
+<!-- nobara:generated:begin level nobara.audio.openal -->
+Platform module, on the client. Backend of `nobara.audio`.
 <!-- nobara:generated:end -->
 
 A server loads the sound events and the buses, so that both sides number them
@@ -47,6 +56,8 @@ the same way, but decodes nothing, needs no backend, and plays nothing: its
 `IAudioSystem` is inactive.
 
 ## Dependencies
+
+nAudio:
 
 <!-- nobara:generated:begin dependencies -->
 | Module | Versions | Kind |
@@ -59,10 +70,29 @@ the same way, but decodes nothing, needs no backend, and plays nothing: its
 Third-party libraries: `NVorbis` 0.10.5.
 <!-- nobara:generated:end -->
 
+nAudio.OpenAL:
+
+<!-- nobara:generated:begin dependencies nobara.audio.openal -->
+| Module | Versions | Kind |
+| --- | --- | --- |
+| `nobara.audio` | `^1.0` | Required |
+
+Third-party libraries: `Silk.NET.OpenAL` 2.23.0, `Silk.NET.OpenAL.Extensions.Creative` 2.23.0, `Silk.NET.OpenAL.Soft.Native` 1.23.1.
+<!-- nobara:generated:end -->
+
 nAudio uses NVorbis (MIT), a managed Ogg Vorbis decoder, on the client. The
 build plugin uses Nobara.AudioToolkit (MIT, with libogg and libvorbis under
 the BSD 3-clause license) to read WAV and FLAC files and to encode Ogg
 Vorbis; neither the toolkit nor its native library reaches a game.
+
+nAudio.OpenAL uses `Silk.NET.OpenAL` and `Silk.NET.OpenAL.Extensions.Creative`
+(MIT, with `Silk.NET.Core`), the bindings of OpenAL and of its EFX extension,
+and OpenAL Soft 1.23.1, which `Silk.NET.OpenAL.Soft.Native` ships as a native
+library for each platform (`soft_oal.dll` on Windows). OpenAL Soft is under
+the LGPL 2.0 or later: the engine links it dynamically and does not modify
+it, so a game keeps its own license, and a game that ships the library
+ships its license text with it. No other module sees the types of these
+libraries.
 
 Each optional dependency is used by one isolation class:
 
@@ -275,6 +305,63 @@ logged as an error, and the game runs without sound. A backend receives only
 neutral types: final gains, positions relative to the listener, cutoffs in
 hertz, and reverberation parameters in seconds and factors.
 
+A device that stops playing, because the headphones were unplugged or the
+default output changed, says so with `AudioDevice.IsLost`, which nAudio reads
+once per frame. nAudio then closes the device, makes every voice virtual,
+and opens the default output of the backend again; the voices take a voice of
+the new device at the same frame, and a loop resumes where it was. While no
+output exists, nAudio tries again every second, and the sounds wait.
+
+| Extension | Backend name | Library |
+| --- | --- | --- |
+| nAudio.OpenAL (`nobara.audio.openal`) | `openal` | OpenAL Soft 1.23.1, through Silk.NET |
+
+### nAudio.OpenAL
+
+The guide [Choose and configure the audio backend](../../docs/guides/choose-the-audio-backend.md)
+walks through the distribution and the keys.
+
+nAudio.OpenAL runs on the client only. It opens the default output device
+with one context and maps what nAudio asks for onto OpenAL:
+
+- A real voice is a source, created the first time the voice is used. A sound
+  in memory is a buffer; a stream is a queue of blocks, taken from a pool and
+  given back to it once played, so a stream creates no buffer after its first
+  blocks. A source that runs out of blocks stops, and plays again from the
+  next block it is given.
+- The device applies no distance model and no rolloff: it plays the gain it
+  is given. The listener stays at the origin, and a spatial voice sits at its
+  position relative to the listener, on the axes of the world, one block being
+  one meter for the Doppler effect. A voice that is not spatial plays at the
+  center, not placed in space.
+- With EFX, the low-pass filter of a voice is the filter of the source, and a
+  reverberation bus is an effect slot with a reverberation effect (EAX
+  reverberation when the library has it, the standard reverberation
+  otherwise). The level of the send of a voice is the gain of a filter on the
+  send, and the neutral parameters of the bus are the parameters of the
+  effect, one for one. EFX filters a low-pass at a fixed frequency of 5 kHz, so
+  the device converts a cutoff to the attenuation of a one-pole filter at that
+  frequency: it is an approximation, exact at 20 kHz, where the filter is
+  removed.
+- `Capabilities` reports `Hrtf` when the library has it, `Filters` and
+  `AuxiliarySends` with EFX (one send per voice), `Effects` when at least one
+  of the 4 reverberation slots exists, and the number of voices the library
+  offers (256 by default).
+- `audio.hrtf` is the HRTF attribute of the context: `auto` leaves the
+  decision to the library, which turns it on when it detects headphones, `on`
+  forces it, `off` disables it. A change of the key resets the device, and
+  `AudioDevice.HrtfEnabled` reads the effective state; nAudio logs it when the
+  device opens. HRTF needs a stereo output.
+- The library mixes on a thread of its own, the only thread besides those of
+  the engine: it reads what the device sets and writes to the output, and
+  nothing else of the engine runs on it. Every call to the device is made on
+  the loop thread, in the phase `Render`. The library reports a change of the
+  default output from that thread; the callback only sets a flag that the loop
+  thread reads.
+- When the library cannot be loaded, or finds no output, opening fails with a
+  `NotSupportedException` that says why; nAudio logs it as an error and the
+  game runs without sound.
+
 ## Events
 
 None.
@@ -340,12 +427,23 @@ with a warning and take effect at the next start.
 - An event that changed by hot reload is a new `SoundEvent` object: keep
   its `Index`, not the object.
 - nAudio keeps no static state.
+- nAudio.OpenAL makes one OpenAL context current per process: two clients in
+  the same process, each with its own device, are not supported.
 
 ## Known limitations
 
 - No backend ships in this module: a client distribution needs a backend
   extension of `nobara.audio`.
 - One listener per client: no split screen.
+- nAudio.OpenAL is tested on Windows x64. It applies the changes of a frame
+  to the library one by one, not as one batch: a voice may hear its new gain
+  a few milliseconds before its new position.
+- nAudio.OpenAL has no output to test in the CI: its tests render the
+  loopback device of OpenAL Soft, and the test of the default output has the
+  category `Audio`, which the CI skips.
+- A headphone that is unplugged is detected by the library within a fraction
+  of a second; the sound pauses for that time, and plays again from the same
+  point on the new output.
 - The server sends no sound to its clients, and a client does not play
   ahead the sounds of its own actions for a server: both come with the
   network.

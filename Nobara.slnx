@@ -11,6 +11,8 @@
   <Folder Name="/src/nAudio/">
     <Project Path="src/nAudio/Nobara.Audio/Nobara.Audio.csproj" />
     <Project Path="src/nAudio/Nobara.Audio.Build/Nobara.Audio.Build.csproj" />
+    <Project Path="src/nAudio/Nobara.Audio.OpenAL/Nobara.Audio.OpenAL.csproj" />
+    <Project Path="src/nAudio/Nobara.Audio.OpenAL.Tests/Nobara.Audio.OpenAL.Tests.csproj" />
     <Project Path="src/nAudio/Nobara.Audio.Tests/Nobara.Audio.Tests.csproj" />
   </Folder>
   <Folder Name="/src/nBlocks/">
