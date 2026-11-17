@@ -8,6 +8,11 @@
     <Project Path="src/UNGP/Nobara.Ungp/Nobara.Ungp.csproj" />
     <Project Path="src/UNGP/Nobara.Ungp.Tests/Nobara.Ungp.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nAudio/">
+    <Project Path="src/nAudio/Nobara.Audio/Nobara.Audio.csproj" />
+    <Project Path="src/nAudio/Nobara.Audio.Build/Nobara.Audio.Build.csproj" />
+    <Project Path="src/nAudio/Nobara.Audio.Tests/Nobara.Audio.Tests.csproj" />
+  </Folder>
   <Folder Name="/src/nBlocks/">
     <Project Path="src/nBlocks/Nobara.Blocks/Nobara.Blocks.csproj" />
     <Project Path="src/nBlocks/Nobara.Blocks.Build/Nobara.Blocks.Build.csproj" />

@@ -1,0 +1,51 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Nobara/Audio">
+  <!-- bus:nobara.audio.master, the root of the tree: every sound reaches it. -->
+  <Bus>
+    <Name>Master</Name>
+    <Content>
+      <Adjustable>true</Adjustable>
+      <DisplayName>audio.bus.master</DisplayName>
+    </Content>
+  </Bus>
+
+  <Bus>
+    <Name>Music</Name>
+    <Content>
+      <Parent>bus:nobara.audio.master</Parent>
+      <Adjustable>true</Adjustable>
+      <DisplayName>audio.bus.music</DisplayName>
+    </Content>
+  </Bus>
+
+  <Bus>
+    <Name>Ambient</Name>
+    <Content>
+      <Parent>bus:nobara.audio.master</Parent>
+      <Adjustable>true</Adjustable>
+      <DisplayName>audio.bus.ambient</DisplayName>
+    </Content>
+  </Bus>
+
+  <Bus>
+    <Name>Effects</Name>
+    <Content>
+      <Parent>bus:nobara.audio.master</Parent>
+      <Adjustable>true</Adjustable>
+      <DisplayName>audio.bus.effects</DisplayName>
+    </Content>
+  </Bus>
+
+  <Bus>
+    <Name>Ui</Name>
+    <Content>
+      <Parent>bus:nobara.audio.master</Parent>
+      <Adjustable>true</Adjustable>
+      <DisplayName>audio.bus.ui</DisplayName>
+    </Content>
+  </Bus>
+</Nobara>

@@ -1,0 +1,100 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+// The resource types of nobara.audio: Sound, a sound event and its variants
+// (sound:example.sounds.stonebreak), and Bus, a node of the mixing tree
+// (bus:nobara.audio.effects). The plugin Nobara.Audio.Build checks what this
+// schema cannot declare and converts WAV and FLAC sources to Ogg Vorbis;
+// nobara.audio checks the result again when it loads it, overrides applied.
+syntax = "proto3";
+
+package nobara.audio;
+
+import "nobara/options.proto";
+
+option csharp_namespace = "Nobara.Audio.Schemas";
+
+message Sound {
+  option (nobara.resource_type) = "sound";
+
+  // The bus the sound plays on.
+  string category = 1 [(nobara.ref) = "bus", (nobara.required) = true];
+  // A factor of the volume, fixed or drawn in a range for each play; 1 when absent.
+  Range volume = 2;
+  // A factor of the pitch, fixed or drawn in a range for each play; 1 when absent.
+  Range pitch = 3;
+  // Present when the sound plays at a position in the world.
+  Spatial spatial = 4;
+  Priority priority = 5;
+  // The most instances of the event that play at once; 0 for no limit.
+  uint32 max_instances = 6;
+  bool loop = 7;
+  // Decoded in blocks while it plays, instead of once when it loads.
+  bool stream = 8;
+  // The Vorbis quality of the WAV and FLAC sources, from -0.1 to 1.
+  optional float quality = 9 [(nobara.min) = -0.1, (nobara.max) = 1];
+  // Mixes stereo sources to mono at build time.
+  bool mono = 10;
+  Variants variants = 11 [(nobara.required) = true];
+}
+
+// A fixed value, or a range drawn from for each play.
+message Range {
+  optional float value = 1 [(nobara.min) = 0];
+  optional float min = 2 [(nobara.min) = 0];
+  optional float max = 3 [(nobara.min) = 0];
+}
+
+message Spatial {
+  // The distance under which the sound plays at full volume; 1 when absent.
+  optional float ref_distance = 1 [(nobara.min) = 0];
+  // The distance beyond which the sound is not heard; 32 when absent.
+  optional float max_distance = 2 [(nobara.min) = 0];
+  Rolloff rolloff = 3;
+}
+
+// How the volume falls between the reference and the maximum distances.
+enum Rolloff {
+  ROLLOFF_UNSPECIFIED = 0;
+  ROLLOFF_INVERSE = 1;
+  ROLLOFF_LINEAR = 2;
+  ROLLOFF_EXPONENTIAL = 3;
+}
+
+// What keeps a real voice when there are not enough of them.
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_LOW = 1;
+  PRIORITY_NORMAL = 2;
+  PRIORITY_HIGH = 3;
+}
+
+message Variants {
+  repeated Variant variant = 1 [(nobara.required) = true];
+}
+
+// One file of a sound event, drawn by weight.
+message Variant {
+  // An .ogg, .wav, or .flac file, relative to Resources/.
+  string file = 1 [(nobara.file) = true, (nobara.required) = true];
+  // The weight of the draw; 1 when absent.
+  optional float weight = 2 [(nobara.min) = 0];
+  // A factor applied to the volume of the event; 1 when absent.
+  optional float volume = 3 [(nobara.min) = 0];
+  // A factor applied to the pitch of the event; 1 when absent.
+  optional float pitch = 4 [(nobara.min) = 0];
+  // The Vorbis quality of this source, instead of the quality of the event.
+  optional float quality = 5 [(nobara.min) = -0.1, (nobara.max) = 1];
+}
+
+message Bus {
+  option (nobara.resource_type) = "bus";
+
+  // The bus whose volume multiplies this one; only bus:nobara.audio.master has none.
+  string parent = 1 [(nobara.ref) = "bus"];
+  // Shown in the settings of the player.
+  bool adjustable = 2;
+  // The name of an adjustable bus, as an i18n key.
+  string display_name = 3 [(nobara.i18n) = true];
+}

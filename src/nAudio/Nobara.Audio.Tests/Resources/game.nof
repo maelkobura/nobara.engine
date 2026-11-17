@@ -1,0 +1,67 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Example/Sounds">
+  <Bus>
+    <Name>Machines</Name>
+    <Content>
+      <Parent>bus:nobara.audio.effects</Parent>
+      <Adjustable>true</Adjustable>
+      <DisplayName>audio.bus.machines</DisplayName>
+    </Content>
+  </Bus>
+
+  <Sound>
+    <Name>Click</Name>
+    <Content>
+      <Category>bus:nobara.audio.ui</Category>
+      <Volume value="0.8"/>
+      <Variants>
+        <Variant file="Sounds/click.ogg"/>
+      </Variants>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>Step</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.players</Category>
+      <Volume min="0.9" max="1.0"/>
+      <Pitch min="0.9" max="1.1"/>
+      <Spatial refDistance="2" maxDistance="16" rolloff="Linear"/>
+      <Priority>Low</Priority>
+      <MaxInstances>4</MaxInstances>
+      <Variants>
+        <Variant file="Sounds/step.wav"/>
+        <Variant file="Sounds/bell.flac" weight="3" volume="0.5"/>
+      </Variants>
+      <Mono>true</Mono>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>Music</Name>
+    <Content>
+      <Category>bus:nobara.audio.music</Category>
+      <Loop>true</Loop>
+      <Stream>true</Stream>
+      <Priority>High</Priority>
+      <Variants>
+        <Variant file="Sounds/music.ogg"/>
+      </Variants>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>Wind</Name>
+    <Content>
+      <Category>bus:example.sounds.machines</Category>
+      <Quality>0.2</Quality>
+      <Variants>
+        <Variant file="Sounds/wind.wav"/>
+      </Variants>
+    </Content>
+  </Sound>
+</Nobara>
