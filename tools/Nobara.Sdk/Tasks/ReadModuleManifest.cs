@@ -127,7 +127,7 @@ public sealed class ReadModuleManifest : Microsoft.Build.Utilities.Task
 
             if (dependency.Optional)
             {
-                optional.Append(optional.Length == 0 ? "" : ";").Append(dependency.Id);
+                optional.Append(optional.Length == 0 ? "" : ",").Append(dependency.Id);
             }
         }
 
