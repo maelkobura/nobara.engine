@@ -5,6 +5,7 @@
 using Nobara.Audio.Tests.Support;
 using Nobara.Core;
 using Nobara.Core.Logging;
+using Nobara.Core.Mathematics;
 
 namespace Nobara.Audio.Tests;
 
@@ -128,5 +129,59 @@ public sealed class BackendTests : IDisposable
 
         Assert.True(device.Disposed);
         Assert.Equal(0, device.Buffers);
+    }
+
+    [Fact]
+    public void OpensTheDefaultOutputAgainWhenTheDeviceIsLostAndTheLoopsGoOn()
+    {
+        using Engine engine = _harness.Start();
+        _harness.Sounds.CompleteDecoding();
+        using AudioListener listener = _harness.System.ClaimListener(_harness.Probe.Context);
+        listener.Teleport(default, System.Numerics.Quaternion.Identity);
+        SoundEvent hum = _harness.Sounds.Get("sound:example.sounds.hum");
+        SoundInstance instance = _harness.System.PlayAt(hum, WorldPosition.FromBlocks(1, 0, 0), seed: 1);
+        _harness.Frames(engine, 3);
+        TestAudioDevice first = _harness.Device;
+        Assert.True(instance.IsReal);
+        using ReverbBus room = _harness.System.CreateReverbBus(_harness.Probe.Context, "room");
+        _harness.Frames(engine, 1);
+        Assert.NotNull(first.Reverbs[0]);
+
+        first.Lost = true;
+        _harness.Frames(engine, 1);
+
+        TestAudioDevice second = _harness.Device;
+        Assert.NotSame(first, second);
+        Assert.True(first.Disposed);
+        Assert.Equal(2, _harness.Backends[0].Opened);
+        Assert.True(_harness.System.IsActive);
+        Assert.True(instance.IsActive);
+        Assert.True(instance.IsReal);
+        TestVoice voice = Assert.Single(second.Playing);
+        Assert.True(voice.Loop);
+        Assert.NotNull(second.Reverbs[0]);
+        Assert.Contains(_harness.Log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("is lost"));
+    }
+
+    [Fact]
+    public void TriesAgainEverySecondWhileNoOutputExists()
+    {
+        using Engine engine = _harness.Start();
+        TestAudioDevice first = _harness.Device;
+        first.Lost = true;
+        _harness.Backends[0].Fails = true;
+
+        _harness.Frames(engine, 1);
+        Assert.False(_harness.System.IsActive);
+        Assert.False(_harness.System.Play(_harness.Sounds.Get("sound:example.sounds.click")).IsActive);
+        _harness.Frames(engine, 30);
+        Assert.Equal(1, _harness.Backends[0].Opened);
+
+        _harness.Backends[0].Fails = false;
+        _harness.Frames(engine, 40);
+
+        Assert.True(_harness.System.IsActive);
+        Assert.Equal(2, _harness.Backends[0].Opened);
+        Assert.Single(_harness.Log.Entries, e => e.Level == LogLevel.Warning && e.Message.Contains("No audio output is available"));
     }
 }

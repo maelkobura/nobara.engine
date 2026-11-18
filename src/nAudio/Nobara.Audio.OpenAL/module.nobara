@@ -1,0 +1,24 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<NobaraModule format="1">
+  <Id>nobara.audio.openal</Id>
+  <ShortName>AudioOpenAL</ShortName>
+  <Version>1.0.0</Version>
+  <Level>platform</Level>
+  <Side>client</Side>
+
+  <Dependencies>
+    <Module id="nobara.audio" version="^1.0" />
+  </Dependencies>
+
+  <Libraries>
+    <Package id="Silk.NET.OpenAL" version="2.23.0" />
+    <Package id="Silk.NET.OpenAL.Extensions.Creative" version="2.23.0" />
+    <Package id="Silk.NET.OpenAL.Soft.Native" version="1.23.1" />
+  </Libraries>
+
+  <BackendOf module="nobara.audio" />
+</NobaraModule>

@@ -35,6 +35,9 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
     /// <summary>The factor of the gain of a voice that is real already, so that two voices of close scores do not swap at every frame.</summary>
     internal const float Hysteresis = 1.25f;
 
+    /// <summary>The time between two attempts to open an audio output after the device was lost, in seconds.</summary>
+    internal const float ReopenSeconds = 1f;
+
     // The blocks of a stream queued on a voice of the device, at most.
     private const int QueuedBlocks = 3;
 
@@ -78,6 +81,10 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
     private bool _started;
     private bool _gamePaused;
     private bool _warnedNoListener;
+    private bool _lost;
+    private bool _warnedNoOutput;
+    private float _reopenWait;
+    private string _openError = string.Empty;
 
     public AudioMixer(ModuleContext context, SoundRegistry sounds)
     {
@@ -189,15 +196,26 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
         }
 
         _backend = ChooseBackend();
-        var options = new AudioDeviceOptions(AudioSettings.ParseHrtf(_context.Settings.GetEnum(AudioSettings.Hrtf)), _context.Logger);
+        if (!OpenDevice())
+        {
+            _context.Logger.Error($"Audio backend '{_backend.Name}' cannot open a device, so the game runs without sound: {_openError}");
+        }
+    }
+
+    private void PostToLoop(Action action) => _context.Post(static state => ((Action)state!)(), action);
+
+    /// <summary>Opens the default output of the backend and sizes the voices to it.</summary>
+    private bool OpenDevice()
+    {
+        var options = new AudioDeviceOptions(AudioSettings.ParseHrtf(_context.Settings.GetEnum(AudioSettings.Hrtf)), _context.Logger, PostToLoop);
         try
         {
-            _device = _backend.Open(options);
+            _device = _backend!.Open(options);
         }
         catch (NotSupportedException exception)
         {
-            _context.Logger.Error($"Audio backend '{_backend.Name}' cannot open a device, so the game runs without sound: {exception.Message}");
-            return;
+            _openError = exception.Message;
+            return false;
         }
 
         AudioCapabilities capabilities = _device.Capabilities;
@@ -205,11 +223,12 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
         _defaultMaxInstances = _context.Settings.GetInt(AudioSettings.MaxInstances);
         _realOwner = new int[_realLimit];
         _realWanted = new bool[_realLimit];
-        _pendingStops.Capacity = _realLimit;
+        _pendingStops.Capacity = Math.Max(_pendingStops.Capacity, _realLimit);
         Array.Fill(_realOwner, -1);
         _reverbSlotUsed = new bool[Math.Max(0, capabilities.MaxReverbSlots)];
         foreach (ReverbBus reverb in _reverbs)
         {
+            reverb.Slot = -1;
             AssignSlot(reverb);
         }
 
@@ -219,6 +238,65 @@ internal sealed partial class AudioMixer : IAudioSystem, IAudioBackends, IPhaseH
         }
 
         _context.Logger.Info($"Audio device opened by backend '{_backend.Name}': {_device.Description}; {_realLimit} of {capabilities.MaxVoices} voices; features {capabilities.Features}; HRTF {(_device.HrtfEnabled ? "on" : "off")}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Drops a device that cannot play any more: every voice becomes virtual
+    /// (they go on in time and take a voice of the next device), and the device
+    /// is closed.
+    /// </summary>
+    private void LoseDevice(AudioDevice device)
+    {
+        _context.Logger.Warning($"The audio device '{device.Description}' is lost: it was unplugged, or it is not the default output any more. nAudio opens the default output again.");
+        for (int slot = 0; slot < _highWater; slot++)
+        {
+            ref Voice voice = ref _voices[slot];
+            if (voice.Live && voice.Real >= 0)
+            {
+                voice.Real = -1;
+                voice.DevicePaused = false;
+                voice.Stream?.Dispose();
+                voice.Stream = null;
+            }
+        }
+
+        Array.Fill(_realOwner, -1);
+        _pendingStops.Clear();
+        _buffers.Clear();
+        _device = null;
+        _lost = true;
+        try
+        {
+            device.Dispose();
+        }
+        catch (Exception exception)
+        {
+            _context.Logger.Warning($"The lost audio device did not close cleanly: {exception.Message}");
+        }
+    }
+
+    /// <summary>Opens the device again after a loss; when no output exists, tries again every <see cref="ReopenSeconds"/>.</summary>
+    private void Reopen(float delta)
+    {
+        _reopenWait -= delta;
+        if (_reopenWait > 0)
+        {
+            return;
+        }
+
+        if (OpenDevice())
+        {
+            _lost = false;
+            return;
+        }
+
+        _reopenWait = ReopenSeconds;
+        if (!_warnedNoOutput)
+        {
+            _warnedNoOutput = true;
+            _context.Logger.Warning($"No audio output is available ({_openError}); sounds wait for one, and nAudio tries again every {ReopenSeconds:0} s.");
+        }
     }
 
     /// <summary>Stops every voice and closes the device.</summary>

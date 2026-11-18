@@ -378,6 +378,14 @@ the blocks: the [brightness query](#brightness-query) adds it by its
 distance, so it costs nothing when it moves. See [voxel
 lighting](voxel-lighting.md#dynamic-light-sources).
 
+### EFX
+
+The effects extension of OpenAL: low-pass filters on a source, effect slots,
+and effects such as reverberation, which a source sends to. nAudio.OpenAL
+uses it for the cutoff of a voice and for
+[reverberation buses](#reverberation-bus). A device without it reports
+neither filters nor effects. See [the OpenAL backend](../../src/nAudio/README.md#naudioopenal).
+
 ### Emergency hook
 
 Code that a module registers to run before a context stops on an error, such
@@ -600,6 +608,14 @@ See [the analyzer reference](../reference/analyzers.md#hot-path-rules).
 Reloading the resources of modules while a development build runs, from
 their `.nof` files and the files they reference: the changed module is
 compiled again and each context takes the result at its next frame. See [the hot reload page](../../tools/Nobara.HotReload/README.md).
+
+### HRTF
+
+Head-related transfer function: the filtering by which the head and the ears
+change a sound according to its direction. A device that applies it to a
+stereo output lets a player with headphones place a sound ahead, behind,
+above, or below. `audio.hrtf` turns it on, off, or leaves the decision to
+the device. See [the voices of nAudio](audio-voices.md#the-listener).
 
 ### Input action
 

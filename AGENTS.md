@@ -101,6 +101,11 @@ later is required; Node.js is required for markdownlint.
   a machine with a GPU before opening a pull request that changes graphics
   code. Tests that open a window without a GPU carry the category `Window`
   and run in the CI.
+- Tests that need an audio output device carry `[Trait("Category", "Audio")]`
+  and the CI skips them (`--filter "Category!=GPU&Category!=Audio"`); run them
+  on a machine with an output before opening a pull request that changes
+  `nAudio.OpenAL`. The other audio tests render the loopback device of
+  OpenAL Soft, which needs no output, and run in the CI.
 - The same command writes `obj/nobara/modules.props`, which maps the
   identifier of each module of `src/` to its project and sets
   `NobaraCoreProject` to the project of the core. `obj/` is not tracked by

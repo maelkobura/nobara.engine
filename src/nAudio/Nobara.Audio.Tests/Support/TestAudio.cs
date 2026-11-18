@@ -16,7 +16,10 @@ internal sealed class TestAudioBackend(string name) : IAudioBackend
     public int MaxReverbSlots { get; init; } = 4;
 
     /// <summary>Gets or sets whether opening fails, as without any output device.</summary>
-    public bool Fails { get; init; }
+    public bool Fails { get; set; }
+
+    /// <summary>Gets how many times a device was opened.</summary>
+    public int Opened { get; private set; }
 
     public TestAudioDevice? Device { get; private set; }
 
@@ -29,6 +32,7 @@ internal sealed class TestAudioBackend(string name) : IAudioBackend
             throw new NotSupportedException("no output device");
         }
 
+        Opened++;
         Options = options;
         Device = new TestAudioDevice(new AudioCapabilities { Features = Features, MaxVoices = MaxVoices, MaxReverbSlots = Features.HasFlag(AudioFeatures.Effects) ? MaxReverbSlots : 0 }, options.Hrtf);
         return Device;
@@ -60,6 +64,11 @@ internal sealed class TestAudioDevice(AudioCapabilities capabilities, HrtfMode h
     public int Buffers => _bufferFrames.Count;
 
     public bool Disposed { get; private set; }
+
+    /// <summary>Gets or sets whether the device is lost, as when the headphones are unplugged.</summary>
+    public bool Lost { get; set; }
+
+    public override bool IsLost => Lost;
 
     /// <summary>Gets the voices that play now, paused ones included.</summary>
     public IEnumerable<TestVoice> Playing => Voices.Where(v => v.Playing);
