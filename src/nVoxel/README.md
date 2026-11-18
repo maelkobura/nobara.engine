@@ -10,6 +10,12 @@ nVoxel owns the dimensions of a context and stores the terrain and other voxel g
 
 nVoxel.Renderer, on the client, turns the blocks of every grid into chunk geometry: cubes merged face by face with hidden faces removed, models placed and turned with their block, shapes of other modules through their meshers, and ambient occlusion and smooth light at each vertex. It remeshes chunks in background jobs, nearest the camera first, when their blocks change, when their light changes, or when they load. With [nLighting](../nLighting/README.md), it also gives each grid that is not the terrain the light of the terrain around it.
 
+nVoxel.Sound, on the client, plays the sounds of blocks that a player or a
+module places and breaks. It reads the sounds that blocks declare and starts
+them with [nAudio](../nAudio/README.md) at the position of the block, in the
+frame of its grid. Neither nVoxel nor nAudio knows the other: the extension
+links them.
+
 ## Status
 
 `experimental`
@@ -25,6 +31,12 @@ Platform module, on the client and on the server.
 nVoxel.Renderer:
 
 <!-- nobara:generated:begin level nobara.voxel.renderer -->
+Platform module, on the client.
+<!-- nobara:generated:end -->
+
+nVoxel.Sound:
+
+<!-- nobara:generated:begin level nobara.voxel.sound -->
 Platform module, on the client.
 <!-- nobara:generated:end -->
 
@@ -61,6 +73,21 @@ ambient occlusion only, and the image is the same as before nLighting
 existed. The code that uses nLighting is confined to one class, so the module
 loads without it.
 
+nVoxel.Sound:
+
+<!-- nobara:generated:begin dependencies nobara.voxel.sound -->
+| Module | Versions | Kind |
+| --- | --- | --- |
+| `nobara.audio` | `^1.0` | Required |
+| `nobara.blocks` | `^1.0` | Required |
+| `nobara.game` | `^1.0` | Required |
+| `nobara.voxel` | `^1.0` | Required |
+<!-- nobara:generated:end -->
+
+nVoxel.Sound reads the blocks of nBlocks and their hooks, the grids of
+nVoxel, and plays through nAudio. A distribution without it has no sound of
+blocks, and no module fails for that.
+
 ## Entry points
 
 | Member | Use |
@@ -93,6 +120,13 @@ nVoxel.Renderer:
 | `VoxelMeshingStatistics` | The chunks followed, waiting, and running, the sections, and the remeshes started, applied, and discarded. |
 | `BlockVisualException` | A visual that cannot be used, such as a texture that no module provides. |
 | `VoxelRendererModule` | The identifier of the module. |
+
+nVoxel.Sound:
+
+| Member | Use |
+| --- | --- |
+| `VoxelSoundModule` | The identifier of the module. It has no service: it works from what blocks declare. |
+| `BlockSoundException` | Why the sounds of blocks cannot be used: a property names a sound event that no module provides. |
 
 A module that adds a shape to nVoxel registers its mesher while it registers
 or initializes, from its client side:
@@ -176,6 +210,12 @@ completed and every chunk held by an active ticket is meshed. At
 sections leave the chunk geometry at the next frame. Its world state counter,
 "meshed chunks", counts the chunks it follows and its remeshes.
 
+nVoxel.Sound subscribes to the nBlocks hooks `Placed` and `Broken`, after
+a batch is applied, and only for the types of blocks that have a sound in at
+least one state: a batch without such a block costs nothing. The guide
+[Give sounds to a block](../../docs/guides/give-sounds-to-a-block.md) walks
+through it.
+
 ## Configuration
 
 nVoxel:
@@ -208,6 +248,12 @@ simulation areas, which `AddViewer` reads when it is called.
 nVoxel.Renderer:
 
 <!-- nobara:generated:begin configuration nobara.voxel.renderer -->
+None.
+<!-- nobara:generated:end -->
+
+nVoxel.Sound:
+
+<!-- nobara:generated:begin configuration nobara.voxel.sound -->
 None.
 <!-- nobara:generated:end -->
 
@@ -264,6 +310,45 @@ with a `BlockVisualException`; a cube without texture, a model without
 `RenderModel`, and a shape without mesher are drawn by nothing, with a
 warning.
 
+nVoxel.Sound reads two free properties of the `Block` resources, which it
+declares, variants applied, when it initializes:
+
+| Property | Type | Effect |
+| --- | --- | --- |
+| `PlaceSound` | identifier of a `Sound` | The sound of the block when it is placed. |
+| `BreakSound` | identifier of a `Sound` | The sound of the block when it is broken. |
+
+```xml
+<Block>
+  <Name>Stone</Name>
+  <Content><Shape>shape:nobara.cube</Shape></Content>
+  <Properties>
+    <PlaceSound>sound:example.world.stoneplace</PlaceSound>
+    <BreakSound>sound:example.world.stonebreak</BreakSound>
+  </Properties>
+</Block>
+```
+
+A property absent from a block, or from one of its states, is silence. A
+variant of a state may override it, and so may the qualified form
+`<VoxelSound.BreakSound>`, which only nVoxel.Sound reads. A sound that no
+module provides stops the start with a `BlockSoundException` that names the
+file and the line of the property.
+
+The sound is the one of the state that was placed, or of the state that was
+broken. It plays on the bus of its event, usually
+`bus:nobara.audio.effects.blocks`, at the middle of the cell, spatialized
+by the settings of the event. A block of several cells makes one sound, at
+its origin. On a grid other than the terrain, the sound is attached to the
+grid at the local position of the block, so it follows the grid when it
+moves and turns.
+
+A batch of many blocks does not make as many sounds. In one batch, the blocks
+of one type that have the same sound event and stand in the same zone of 4 × 4 × 4 blocks
+of a grid make one sound, at the middle of their cells, and the blocks of
+all the batches of a tick start at most 16 sounds. The limits of instances of
+nAudio apply on top of that.
+
 ## Constraints
 
 nVoxel:
@@ -288,6 +373,12 @@ nVoxel.Renderer:
 - A chunk that nLighting does not hold yet is meshed at full light; the change of light that follows meshes it again.
 - A neighboring chunk that is not loaded hides the faces next to it, in a grid that loads its chunks with tickets; in other grids, an absent chunk is air.
 - Meshers are registered before nVoxel.Renderer starts. The visual of every state is built once, when it starts.
+
+nVoxel.Sound:
+
+- Client only; the hooks run on the loop thread of the client context, which is where nAudio is called.
+- The sound of every state is resolved once, when the module initializes: a hook reads a table, and a hot reload of the properties of blocks is not applied until a restart.
+- A batch makes no allocation once its sounds have played once: the grouping reuses its tables, and a grid gets its sound anchor at its first sound.
 
 ## Memory notes
 
@@ -335,3 +426,12 @@ nVoxel.Renderer:
 - When a chunk loads, its loaded neighbors are remeshed, so the chunks of an area that loads are remeshed several times.
 - Ambient occlusion is cast by blocks that hide all their faces; quads whose corners differ in occlusion or in light are not merged.
 - The turn of the texture of a face applies to cubes: the mesher of another shape reads the texture of each face (`BlockVisual.TryGetTexture`), not its turn.
+
+nVoxel.Sound:
+
+- Only placing and breaking make sounds. Steps, falls, and hits are not played, and a block has no persistent sound, such as a machine that hums.
+- The client plays the sound of the blocks of its own world and nothing is sent by a server.
+- The sounds of a mass batch are the first 16 zones of the tick in the order of the batch, not the nearest to the listener.
+- The anchors of destroyed grids stay in memory, one small object each.
+- A sound attached to a grid stops when the grid is destroyed, as a merge does right after its removal batch.
+- A block that changes state in a placing batch, such as a door that opens, makes the place sound of its new state.

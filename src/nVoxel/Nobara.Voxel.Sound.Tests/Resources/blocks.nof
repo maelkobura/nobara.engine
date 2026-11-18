@@ -1,0 +1,71 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Example/World">
+  <Block>
+    <Name>Stone</Name>
+    <Content>
+      <Shape>shape:nobara.cube</Shape>
+    </Content>
+    <Properties>
+      <PlaceSound>sound:example.world.stoneplace</PlaceSound>
+      <BreakSound>sound:example.world.stonebreak</BreakSound>
+    </Properties>
+  </Block>
+
+  <!-- Only a break sound: placing it is silent. -->
+  <Block>
+    <Name>Glass</Name>
+    <Content>
+      <Shape>shape:nobara.cube</Shape>
+    </Content>
+    <Properties>
+      <BreakSound>sound:example.world.glassbreak</BreakSound>
+    </Properties>
+  </Block>
+
+  <!-- No sound at all. -->
+  <Block>
+    <Name>Dust</Name>
+    <Content>
+      <Shape>shape:nobara.cube</Shape>
+    </Content>
+  </Block>
+
+  <!-- A lit lamp breaks with the sound of its variant. -->
+  <Block>
+    <Name>Lamp</Name>
+    <Content>
+      <Shape>shape:nobara.cube</Shape>
+      <States>
+        <Bool name="lit" default="false"/>
+      </States>
+      <Variants>
+        <Variant when="lit=true">
+          <Properties>
+            <BreakSound>sound:example.world.lampbreak</BreakSound>
+          </Properties>
+        </Variant>
+      </Variants>
+    </Content>
+    <Properties>
+      <BreakSound>sound:example.world.stonebreak</BreakSound>
+    </Properties>
+  </Block>
+
+  <!-- A block of two cells makes one sound, at its origin. -->
+  <Block>
+    <Name>Bench</Name>
+    <Content>
+      <Shape>shape:nobara.cube</Shape>
+      <Footprint>
+        <Cell x="1"/>
+      </Footprint>
+    </Content>
+    <Properties>
+      <BreakSound>sound:example.world.benchbreak</BreakSound>
+    </Properties>
+  </Block>
+</Nobara>
