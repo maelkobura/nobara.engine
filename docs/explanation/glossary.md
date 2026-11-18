@@ -46,6 +46,13 @@ The light channel that the blocks which emit light spread from block to
 block, from 0 to 15; with color, a red, a green, and a blue component. See
 [voxel lighting](voxel-lighting.md#two-channels-per-block).
 
+### Block sound
+
+A sound that a block declares for what happens to it, such as `PlaceSound`
+and `BreakSound`, a free property that names a [sound event](#sound-event).
+nVoxel.Sound plays it when the block is placed or broken. See [Give sounds to
+a block](../guides/give-sounds-to-a-block.md).
+
 ### Block state
 
 One combination of the values of the state properties of a type of block,

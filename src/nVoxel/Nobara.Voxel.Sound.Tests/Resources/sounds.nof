@@ -1,0 +1,66 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Nobara version="1.0.0" namespace="Example/World">
+  <Sound>
+    <Name>StonePlace</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="2" maxDistance="128"/>
+      <Mono>true</Mono>
+      <Variants>
+        <Variant file="Sounds/step.wav"/>
+      </Variants>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>StoneBreak</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="2" maxDistance="128"/>
+      <Mono>true</Mono>
+      <Variants>
+        <Variant file="Sounds/step.wav"/>
+      </Variants>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>GlassBreak</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="2" maxDistance="128"/>
+      <Mono>true</Mono>
+      <Variants>
+        <Variant file="Sounds/step.wav"/>
+      </Variants>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>LampBreak</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="2" maxDistance="128"/>
+      <Mono>true</Mono>
+      <Variants>
+        <Variant file="Sounds/wind.wav"/>
+      </Variants>
+    </Content>
+  </Sound>
+
+  <Sound>
+    <Name>BenchBreak</Name>
+    <Content>
+      <Category>bus:nobara.audio.effects.blocks</Category>
+      <Spatial refDistance="2" maxDistance="128"/>
+      <Mono>true</Mono>
+      <Variants>
+        <Variant file="Sounds/wind.wav"/>
+      </Variants>
+    </Content>
+  </Sound>
+</Nobara>
