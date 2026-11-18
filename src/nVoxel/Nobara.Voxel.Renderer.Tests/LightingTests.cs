@@ -64,7 +64,11 @@ public sealed class LightingTests : IDisposable
         // The ground is under the open sky: its tops are at Y = 32 in the chunk below Y = 0.
         uint lantern = _harness.State("block:example.world.lantern");
         _harness.Place(_harness.Terrain, (new BlockCoordinate(5, 0, 5), lantern));
-        _harness.Frame(2);
+
+        // The light is propagated and the chunk remeshed in jobs: wait for the result instead of counting frames.
+        _harness.RunUntil(
+            () => tops.TryGetValue(new Vector3(4, 32, 5), out ChunkLight light) && light.Red > 0 && tops.ContainsKey(new Vector3(0, 32, 5)),
+            () => $"The ground was not lit by the lantern: {tops.Count} tops.");
 
         Assert.NotEmpty(tops);
         Assert.Equal(15, tops[new Vector3(4, 32, 5)].Sky);
@@ -74,7 +78,9 @@ public sealed class LightingTests : IDisposable
         Assert.True(near > middle && middle > far && far > 0, $"Light of blocks on the ground: {near}, {middle}, {far}.");
 
         _harness.Probe.Batches.Break(_harness.Terrain, BlockActor.OfCommand("test"), BlockCause.Hand, [new BlockCoordinate(5, 0, 5)]);
-        _harness.Frame(2);
+        _harness.RunUntil(
+            () => tops.Count > 0 && tops.Values.All(light => light == new ChunkLight(15, 0, 0, 0)),
+            () => $"The ground was not darkened again: {tops.Count} tops.");
 
         // The ground has one light again: its tops merge.
         Assert.NotEmpty(tops);
