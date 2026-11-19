@@ -29,5 +29,5 @@ internal sealed class OpenALBackend(bool loopback = false, string? library = nul
     /// <summary>Gets the device opened last.</summary>
     public ALDevice? Opened { get; private set; }
 
-    public AudioDevice Open(in AudioDeviceOptions options) => Opened = ALDevice.Open(options, loopback, library ?? OpenAlLibrary.Find());
+    public AudioDevice Open(in AudioDeviceOptions options) => Opened = ALDevice.Open(options, loopback, library ?? OpenALLibrary.Find());
 }

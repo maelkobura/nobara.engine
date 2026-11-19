@@ -117,8 +117,8 @@ internal sealed unsafe partial class ALDevice : AudioDevice
         Device* device;
         try
         {
-            alc = OpenAlLibrary.LoadContext(library);
-            al = OpenAlLibrary.LoadAl(library);
+            alc = OpenALLibrary.LoadContext(library);
+            al = OpenALLibrary.LoadAL(library);
             SoftAlc global = SoftAlc.Load(alc, null);
             if (loopback)
             {
@@ -134,7 +134,7 @@ internal sealed unsafe partial class ALDevice : AudioDevice
                 device = alc.OpenDevice(null);
             }
         }
-        catch (Exception exception) when (exception is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException)
+        catch (Exception exception) when (exception is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException or BadImageFormatException)
         {
             throw new NotSupportedException($"the OpenAL Soft library cannot be loaded ({exception.Message})", exception);
         }

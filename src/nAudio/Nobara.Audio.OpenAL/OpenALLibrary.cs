@@ -12,7 +12,7 @@ namespace Nobara.Audio.OpenAL;
 /// in <c>lib/</c>, next to the bindings, where the library loader of Silk.NET
 /// does not look: the backend gives it the full path when the file is there.
 /// </summary>
-internal static class OpenAlLibrary
+internal static class OpenALLibrary
 {
     /// <summary>Gets the file name of the native library on the running platform.</summary>
     public static string FileName => GetFileName(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS());
@@ -63,7 +63,7 @@ internal static class OpenAlLibrary
 
     /// <summary>Loads the API of the sources and buffers: from a full path, otherwise by the search of Silk.NET.</summary>
     /// <param name="path">The full path of the native library, or <see langword="null"/>.</param>
-    public static AL LoadAl(string? path)
+    public static AL LoadAL(string? path)
     {
         if (path is null)
         {
