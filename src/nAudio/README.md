@@ -91,8 +91,10 @@ and OpenAL Soft 1.23.1, which `Silk.NET.OpenAL.Soft.Native` ships as a native
 library for each platform (`soft_oal.dll` on Windows). OpenAL Soft is under
 the LGPL 2.0 or later: the engine links it dynamically and does not modify
 it, so a game keeps its own license, and a game that ships the library
-ships its license text with it. No other module sees the types of these
-libraries.
+ships its license text with it. The backend loads the native library from
+the folder of the bindings when it is there, as in `lib/` of an installed
+game, and otherwise lets Silk.NET search for it. No other module sees the
+types of these libraries.
 
 Each optional dependency is used by one isolation class:
 

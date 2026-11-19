@@ -107,17 +107,18 @@ internal sealed unsafe partial class ALDevice : AudioDevice
     /// <summary>Opens the default output device of OpenAL Soft, or its loopback device for the tests.</summary>
     /// <param name="options">The options.</param>
     /// <param name="loopback">Whether to open the loopback device of OpenAL Soft, which plays nothing and renders on demand.</param>
+    /// <param name="library">The full path of the native library, or <see langword="null"/> to let Silk.NET search for it.</param>
     /// <returns>The device.</returns>
     /// <exception cref="NotSupportedException">The library cannot be loaded, or there is no output device.</exception>
-    public static ALDevice Open(in AudioDeviceOptions options, bool loopback)
+    public static ALDevice Open(in AudioDeviceOptions options, bool loopback, string? library)
     {
         ALContext alc;
         AL al;
         Device* device;
         try
         {
-            alc = ALContext.GetApi(soft: true);
-            al = AL.GetApi(soft: true);
+            alc = OpenALLibrary.LoadContext(library);
+            al = OpenALLibrary.LoadAL(library);
             SoftAlc global = SoftAlc.Load(alc, null);
             if (loopback)
             {
@@ -133,7 +134,7 @@ internal sealed unsafe partial class ALDevice : AudioDevice
                 device = alc.OpenDevice(null);
             }
         }
-        catch (Exception exception) when (exception is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException)
+        catch (Exception exception) when (exception is DllNotFoundException or FileNotFoundException or EntryPointNotFoundException or BadImageFormatException)
         {
             throw new NotSupportedException($"the OpenAL Soft library cannot be loaded ({exception.Message})", exception);
         }

@@ -22,9 +22,10 @@ it. nAudio still loads the sound events there, so that both sides number them
 the same way. See [the `build.nobara` reference](../reference/formats/build-nobara.md)
 for the targets a distribution leaves modules out of.
 
-The extension ships OpenAL Soft as a native library next to the game. It is
-under the LGPL: the engine links it dynamically and does not change it, and a
-game that ships it ships its license text too.
+The extension ships OpenAL Soft as a native library in `lib/` of the game,
+where the backend finds it. It is under the LGPL: the engine links it
+dynamically and does not change it, and a game that ships it ships its
+license text too.
 
 ## 2. Choose the backend by name
 
