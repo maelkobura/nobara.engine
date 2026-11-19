@@ -25,10 +25,11 @@ internal sealed class OpenALHarness : IDisposable
 
     /// <param name="realModule">Loads the real module, which opens the default output.</param>
     /// <param name="defaultOutput">With the harness backend, opens the default output instead of the loopback device.</param>
-    public OpenALHarness(bool realModule = false, bool defaultOutput = false)
+    /// <param name="library">With the harness backend, the full path of the native library to load.</param>
+    public OpenALHarness(bool realModule = false, bool defaultOutput = false, string? library = null)
     {
         RealModule = realModule;
-        Backend = new OpenALBackend(loopback: !defaultOutput);
+        Backend = new OpenALBackend(loopback: !defaultOutput, library);
         Directory.CreateDirectory(_root);
     }
 

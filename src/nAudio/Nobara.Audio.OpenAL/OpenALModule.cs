@@ -21,12 +21,13 @@ public sealed class OpenALModule : IModule
 
 /// <summary>The OpenAL Soft backend: the default output device, real voices as sources, and EFX for filters and reverberation.</summary>
 /// <param name="loopback">Whether to open the loopback device of OpenAL Soft instead of the default output: it plays nothing, and the tests render it on demand.</param>
-internal sealed class OpenALBackend(bool loopback = false) : IAudioBackend
+/// <param name="library">The full path of the native library, for the tests; by default, the library in the folder of the bindings, otherwise the one Silk.NET finds.</param>
+internal sealed class OpenALBackend(bool loopback = false, string? library = null) : IAudioBackend
 {
     public string Name => "openal";
 
     /// <summary>Gets the device opened last.</summary>
     public ALDevice? Opened { get; private set; }
 
-    public AudioDevice Open(in AudioDeviceOptions options) => Opened = ALDevice.Open(options, loopback);
+    public AudioDevice Open(in AudioDeviceOptions options) => Opened = ALDevice.Open(options, loopback, library ?? OpenAlLibrary.Find());
 }
