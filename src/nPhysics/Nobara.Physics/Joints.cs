@@ -72,10 +72,10 @@ public readonly record struct JointMotor(float TargetVelocity, float MaxForce);
 /// hinge turns about its axis, a slider slides along it; a fixed joint uses
 /// neither the axes nor a motor.
 /// </remarks>
-/// <param name="Kind">The kind.</param>
+/// <param name="Kind">Whether the joint is a hinge, a slider, or fixed.</param>
 /// <param name="AnchorA">The point of the joint on the first body.</param>
 /// <param name="AnchorB">The point of the joint on the second body.</param>
 /// <param name="AxisA">The axis on the first body, of length 1.</param>
 /// <param name="AxisB">The axis on the second body, of length 1.</param>
-/// <param name="Motor">The motor, or <see langword="null"/>.</param>
+/// <param name="Motor">The speed and effort that drive the joint, or <see langword="null"/> for a free joint.</param>
 public readonly record struct JointDescription(JointKind Kind, Vector3 AnchorA, Vector3 AnchorB, Vector3 AxisA, Vector3 AxisB, JointMotor? Motor = null);

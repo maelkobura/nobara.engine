@@ -248,14 +248,14 @@ public void Initialize(ModuleContext context) =>
   or the first one registered. Registering a backend later, or two backends
   of the same name, throws.
 - `IPhysicsBackend.CreateWorld` creates a `PhysicsBackendWorld` for each
-  physics world. nPhysics calls it on the loop thread only, mostly from its
-  tick system: the members of `PhysicsBackendWorld` are hot path code. Bodies
+  physics world. Only nPhysics calls it, never from two threads at once on
+  the same world: the members of `PhysicsBackendWorld` are hot path code. Bodies
   and joints are numbered by the world; `BackendBody.Slot` is the slot of the
   body in nPhysics, for tables that a backend indexes by body.
 - `ComputeInertia` gives the inertia of a shape when a description gives
   none.
 - `AddVoxelChunk`, `RemoveVoxelChunk`, and `RayCast` are part of the
-  interface, and nPhysics does not call them yet.
+  interface; nPhysics does not call them in this version.
 
 ## Events
 
@@ -302,8 +302,7 @@ None.
 - No backend ships in this module: a distribution needs a backend extension
   of `nobara.physics`.
 - One physics world per dimension, whose origin is the chunk of its first
-  body: bodies far from that origin lose precision. Regions around the zones
-  of simulation come later.
+  body: bodies far from that origin lose precision, without a warning.
 - Bodies do not collide with voxels yet, and there are no queries nor contact
   events: only the backend collides bodies with each other.
 - No character controller.

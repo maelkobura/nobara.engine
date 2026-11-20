@@ -90,7 +90,7 @@ public sealed class ShapeDescription
 {
     internal ShapeDescription(ShapeKind kind) => Kind = kind;
 
-    /// <summary>Gets the kind.</summary>
+    /// <summary>Gets whether the shape is a sphere, a capsule, a box, a cylinder, a convex hull, a compound, or a mesh.</summary>
     public ShapeKind Kind { get; }
 
     /// <summary>Gets the radius of a sphere, a capsule, or a cylinder.</summary>

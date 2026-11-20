@@ -60,7 +60,7 @@ public interface IPhysicsShapeSource
 /// </param>
 /// <param name="Gravity">The gravity, in blocks per square second.</param>
 /// <param name="Shapes">The descriptions of the shapes.</param>
-/// <param name="Logger">The journal of nPhysics.</param>
+/// <param name="Logger">The logger of nPhysics.</param>
 public readonly record struct PhysicsWorldOptions(ChunkCoordinate Origin, Vector3 Gravity, IPhysicsShapeSource Shapes, Logger Logger);
 
 /// <summary>How far one step of a world goes.</summary>
@@ -76,10 +76,10 @@ public struct BackendBody
     /// <summary>The slot of the body in nPhysics, from 0: a backend can index its own tables with it.</summary>
     public int Slot;
 
-    /// <summary>How the body moves.</summary>
+    /// <summary>Whether the body is static, kinematic, or dynamic.</summary>
     public BodyKind Kind;
 
-    /// <summary>The shape.</summary>
+    /// <summary>The shape the backend builds the body from, through <see cref="IPhysicsShapeSource"/>.</summary>
     public PhysicsShape Shape;
 
     /// <summary>The position of its center, relative to the origin of the world.</summary>
@@ -100,10 +100,10 @@ public struct BackendBody
     /// <summary>The inertia tensor of a dynamic body.</summary>
     public BodyInertia Inertia;
 
-    /// <summary>The material.</summary>
+    /// <summary>The friction and restitution of its surface.</summary>
     public PhysicsMaterial Material;
 
-    /// <summary>The collision layers.</summary>
+    /// <summary>The layers it belongs to and collides with.</summary>
     public CollisionFilter Filter;
 
     /// <summary>Whether continuous collision detection is on.</summary>
@@ -135,7 +135,7 @@ public struct BackendBodyState
 /// <summary>A joint as nPhysics adds it to a world, between two bodies of that world.</summary>
 public struct BackendJoint
 {
-    /// <summary>The kind.</summary>
+    /// <summary>Whether the joint is a hinge, a slider, or fixed.</summary>
     public JointKind Kind;
 
     /// <summary>The first body, as the backend numbered it.</summary>
@@ -156,7 +156,7 @@ public struct BackendJoint
     /// <summary>The axis on the second body, in its frame.</summary>
     public Vector3 AxisB;
 
-    /// <summary>The motor, or <see langword="null"/>.</summary>
+    /// <summary>The speed and effort that drive the joint, or <see langword="null"/> for a free joint.</summary>
     public JointMotor? Motor;
 }
 
@@ -179,8 +179,8 @@ public readonly record struct BackendRayHit(float Distance, Vector3 Normal, int 
 
 /// <summary>
 /// One world of a backend: bodies, joints, and their simulation, around an
-/// origin. nPhysics calls it on the loop thread of its context, mostly from
-/// its tick system, and nothing else does.
+/// origin. Only nPhysics calls it, never from two threads at once on the
+/// same world; two worlds share nothing and can be called at the same time.
 /// </summary>
 /// <remarks>
 /// Positions are offsets from <see cref="PhysicsWorldOptions.Origin"/>, in
@@ -288,7 +288,7 @@ public abstract class PhysicsBackendWorld : IDisposable
     /// <param name="settings">The duration and the substeps.</param>
     public abstract void Step(in PhysicsStepSettings settings);
 
-    /// <summary>Adds a chunk of voxels that bodies collide with. nPhysics does not call it yet: the voxel layer fills it.</summary>
+    /// <summary>Adds a chunk of voxels that bodies collide with. Part of the interface; nPhysics does not call it in this version.</summary>
     /// <param name="chunk">The chunk.</param>
     /// <returns>The number of the chunk in this world.</returns>
     public abstract int AddVoxelChunk(in VoxelChunkCollider chunk);
@@ -297,7 +297,7 @@ public abstract class PhysicsBackendWorld : IDisposable
     /// <param name="chunk">The number of the chunk.</param>
     public abstract void RemoveVoxelChunk(int chunk);
 
-    /// <summary>Finds the closest body or voxel along a ray. nPhysics does not call it yet: its queries use it.</summary>
+    /// <summary>Finds the closest body or voxel along a ray. Part of the interface; nPhysics does not call it in this version.</summary>
     /// <param name="origin">The start, relative to the origin of the world.</param>
     /// <param name="direction">The direction, of length 1.</param>
     /// <param name="maxDistance">The length of the ray.</param>

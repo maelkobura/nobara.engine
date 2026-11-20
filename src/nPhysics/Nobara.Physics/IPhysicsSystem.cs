@@ -68,6 +68,7 @@ public interface IPhysicsSystem
     Vector3 Gravity { get; }
 
     /// <summary>Gets the physics worlds, in the order of their creation.</summary>
+    /// <remarks>Each read builds a new list: read it outside hot path code.</remarks>
     IReadOnlyList<PhysicsWorldInfo> Worlds { get; }
 
     /// <summary>Gets the counts after the last step.</summary>
@@ -76,48 +77,57 @@ public interface IPhysicsSystem
     /// <summary>Creates a sphere.</summary>
     /// <param name="radius">The radius, above 0.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The radius is not finite and above 0.</exception>
     PhysicsShape CreateSphere(float radius);
 
     /// <summary>Creates a capsule along Y.</summary>
     /// <param name="radius">The radius, above 0.</param>
     /// <param name="length">The length of the cylinder between the two half spheres, from 0.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The radius is not finite and above 0, or the length is negative or not finite.</exception>
     PhysicsShape CreateCapsule(float radius, float length);
 
     /// <summary>Creates a box.</summary>
     /// <param name="size">The size along each axis, above 0.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">A size is not finite and above 0.</exception>
     PhysicsShape CreateBox(Vector3 size);
 
     /// <summary>Creates a cylinder along Y.</summary>
     /// <param name="radius">The radius, above 0.</param>
     /// <param name="length">The length, above 0.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The radius or the length is not finite and above 0.</exception>
     PhysicsShape CreateCylinder(float radius, float length);
 
     /// <summary>Creates the convex hull of points.</summary>
     /// <param name="points">At least four points that do not lie in one plane, in blocks; copied.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentException">There are fewer than four points, a point is not finite, or they lie in one plane.</exception>
     PhysicsShape CreateConvexHull(ReadOnlySpan<Vector3> points);
 
     /// <summary>Creates a compound of convex shapes.</summary>
     /// <param name="children">At least one child; copied.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentException">There is no child, a child names no shape or a shape that is not convex, or its place is not finite.</exception>
     PhysicsShape CreateCompound(ReadOnlySpan<CompoundChild> children);
 
     /// <summary>Creates a mesh, for static bodies.</summary>
     /// <param name="vertices">The vertices, in blocks; copied.</param>
     /// <param name="triangles">The indices of the vertices, three per triangle; copied.</param>
     /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentException">There is no triangle, the number of indices is not a multiple of 3, an index names no vertex, or a vertex is not finite.</exception>
     PhysicsShape CreateMesh(ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> triangles);
 
     /// <summary>Gets the description of a shape.</summary>
     /// <param name="shape">The shape.</param>
     /// <returns>The description.</returns>
+    /// <exception cref="ArgumentException">The handle names no shape.</exception>
     ShapeDescription GetShape(PhysicsShape shape);
 
     /// <summary>Destroys a shape that no body and no compound uses.</summary>
     /// <param name="shape">The shape.</param>
+    /// <exception cref="ArgumentException">The handle names no shape.</exception>
     /// <exception cref="InvalidOperationException">A body or a compound still uses it.</exception>
     void DestroyShape(PhysicsShape shape);
 
@@ -132,10 +142,13 @@ public interface IPhysicsSystem
     /// <param name="description">The body.</param>
     /// <returns>The handle of the body.</returns>
     /// <exception cref="ArgumentException">The entity is not alive, has a parent, has no world transform, is a body already, or the description is invalid.</exception>
+    /// <exception cref="InvalidOperationException">nPhysics has not started, or an entity system runs on the world.</exception>
     BodyHandle AddBody(DimensionId dimension, EntityId entity, BodyDescription description);
 
     /// <summary>Removes a body and its joints; the entity keeps its components of other modules and its last transform.</summary>
     /// <param name="body">The body.</param>
+    /// <exception cref="ArgumentException">The body is not alive.</exception>
+    /// <exception cref="InvalidOperationException">An entity system runs on the world of the entity.</exception>
     void RemoveBody(BodyHandle body);
 
     /// <summary>Gets whether a handle names a body.</summary>
@@ -153,60 +166,71 @@ public interface IPhysicsSystem
     /// <summary>Reads the state of a body, as the last step left it.</summary>
     /// <param name="body">The body.</param>
     /// <returns>The state.</returns>
+    /// <exception cref="ArgumentException">The body is not alive.</exception>
     BodyState GetState(BodyHandle body);
 
     /// <summary>Moves a body at once to a place, without sweeping the way; its velocities are kept.</summary>
     /// <param name="body">The body.</param>
     /// <param name="position">The new position of its entity.</param>
     /// <param name="rotation">The new rotation of its entity.</param>
+    /// <exception cref="ArgumentException">The body is not alive, the position or the rotation is not finite, or the rotation is zero.</exception>
     void Teleport(BodyHandle body, in WorldPosition position, Quaternion rotation);
 
     /// <summary>Sets the velocities of a kinematic or dynamic body.</summary>
     /// <param name="body">The body.</param>
     /// <param name="linear">The linear velocity, in blocks per second.</param>
     /// <param name="angular">The angular velocity, in radians per second, along the axes of the world.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is static, or a velocity is not finite.</exception>
     void SetVelocity(BodyHandle body, Vector3 linear, Vector3 angular);
 
     /// <summary>Gives a kinematic body the place it reaches at the end of the next step; it stops there unless it gets another target.</summary>
     /// <param name="body">A kinematic body.</param>
     /// <param name="position">The position of its entity at the end of the step.</param>
     /// <param name="rotation">The rotation of its entity at the end of the step.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not kinematic, or the pose is not finite.</exception>
     void SetKinematicTarget(BodyHandle body, in WorldPosition position, Quaternion rotation);
 
     /// <summary>Applies a force to the center of a dynamic body during the next step.</summary>
     /// <param name="body">A dynamic body.</param>
     /// <param name="force">The force, in kilograms times blocks per square second.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not dynamic, or the vector is not finite.</exception>
     void ApplyForce(BodyHandle body, Vector3 force);
 
     /// <summary>Applies a force at a point of a dynamic body during the next step.</summary>
     /// <param name="body">A dynamic body.</param>
     /// <param name="force">The force.</param>
     /// <param name="point">Where it applies, in the world.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not dynamic, or the vector is not finite.</exception>
     void ApplyForceAt(BodyHandle body, Vector3 force, in WorldPosition point);
 
     /// <summary>Applies an impulse to the center of a dynamic body before the next step.</summary>
     /// <param name="body">A dynamic body.</param>
     /// <param name="impulse">The impulse, in kilograms times blocks per second.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not dynamic, or the vector is not finite.</exception>
     void ApplyImpulse(BodyHandle body, Vector3 impulse);
 
     /// <summary>Applies an impulse at a point of a dynamic body before the next step.</summary>
     /// <param name="body">A dynamic body.</param>
     /// <param name="impulse">The impulse.</param>
     /// <param name="point">Where it applies, in the world.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not dynamic, or the vector is not finite.</exception>
     void ApplyImpulseAt(BodyHandle body, Vector3 impulse, in WorldPosition point);
 
     /// <summary>Applies a torque to a dynamic body during the next step.</summary>
     /// <param name="body">A dynamic body.</param>
     /// <param name="torque">The torque, along the axes of the world.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not dynamic, or the vector is not finite.</exception>
     void ApplyTorque(BodyHandle body, Vector3 torque);
 
     /// <summary>Applies an angular impulse to a dynamic body before the next step.</summary>
     /// <param name="body">A dynamic body.</param>
     /// <param name="impulse">The angular impulse, along the axes of the world.</param>
+    /// <exception cref="ArgumentException">The body is not alive, is not dynamic, or the vector is not finite.</exception>
     void ApplyAngularImpulse(BodyHandle body, Vector3 impulse);
 
     /// <summary>Wakes a body.</summary>
     /// <param name="body">The body.</param>
+    /// <exception cref="ArgumentException">The body is not alive.</exception>
     void Wake(BodyHandle body);
 
     /// <summary>Wakes every body of a dimension that overlaps a box.</summary>
@@ -217,33 +241,40 @@ public interface IPhysicsSystem
     /// <summary>Changes how a body moves. A body with a mesh stays static.</summary>
     /// <param name="body">The body.</param>
     /// <param name="kind">The new kind.</param>
+    /// <exception cref="ArgumentException">The body is not alive, or has a mesh and the kind is not static.</exception>
     void SetKind(BodyHandle body, BodyKind kind);
 
     /// <summary>Changes the shape of a body, and where its center sits in the frame of the entity.</summary>
     /// <param name="body">The body.</param>
     /// <param name="shape">The new shape; a mesh for a static body only.</param>
     /// <param name="center">Where the center of the body sits in the frame of the entity.</param>
+    /// <exception cref="ArgumentException">The body is not alive, the handle names no shape, the shape is a mesh and the body is not static, or the center is not finite.</exception>
     void SetShape(BodyHandle body, PhysicsShape shape, Vector3 center);
 
     /// <summary>Changes the mass of a body.</summary>
     /// <param name="body">The body.</param>
     /// <param name="mass">The mass, above 0.</param>
     /// <param name="inertia">The inertia tensor; <see langword="null"/> lets the backend compute it from the shape.</param>
+    /// <exception cref="ArgumentException">The body is not alive.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The mass is not finite and above 0.</exception>
     void SetMass(BodyHandle body, float mass, BodyInertia? inertia = null);
 
     /// <summary>Changes the material of a body.</summary>
     /// <param name="body">The body.</param>
     /// <param name="material">The material.</param>
+    /// <exception cref="ArgumentException">The body is not alive, or the friction is negative or the restitution outside 0 to 1.</exception>
     void SetMaterial(BodyHandle body, PhysicsMaterial material);
 
     /// <summary>Changes the collision layers of a body.</summary>
     /// <param name="body">The body.</param>
     /// <param name="filter">The layers.</param>
+    /// <exception cref="ArgumentException">The body is not alive.</exception>
     void SetFilter(BodyHandle body, CollisionFilter filter);
 
     /// <summary>Turns continuous collision detection on or off for a body.</summary>
     /// <param name="body">The body.</param>
     /// <param name="continuous">Whether it is on.</param>
+    /// <exception cref="ArgumentException">The body is not alive.</exception>
     void SetContinuous(BodyHandle body, bool continuous);
 
     /// <summary>Joins two bodies of the same dimension.</summary>
@@ -251,16 +282,18 @@ public interface IPhysicsSystem
     /// <param name="second">The second body.</param>
     /// <param name="description">The joint.</param>
     /// <returns>The handle of the joint.</returns>
-    /// <exception cref="ArgumentException">A body is not alive, both are the same, they are in different dimensions, or the description is invalid.</exception>
+    /// <exception cref="ArgumentException">A body is not alive, both are the same, they are in different physics worlds, or the description is invalid.</exception>
     JointHandle CreateJoint(BodyHandle first, BodyHandle second, in JointDescription description);
 
     /// <summary>Changes the motor of a hinge or a slider.</summary>
     /// <param name="joint">The joint.</param>
     /// <param name="motor">The motor, or <see langword="null"/> to remove it.</param>
+    /// <exception cref="ArgumentException">The joint is not alive, is fixed and a motor is given, or the motor is not finite or has a negative effort.</exception>
     void SetMotor(JointHandle joint, JointMotor? motor);
 
     /// <summary>Destroys a joint.</summary>
     /// <param name="joint">The joint.</param>
+    /// <exception cref="ArgumentException">The joint is not alive.</exception>
     void DestroyJoint(JointHandle joint);
 
     /// <summary>Gets whether a handle names a joint.</summary>

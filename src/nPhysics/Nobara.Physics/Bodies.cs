@@ -204,14 +204,14 @@ public struct PhysicsBody
 /// <summary>The component <c>nobara.physics.shape</c>: the shape of a body, written by nPhysics only.</summary>
 public struct BodyShape
 {
-    /// <summary>The shape.</summary>
+    /// <summary>The shared shape the body collides with.</summary>
     public PhysicsShape Shape;
 }
 
 /// <summary>The component <c>nobara.physics.material</c>: the material of a body, written by nPhysics only.</summary>
 public struct BodyMaterial
 {
-    /// <summary>The material.</summary>
+    /// <summary>The friction and restitution of its surface.</summary>
     public PhysicsMaterial Material;
 }
 

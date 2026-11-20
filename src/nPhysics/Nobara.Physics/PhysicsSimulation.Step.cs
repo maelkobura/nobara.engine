@@ -20,6 +20,7 @@ internal sealed partial class PhysicsSimulation
 {
     private ulong _steps;
     private TimeSpan _lastStep;
+    private int _publishing = int.MaxValue;
 
     /// <inheritdoc/>
     public void Run(in TickTime time)
@@ -176,6 +177,10 @@ internal sealed partial class PhysicsSimulation
                     component.Kind = body.Kind;
                     component.Flags = FlagsOf(body);
                     body.EntityWorld.Set(body.Entity, _massComponent, MassOf(body));
+                    if (body.Kind == BodyKind.Static)
+                    {
+                        body.EntityWorld.Set(body.Entity, _velocityComponent, default);
+                    }
                 }
 
                 break;
@@ -346,6 +351,19 @@ internal sealed partial class PhysicsSimulation
         return written;
     }
 
+    private void RemoveObserver(PhysicsStepSubscription subscription)
+    {
+        int index = _observers.IndexOf(subscription);
+        if (index >= 0)
+        {
+            _observers.RemoveAt(index);
+            if (index <= _publishing)
+            {
+                _publishing--;   // the observer after it is not skipped
+            }
+        }
+    }
+
     [HotPath]
     private void Publish(in TickTime time, int written)
     {
@@ -355,9 +373,9 @@ internal sealed partial class PhysicsSimulation
         }
 
         var end = new PhysicsStepEnd(time.Tick, time.Delta, new ReadOnlySpan<BodyPose>(_poses, 0, written));
-        for (int i = 0; i < _observers.Count; i++)
+        for (_publishing = 0; _publishing < _observers.Count; _publishing++)
         {
-            PhysicsStepSubscription subscription = _observers[i];
+            PhysicsStepSubscription subscription = _observers[_publishing];
             try
             {
                 subscription.Observer.OnStepEnd(end);
@@ -367,5 +385,7 @@ internal sealed partial class PhysicsSimulation
                 subscription.Module.ReportFault(exception);
             }
         }
+
+        _publishing = int.MaxValue;
     }
 }

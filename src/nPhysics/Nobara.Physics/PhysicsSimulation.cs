@@ -167,7 +167,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(observer);
-        var subscription = new PhysicsStepSubscription(module, observer, s => _observers.Remove(s));
+        var subscription = new PhysicsStepSubscription(module, observer, RemoveObserver);
         _observers.Add(subscription);
         return subscription;
     }

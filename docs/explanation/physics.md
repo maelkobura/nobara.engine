@@ -28,7 +28,7 @@ Modules depend on nPhysics, never on a backend. No type of the physics
 library appears in the neutral API: a need that it does not cover enriches
 the neutral API, with a concept that every serious physics library offers.
 Collisions with voxels, the character controller, queries, and contact
-events belong to the engine layer and come later.
+events belong to the engine layer too; this version has none of them.
 
 ## The movement authority
 
@@ -82,8 +82,8 @@ step: paused, nothing steps; faster, more steps run per second, each the
 same.
 
 The end of each step is published with the bodies it wrote: a module that
-keeps a history of positions by tick, to compensate for latency later,
-starts there.
+keeps a history of positions by tick, such as for the compensation of
+latency, starts there.
 
 ## Physics worlds and precision
 
@@ -95,10 +95,9 @@ offset is computed from the difference of the chunk coordinates first, so a
 body a billion blocks from the origin of the world is as precise as one near
 it, and no absolute coordinate in single precision reaches the backend.
 
-Physics worlds share nothing, so several can step independently: one per
-dimension today, created around the first body of the dimension. The
-interface already allows more of them in one context, such as one per zone
-of simulation.
+Physics worlds share nothing, so several can step independently. nPhysics
+creates one per dimension, around the first body of the dimension; the
+interface allows several in one context.
 
 ## Backends
 
@@ -112,6 +111,6 @@ registers. When several are present, the configuration key
 nPhysics identifies a shape once; a world of the backend builds its own
 shape the first time a body uses it, from the neutral description. Bodies
 and joints keep a stable handle in nPhysics, while the backend numbers them
-in each world. The backend is called only on the loop thread, and its world
-members are hot path code: a step allocates no managed memory once its
+in each world. Only nPhysics calls a world of the backend, never from two threads at
+once on the same world, and its members are hot path code: a step allocates no managed memory once its
 tables have grown.
