@@ -165,6 +165,13 @@ voxel batch cycle](voxel-batch-cycle.md#notifications-and-neighbors).
 A 4 × 4 bit mask for one face of a voxel shape. It marks the parts of the
 face where two neighboring shapes can make structural contact.
 
+### Continuous collision detection
+
+A setting of a [body](#body) for fast bodies such as projectiles: the
+backend follows the body along its whole path during a step, so that it
+stops at a thin wall instead of going through it. It costs more than the
+default detection, and is turned on body by body.
+
 ### Instance-dependent shape
 
 A block shape whose collision or other physical values can depend on the

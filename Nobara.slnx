@@ -69,6 +69,8 @@
   </Folder>
   <Folder Name="/src/nPhysics/">
     <Project Path="src/nPhysics/Nobara.Physics/Nobara.Physics.csproj" />
+    <Project Path="src/nPhysics/Nobara.Physics.Bepu/Nobara.Physics.Bepu.csproj" />
+    <Project Path="src/nPhysics/Nobara.Physics.Bepu.Tests/Nobara.Physics.Bepu.Tests.csproj" />
     <Project Path="src/nPhysics/Nobara.Physics.Tests/Nobara.Physics.Tests.csproj" />
   </Folder>
   <Folder Name="/src/nRenderer/">

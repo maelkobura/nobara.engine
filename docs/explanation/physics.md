@@ -114,3 +114,15 @@ and joints keep a stable handle in nPhysics, while the backend numbers them
 in each world. Only nPhysics calls a world of the backend, never from two threads at
 once on the same world, and its members are hot path code: a step allocates no managed memory once its
 tables have grown.
+
+The engine ships one backend, nPhysics.Bepu, on BEPUphysics v2: a library in
+pure C# that keeps its memory in unmanaged pools, lets the engine run its
+step on the job system, and lets a backend add its own collidables. The
+last point is why it was chosen: the voxels enter its solver through a
+collidable of the backend that reads each chunk where it is, so that a block
+placed or broken costs nothing to the physics. A world steps on the thread
+that calls it, and spreads over the workers of the job system only when it
+has many awake bodies; nPhysics tells it, with `PhysicsStepSettings.MaySpread`,
+whether waiting for other jobs is allowed. What BEPUphysics lacks, a
+coefficient of restitution, the backend adds after each step. See [the
+module sheet](../../src/nPhysics/README.md#nphysicsbepu).

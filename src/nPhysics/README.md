@@ -26,11 +26,21 @@ authority are described in [the physics of nPhysics](../../docs/explanation/phys
 
 ## Level
 
+nPhysics:
+
 <!-- nobara:generated:begin level -->
 Platform module, on the client and on the server. Requires an active backend on the client and on the server.
 <!-- nobara:generated:end -->
 
+nPhysics.Bepu:
+
+<!-- nobara:generated:begin level nobara.physics.bepu -->
+Platform module, on the client and on the server. Backend of `nobara.physics`.
+<!-- nobara:generated:end -->
+
 ## Dependencies
+
+nPhysics:
 
 <!-- nobara:generated:begin dependencies -->
 | Module | Versions | Kind |
@@ -42,8 +52,25 @@ Platform module, on the client and on the server. Requires an active backend on 
 | `nobara.debug` | `^1.0` | Optional |
 <!-- nobara:generated:end -->
 
-nPhysics holds no physics library: the backend extension brings one. The
-optional dependency on nDebug is used by one isolation class,
+nPhysics.Bepu:
+
+<!-- nobara:generated:begin dependencies nobara.physics.bepu -->
+| Module | Versions | Kind |
+| --- | --- | --- |
+| `nobara.physics` | `^1.0` | Required |
+| `nobara.voxel` | `^1.0` | Required |
+
+Third-party libraries: `BepuPhysics` 2.5.0-beta.33, `BepuUtilities` 2.5.0-beta.33.
+<!-- nobara:generated:end -->
+
+nPhysics holds no physics library: the backend extension brings one.
+nPhysics.Bepu uses BEPUphysics v2, `BepuPhysics` and `BepuUtilities`
+2.5.0-beta.33 (Apache 2.0, without a `NOTICE` file), pure C# with no native
+library. The version is a beta, chosen on purpose and given exactly: a newer
+version is taken by an explicit change, after running the tests of the
+extension again. No other module sees the types of BEPUphysics.
+
+The optional dependency of nPhysics on nDebug is used by one isolation class,
 `PhysicsDebugWindow`: the "Physics" tool window, which shows the backend, the
 duration of the last step, the bodies by kind, awake and asleep, and the
 physics worlds with their origin.
@@ -252,10 +279,69 @@ public void Initialize(ModuleContext context) =>
   the same world: the members of `PhysicsBackendWorld` are hot path code. Bodies
   and joints are numbered by the world; `BackendBody.Slot` is the slot of the
   body in nPhysics, for tables that a backend indexes by body.
+- `PhysicsStepSettings.MaySpread` tells a world whether its step may use the
+  worker threads of the job system: nPhysics sets it when it steps the world
+  on the loop thread. A world stepped from a job must not wait for other jobs.
 - `ComputeInertia` gives the inertia of a shape when a description gives
   none.
 - `AddVoxelChunk`, `RemoveVoxelChunk`, and `RayCast` are part of the
   interface; nPhysics does not call them in this version.
+
+| Extension | Backend name | Library |
+| --- | --- | --- |
+| nPhysics.Bepu (`nobara.physics.bepu`) | `bepu` | BEPUphysics v2, 2.5.0-beta.33 |
+
+### nPhysics.Bepu
+
+nPhysics.Bepu runs on both sides. Each physics world is a simulation of
+BEPUphysics of its own, with its own pools of unmanaged memory, freed with
+the world; two worlds share nothing and can step at the same time.
+
+- **Bodies.** A dynamic or kinematic body is a body of BEPUphysics; a static
+  body is a static of BEPUphysics, except while a joint holds it: BEPUphysics
+  joins bodies only, so a static body with joints is a kinematic body that
+  never moves, and a static again once its last joint is gone. A body that
+  may sleep falls asleep after about a second at rest.
+- **Shapes.** A world builds the shape of BEPUphysics of a neutral shape the
+  first time one of its bodies uses it, and frees it once no body and no
+  compound of the world uses it. A convex hull keeps the origin its points
+  give it. A triangle of a mesh collides on one side only, its front face,
+  from which its vertices turn counterclockwise.
+- **Inertia.** `ComputeInertia` gives the tensor about the origin of the
+  shape, for a uniform density; a compound shares its mass among its children
+  by volume.
+- **Materials.** The friction of a pair is the geometric mean of the
+  frictions of its two bodies; its restitution, the larger of the two. Contacts
+  are springs of 30 hertz. BEPUphysics has no restitution of its own: when a
+  pair that bounces is about to touch, the world notes its speed of approach,
+  and after the step gives the pair back the share of that speed its
+  restitution asks for, along the normal of the contact. A pair that
+  approaches slower than 1 block per second does not bounce, so that a body
+  can come to rest.
+- **Layers.** Two bodies collide when each belongs to a layer the other
+  collides with; contacts are computed only for pairs with at least one
+  dynamic body.
+- **Continuous detection.** Every body has an unbounded speculative margin: a
+  contact is found before the bodies touch, however fast they go. A body with
+  continuous detection is also swept along its path, and its contacts are as
+  stiff as the substeps allow, half their rate: a fast body then stops at a
+  thin wall instead of going through.
+- **Joints.** A hinge is a hinge constraint, plus an angular motor; a slider
+  is a point on a line and a lock of the rotation the bodies had when it was
+  made, plus a linear motor; a fixed joint is a weld. A motor drives the
+  second body relative to the first: about the axis of the first body for a
+  hinge, along it for a slider. A slider uses the axis of the first body only.
+- **Voxels.** `AddVoxelChunk` adds a static whose shape reads the cells of
+  the chunk where they are, while the world steps: a cell that holds a block
+  collides as a whole cube, and a block placed or broken is seen at the next
+  step, with no structure to rebuild. The chunk does not change during a
+  step.
+- **Threads.** A world steps on the thread that calls it. When
+  `MaySpread` is set and the world has at least 1,000 awake bodies, the step
+  spreads over the job system: the calling thread is a worker, and the other
+  workers run as one parallel job, which the calling thread waits for. The
+  extension creates no thread, and a step in a steady state allocates no
+  managed memory.
 
 ## Events
 
@@ -312,3 +398,12 @@ None.
 - A transform written to a body entity by another module is not detected; the
   next step overwrites it.
 - The gravity is fixed: 9.81 blocks per square second downward.
+- nPhysics.Bepu bounces bodies along the normal of the contact, on their
+  linear velocities only: a spinning ball bounces as one that does not spin.
+- In nPhysics.Bepu, every cell of a chunk that holds a block collides as a
+  whole cube, whatever the shape of the block; a box that slides on the
+  voxels can catch on the joints between cells.
+- In nPhysics.Bepu, a body that reaches the back face of a mesh is not held,
+  and can be thrown out of it.
+- nPhysics.Bepu depends on a beta of BEPUphysics, whose interface changes
+  between betas.

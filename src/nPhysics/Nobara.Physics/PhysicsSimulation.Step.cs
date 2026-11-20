@@ -30,7 +30,7 @@ internal sealed partial class PhysicsSimulation
         RemoveOrphans();
         ApplyCommands(delta, time.Tick);
         StopReachedTargets(time.Tick);
-        var settings = new PhysicsStepSettings(delta, Substeps, VelocityIterations);
+        var settings = new PhysicsStepSettings(delta, Substeps, VelocityIterations, MaySpread: true);   // on the loop thread
         for (int i = 0; i < _worlds.Count; i++)
         {
             _worlds[i].Backend.Step(settings);

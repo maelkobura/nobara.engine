@@ -67,8 +67,14 @@ public readonly record struct PhysicsWorldOptions(ChunkCoordinate Origin, Vector
 /// <param name="Delta">The duration of the step, in seconds.</param>
 /// <param name="Substeps">The number of substeps, from 1.</param>
 /// <param name="VelocityIterations">The number of velocity iterations of the solver in each substep, from 1.</param>
+/// <param name="MaySpread">
+/// Whether the backend may spread the step over the worker threads of the job
+/// system: <see langword="true"/> when nPhysics steps the world on the loop
+/// thread, <see langword="false"/> when it steps it from a job, where waiting
+/// for other jobs is not allowed.
+/// </param>
 [HotPath]
-public readonly record struct PhysicsStepSettings(float Delta, int Substeps, int VelocityIterations);
+public readonly record struct PhysicsStepSettings(float Delta, int Substeps, int VelocityIterations, bool MaySpread = false);
 
 /// <summary>A body as nPhysics adds it to a world. Positions are relative to the origin of the world.</summary>
 public struct BackendBody
