@@ -30,6 +30,7 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
     private bool _disposed;
     private VoxelBatches? _batches;
     private ChunkLoader? _loader;
+    private GridTransformWriter? _transformWriter;
 
     public VoxelWorlds(ModuleContext module)
     {
@@ -163,6 +164,18 @@ internal sealed class VoxelWorlds : IVoxelWorlds, IDisposable
         if (!_grids.TryGetValue(grid.Handle, out Grid? current) || !ReferenceEquals(current, grid)) throw new ArgumentException("The grid does not belong to this voxel context.", nameof(grid));
         if (grid.OwnerModuleId != owner.Module.Id) throw new ArgumentException($"Module '{owner.Module.Id}' did not create this grid.", nameof(owner));
         DestroyCore(grid);
+    }
+
+    public GridTransformWriter ClaimGridTransforms(ModuleContext owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (!owner.Module.Reservations.Contains(GridTransformWriter.Reservation, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Module '{owner.Module.Id}' cannot move grids: only the module that reserves '{GridTransformWriter.Reservation}' writes grid transforms, the physics module in a game. Move a grid through its API.");
+        }
+
+        return _transformWriter ??= new GridTransformWriter(owner.Module.Id);
     }
 
     public bool TryGetTerrain(DimensionId dimension, out Grid? terrain)

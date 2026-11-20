@@ -1,0 +1,40 @@
+<!--
+  This Source Code Form is subject to the terms of the Mozilla Public
+  License, v. 2.0. If a copy of the MPL was not distributed with this
+  file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <!--
+    The tests run the real modules from nGame to nVoxel and nPhysics, on a
+    server context, with a test backend of nPhysics that integrates bodies
+    without collisions and records what it is asked. The resource compiler
+    checks a distribution built from the real manifests of the modules.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Nobara.Physics\Nobara.Physics.csproj" />
+    <ProjectReference Include="..\..\nVoxel\Nobara.Voxel\Nobara.Voxel.csproj" />
+    <ProjectReference Include="..\..\Core\Nobara.Core\Nobara.Core.csproj" />
+    <ProjectReference Include="..\..\..\tools\Nobara.ResourceCompiler\Nobara.ResourceCompiler.csproj" />
+  </ItemGroup>
+
+</Project>

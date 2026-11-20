@@ -152,7 +152,7 @@ public sealed class LightingTests : IDisposable
         _harness.RunUntil(() => _harness.Remesher.TryGetGroup(ship, out group) && _harness.Chunks.GetGroupLight(group).Sky == 15);
         Assert.False(_harness.Remesher.TryGetGroup(_harness.Terrain, out ChunkGroupId terrain) && _harness.Chunks.GetGroupLight(terrain) != ChunkLight.OpenSky);
 
-        ship.UpdateTransform(WorldTransform.At(WorldPosition.FromBlocks(10, 8, 10)));
+        probe.Worlds.ClaimGridTransforms(probe.Context).Set(ship, WorldTransform.At(WorldPosition.FromBlocks(10, 8, 10)));
         _harness.RunUntil(() => _harness.Chunks.GetGroupLight(group).Sky == 0, () => $"The light around the grid is {_harness.Chunks.GetGroupLight(group)}.");
 
         probe.Worlds.Destroy(probe.Context, ship);
