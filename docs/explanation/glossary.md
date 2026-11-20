@@ -240,6 +240,13 @@ it belongs to and the layers it collides with, as two masks; two bodies
 collide when each belongs to a layer the other collides with. Physics
 queries use the same masks.
 
+### Continuous collision detection
+
+A setting of a [body](#body) for fast bodies such as projectiles: the
+backend follows the body along its whole path during a step, so that it
+stops at a thin wall instead of going through it. It costs more than the
+default detection, and is turned on body by body.
+
 ### Command buffer
 
 A list of GPU commands recorded by a module, then submitted to the
