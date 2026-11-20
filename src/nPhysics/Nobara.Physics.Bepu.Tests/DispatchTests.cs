@@ -10,6 +10,7 @@ using Nobara.Voxel;
 namespace Nobara.Physics.Bepu.Tests;
 
 /// <summary>The step on the job system: no thread of its own, no managed allocation, and worlds that share nothing.</summary>
+[Collection(Serial.Name)]
 public sealed class DispatchTests
 {
     private const float Delta = 1f / 30;
