@@ -44,6 +44,7 @@ public sealed class PhysicsModule : IModule
         _simulation!.Initialize(
             context.Resolve<IEntityWorlds>(),
             context.Resolve<IVoxelWorlds>(),
+            context.Resolve<IChunkLoading>(),
             context.Resolve<ITickSchedule>(),
             context.Resolve<IWorldSessions>());
         if (context.IsModuleActive(PhysicsDebugWindow.DebugModuleId))

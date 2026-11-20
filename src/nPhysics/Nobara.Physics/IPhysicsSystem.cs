@@ -18,6 +18,18 @@ namespace Nobara.Physics;
 /// <param name="Joints">The number of its joints.</param>
 public readonly record struct PhysicsWorldInfo(DimensionId Dimension, ChunkCoordinate Origin, int Bodies, int Joints);
 
+/// <summary>A region, as <see cref="IPhysicsSystem.Regions"/> lists it: an island of active chunks that nPhysics simulates in a physics world of its own.</summary>
+/// <param name="Id">The number of the region, from 1, which it keeps while it grows, shrinks, merges, or splits.</param>
+/// <param name="Dimension">The dimension it simulates.</param>
+/// <param name="Minimum">The chunk at the minimum corner of its box, in the world.</param>
+/// <param name="Maximum">The chunk at the maximum corner of its box, included.</param>
+/// <param name="Origin">The origin chunk of its physics world.</param>
+/// <param name="Bodies">The number of its bodies.</param>
+/// <param name="Ghosts">The number of ghosts it holds: bodies of the regions next to it, seen near its border.</param>
+/// <param name="Joints">The number of its joints.</param>
+/// <param name="HasWorld">Whether it has a physics world, which it gets when a body enters it and loses when the last one leaves.</param>
+public readonly record struct PhysicsRegionInfo(int Id, DimensionId Dimension, ChunkCoordinate Minimum, ChunkCoordinate Maximum, ChunkCoordinate Origin, int Bodies, int Ghosts, int Joints, bool HasWorld);
+
 /// <summary>The counts of nPhysics after the last step.</summary>
 /// <param name="Worlds">The physics worlds.</param>
 /// <param name="Shapes">The shapes.</param>
@@ -39,8 +51,29 @@ public readonly record struct PhysicsStatistics(
     ulong Steps,
     TimeSpan LastStep)
 {
-    /// <summary>Gets the kinematic and dynamic bodies that are awake.</summary>
-    public int AwakeBodies => KinematicBodies + DynamicBodies - SleepingBodies;
+    /// <summary>Gets the kinematic and dynamic bodies that are awake, in a region.</summary>
+    public int AwakeBodies { get; init; }
+
+    /// <summary>Gets the regions.</summary>
+    public int Regions { get; init; }
+
+    /// <summary>Gets the bodies out of every region, which are not simulated.</summary>
+    public int FrozenBodies { get; init; }
+
+    /// <summary>Gets the ghosts: bodies seen by a region next to their own.</summary>
+    public int Ghosts { get; init; }
+
+    /// <summary>Gets the moves of a body from the world of one region to another since the start, recentered regions included.</summary>
+    public long Transfers { get; init; }
+
+    /// <summary>Gets the merges of regions since the start.</summary>
+    public long Merges { get; init; }
+
+    /// <summary>Gets the splits of regions since the start.</summary>
+    public long Splits { get; init; }
+
+    /// <summary>Gets the times the origin of a region moved since the start.</summary>
+    public long Recenters { get; init; }
 }
 
 /// <summary>
@@ -67,9 +100,13 @@ public interface IPhysicsSystem
     /// <summary>Gets the gravity of the physics worlds, in blocks per square second.</summary>
     Vector3 Gravity { get; }
 
-    /// <summary>Gets the physics worlds, in the order of their creation.</summary>
+    /// <summary>Gets the physics worlds, in the order of their creation: one for each region that has bodies.</summary>
     /// <remarks>Each read builds a new list: read it outside hot path code.</remarks>
     IReadOnlyList<PhysicsWorldInfo> Worlds { get; }
+
+    /// <summary>Gets the regions, in the order of their creation.</summary>
+    /// <remarks>Each read builds a new list: read it outside hot path code. The regions follow the active area tickets of the terrain grids, and change at the next step or the next added body.</remarks>
+    IReadOnlyList<PhysicsRegionInfo> Regions { get; }
 
     /// <summary>Gets the counts after the last step.</summary>
     PhysicsStatistics Statistics { get; }

@@ -175,10 +175,43 @@ internal sealed partial class PhysicsSimulation
 
         ref ShapeSlot slot = ref _shapes[index];
         slot.Description = description;
+        slot.Radius = RadiusOf(description);
         slot.Users = 0;
         slot.NextFree = -1;
         _shapeCount++;
         return new PhysicsShape(index, slot.Generation);
+    }
+
+    /// <summary>Gets the radius of the sphere around the origin of a shape that holds it.</summary>
+    private float RadiusOf(ShapeDescription description)
+    {
+        switch (description.Kind)
+        {
+            case ShapeKind.Sphere:
+                return description.Radius;
+            case ShapeKind.Capsule:
+                return description.Radius + (description.Length / 2);
+            case ShapeKind.Box:
+                return description.Size.Length() / 2;
+            case ShapeKind.Cylinder:
+                return MathF.Sqrt((description.Radius * description.Radius) + (description.Length * description.Length / 4));
+            case ShapeKind.Compound:
+                float compound = 0;
+                foreach (CompoundChild child in description.Children.Span)
+                {
+                    compound = MathF.Max(compound, child.Position.Length() + _shapes[child.Shape.Index].Radius);
+                }
+
+                return compound;
+            default:
+                float points = 0;
+                foreach (Vector3 point in description.Points.Span)
+                {
+                    points = MathF.Max(points, point.Length());
+                }
+
+                return points;
+        }
     }
 
     private static bool IsFlat(ReadOnlySpan<Vector3> points)
@@ -248,6 +281,9 @@ internal sealed partial class PhysicsSimulation
     private struct ShapeSlot
     {
         public ShapeDescription? Description;
+
+        /// <summary>The radius of the sphere around the origin of the shape that holds it, for the ghosts.</summary>
+        public float Radius;
         public int Generation;
         public int Users;
         public int NextFree;

@@ -41,6 +41,8 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
     private GridTransformWriter? _gridWriter;
     private TickSystemHandle? _step;
     private SessionSubscription? _sessionEnded;
+    private readonly List<SessionSubscription> _counters = [];
+    private readonly Action<float> _placeBodies;
     private ComponentType<WorldTransform> _transform;
     private ComponentType<ParentLink> _parent;
     private ComponentType<PhysicsBody> _bodyComponent;
@@ -51,7 +53,11 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
     private bool _started;
     private bool _disposed;
 
-    public PhysicsSimulation(ModuleContext context) => _context = context;
+    public PhysicsSimulation(ModuleContext context)
+    {
+        _context = context;
+        _placeBodies = PlaceBodies;
+    }
 
     public string BackendName => _backend?.Name ?? string.Empty;
 
@@ -70,20 +76,31 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
             for (int i = 0; i < worlds.Length; i++)
             {
                 WorldEntry entry = _worlds[i];
-                worlds[i] = new PhysicsWorldInfo(entry.Dimension, entry.Origin, entry.Bodies, entry.Joints);
+                worlds[i] = new PhysicsWorldInfo(entry.Region.Dimension, entry.Origin, entry.Bodies, entry.Joints);
             }
 
             return worlds;
         }
     }
 
-    public PhysicsStatistics Statistics => new(_worlds.Count, _shapeCount, _staticBodies, _kinematicBodies, _dynamicBodies, _sleepingBodies, _jointCount, _steps, _lastStep);
+    public PhysicsStatistics Statistics => new(_worlds.Count, _shapeCount, _staticBodies, _kinematicBodies, _dynamicBodies, _sleepingBodies, _jointCount, _steps, _lastStep)
+    {
+        AwakeBodies = AwakeCount(),
+        Regions = _regions.Count,
+        FrozenBodies = _frozenBodies,
+        Ghosts = _ghostCount,
+        Transfers = _transfers,
+        Merges = _merges,
+        Splits = _splits,
+        Recenters = _recenters,
+    };
 
-    /// <summary>Resolves the services of the dependencies, registers the components and the tick system.</summary>
-    public void Initialize(IEntityWorlds entities, IVoxelWorlds voxels, ITickSchedule schedule, IWorldSessions sessions)
+    /// <summary>Resolves the services of the dependencies, registers the components, the tick system, and the counters of world state.</summary>
+    public void Initialize(IEntityWorlds entities, IVoxelWorlds voxels, IChunkLoading loading, ITickSchedule schedule, IWorldSessions sessions)
     {
         _entities = entities;
         _voxels = voxels;
+        _loading = loading;
         _gridWriter = voxels.ClaimGridTransforms(_context);
         _transform = entities.WorldTransform;
         _parent = entities.ParentLink;
@@ -106,6 +123,11 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
             ],
         });
         _sessionEnded = sessions.SubscribeEnded(_context, _ => Reset());
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "bodies", () => _staticBodies + _kinematicBodies + _dynamicBodies));
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "joints", () => _jointCount));
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "regions", () => _regions.Count));
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "physics worlds", () => _worlds.Count + _retiring.Count));
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "ghosts", () => _ghostCount));
     }
 
     /// <summary>Chooses the backend from <c>physics.backend</c> and reads the settings of the step.</summary>
@@ -182,12 +204,25 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         _disposed = true;
         _step?.Dispose();
         _sessionEnded?.Dispose();
+        foreach (SessionSubscription counter in _counters)
+        {
+            counter.Dispose();
+        }
+
         Reset();
     }
 
-    /// <summary>Forgets every body and joint and disposes every world, at the end of a world session: the entities are gone with it.</summary>
+    /// <summary>Forgets every body, joint, ghost, and region, and disposes every world, at the end of a world session: the entities are gone with it.</summary>
     private void Reset()
     {
+        for (int i = 0; i < _ghostHigh; i++)
+        {
+            if (_ghosts[i].Alive)
+            {
+                FreeGhost(i);
+            }
+        }
+
         for (int i = 0; i < _bodyHigh; i++)
         {
             ref BodyRecord body = ref _bodies[i];
@@ -211,7 +246,22 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
             world.Backend.Dispose();
         }
 
+        foreach (WorldEntry world in _retiring)
+        {
+            world.Backend.Dispose();
+        }
+
+        foreach (RegionEntry region in _regions)
+        {
+            region.Alive = false;
+            region.World = null;
+        }
+
         _worlds.Clear();
+        _retiring.Clear();
+        _regions.Clear();
+        _previousTicketCount = -1;
+        _ticketCount = 0;
         for (int i = 0; i < _commandCount; i++)
         {
             if (_commands[i].Command == CommandKind.SetShape)
@@ -221,7 +271,18 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         }
 
         _commandCount = 0;
-        _staticBodies = _kinematicBodies = _dynamicBodies = _sleepingBodies = 0;
+        _staticBodies = _kinematicBodies = _dynamicBodies = _sleepingBodies = _frozenBodies = 0;
+    }
+
+    private int AwakeCount()
+    {
+        int awake = 0;
+        foreach (WorldEntry world in _worlds)
+        {
+            awake += world.Awake;
+        }
+
+        return awake;
     }
 
     private JobData Data(ComponentType component) => _entities!.GetComponent(component).Data;
@@ -259,11 +320,12 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         }
     }
 
-    /// <summary>A physics world of the backend, and what nPhysics knows of it.</summary>
-    private sealed class WorldEntry(DimensionId dimension, ChunkCoordinate origin, PhysicsBackendWorld backend)
+    /// <summary>A physics world of the backend, the region it simulates, and what nPhysics knows of it.</summary>
+    private sealed class WorldEntry(RegionEntry region, ChunkCoordinate origin, PhysicsBackendWorld backend)
     {
-        public DimensionId Dimension { get; } = dimension;
+        public RegionEntry Region { get; } = region;
 
+        /// <summary>Gets the origin of the world: the origin of its region when it was created, which a recentered region does not change.</summary>
         public ChunkCoordinate Origin { get; } = origin;
 
         public PhysicsBackendWorld Backend { get; } = backend;
@@ -271,5 +333,10 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         public int Bodies { get; set; }
 
         public int Joints { get; set; }
+
+        public int Ghosts { get; set; }
+
+        /// <summary>Gets or sets the number of its kinematic and dynamic bodies that were awake after the last step.</summary>
+        public int Awake { get; set; }
     }
 }

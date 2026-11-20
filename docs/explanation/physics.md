@@ -95,9 +95,62 @@ offset is computed from the difference of the chunk coordinates first, so a
 body a billion blocks from the origin of the world is as precise as one near
 it, and no absolute coordinate in single precision reaches the backend.
 
-Physics worlds share nothing, so several can step independently. nPhysics
-creates one per dimension, around the first body of the dimension; the
-interface allows several in one context.
+Physics worlds share nothing, so several can step independently, and
+nPhysics keeps one for each region.
+
+## Regions at local origins
+
+The physics runs only where something is simulated: in the active areas
+around the players. nPhysics reads the active area tickets of the terrain
+of each dimension, and turns them into regions. A region is a box of
+chunks, the box of one ticket or of several tickets that share a chunk,
+with an origin, the chunk at its center, and a physics world of its own once
+a body enters it.
+
+```text
+    ticket A          ticket B                       ticket C
+  +---------+       +---------+                    +---------+
+  | region 1|       | region 2|                    | region 3|
+  |    o    |  gap  |    o    |                    |    o    |
+  +---------+       +---------+                    +---------+
+         ticket A moves right: A and B share a chunk
+  +-----------------------+                        +---------+
+  |       region 1        |   one world,           | region 3|
+  |          o            |   the bodies of 2      |    o    |
+  +-----------------------+   moved into it        +---------+
+```
+
+- **Membership.** A body belongs to the region that holds its center. When
+  it leaves, it moves to the world of the region it enters, with its pose
+  and its velocities; a body that no region holds is frozen. A body stays
+  in its region while it is less than a block out of it, so that a body on
+  a border does not go back and forth. Joined bodies stay together, in the
+  region of the first body of their group.
+- **Borders.** Two regions can touch. A body near the border of the region
+  next to its own is seen there as a ghost: a body of the same kind, placed
+  again before each step where the body is. A dynamic ghost has the mass of
+  its body, so that what it rests on carries its weight, and what the other
+  world does to it is dropped; a kinematic ghost only pushes. A stack across
+  a border then stands, where kinematic ghosts would push its lower boxes
+  out from under the others.
+- **Merges and splits.** Regions whose boxes share a chunk merge: the bodies
+  of one move to the world of the other, the one with the most bodies. The
+  islands of a merged region stay together until two empty chunks lie
+  between them, so that two players at the edge of each other's area do not
+  merge and split at every step.
+- **Recentering.** A region follows the tickets that make it. When its
+  center drifts more than eight chunks from its origin, its bodies move to a
+  new world around the center: coordinates in a world stay within a few
+  hundred blocks, however far a player travels.
+- **Steps.** Each world steps on its own: the one with the most awake bodies
+  on the loop thread, where its backend may spread it over the workers, and
+  the others at the same time, in one parallel job.
+
+Why not a single origin that moves with the player, as many engines do?
+There is one player per client, but a server simulates around all of them:
+one origin cannot be near players a million blocks apart, and moving it
+moves every body. Regions keep an origin near each group of bodies, and the
+independent regions are the unit in which the server steps in parallel.
 
 ## Backends
 
