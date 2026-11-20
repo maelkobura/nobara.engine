@@ -96,6 +96,7 @@ internal sealed class LightingHarness : IDisposable
         }
 
         owner.States.Add(new F.StateDeclaration { Id = PlayStateId });
+        owner.Reserves.Add(GridTransformWriter.Reservation);   // the tests move grids, as the physics module does in a game
         var engine = Engine.Load(new EngineOptions
         {
             Side = Side.Server,

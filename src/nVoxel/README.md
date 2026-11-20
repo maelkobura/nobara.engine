@@ -95,6 +95,7 @@ blocks, and no module fails for that.
 | `IVoxelWorlds` | Dimensions, terrain grids, grid creation and destruction, the spatial index, and the job data of the blocks of every chunk (`ChunkAccess`). |
 | `BlockCoordinate`, `ChunkCoordinate`, `LocalBlockCoordinate`, `VoxelCoordinates` | Overflow-checked grid coordinates and 32³ chunk indexing. |
 | `Grid`, `GridStorage`, `GridBounds` | ECS-backed grids and their resident chunk tables. |
+| `GridTransformWriter` | The only way to move a grid after its creation, given by `IVoxelWorlds.ClaimGridTransforms` to the module that reserves `voxel.grid.transform`. |
 | `Chunk`, `ChunkSnapshot`, `Palette` | Palette storage, versions, frozen copies, and compact native memory. |
 | `BlockDataView` | The block data of a cell, read live (`Chunk.GetBlockDataView`) or from a frozen copy that a job may read (`Chunk.CopyBlockData`). |
 | `DenseChannelDefinition`, `BlockDataType<T>` | Lazy dense channels and serializable block data declarations. |
@@ -147,6 +148,19 @@ created the terrain grid by then, since its handler runs first. Dispose them
 before the session ends, in a `SessionEnding` handler. `IChunkLoading.AreaTickets`
 lists the area tickets in effect, those of viewers included, as read-only views, for modules that
 favor the places around them, such as nLighting.
+
+A grid keeps the transform it was created with until the module that
+reserves `voxel.grid.transform`, the physics module in a game, moves it.
+That module claims the writer once, and writes the transform of a grid and
+its entry in the spatial index with it:
+
+```csharp
+GridTransformWriter writer = worlds.ClaimGridTransforms(context);   // only the module that reserves voxel.grid.transform
+writer.Set(grid, WorldTransform.At(WorldPosition.FromBlocks(10, 64, 10)));
+```
+
+Any other module that claims it gets an `InvalidOperationException`: it moves
+a grid through the API of the physics module.
 
 nVoxel joins the `World` stage with four tick systems, in this order:
 `nobara.voxel.loading`, `nobara.voxel.batches`,
@@ -410,7 +424,7 @@ nVoxel:
 - The freeze of a dimension is one flag shared with other modules: nVoxel unfreezes only a dimension it froze itself, but when another module also freezes a dimension that nVoxel froze, nVoxel still unfreezes it once a chunk becomes active; and a dimension without an active chunk that another module unfreezes is frozen again at the next tick while `voxel.freezeInactiveDimensions` is `true`.
 - A box or sphere query visits every cell of the box around the region in each grid: keep queries small.
 - Random ticks draw cells uniformly: a block of a subscribed type is ticked about `voxel.randomTicksPerChunk` / 32,768 times per tick, whatever the other blocks of its chunk.
-- Grid transforms are updated explicitly; nPhysics is not yet the movement authority.
+- The transform of a grid entity written directly in its entity world, rather than through `GridTransformWriter`, is not refused, and the spatial index does not see it.
 - An unbounded grid is always a candidate in the spatial index; finite grids use transformed axis-aligned bounds.
 
 nVoxel.Renderer:

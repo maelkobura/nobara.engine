@@ -259,6 +259,7 @@ internal sealed class SoundHarness : IDisposable
     private byte[] GameManifest()
     {
         var manifest = new F.ModuleManifest { Format = 1, Id = Game, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Client };
+        manifest.Reserves.Add(GridTransformWriter.Reservation);   // the tests move grids, as the physics module does in a game
         foreach (string dependency in new[] { "nobara.game", "nobara.context", "nobara.items", "nobara.blocks", "nobara.voxel" })
         {
             manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });

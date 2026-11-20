@@ -12,6 +12,7 @@ namespace Nobara.Voxel;
 public readonly struct WorldBox
 {
     /// <summary>Initializes a world box.</summary>
+    [HotPath]
     public WorldBox(WorldPosition origin, Vector3 minimum, Vector3 maximum)
     {
         if (minimum.X > maximum.X || minimum.Y > maximum.Y || minimum.Z > maximum.Z) throw new ArgumentException("The minimum must not be after the maximum.");
@@ -45,6 +46,7 @@ public readonly struct WorldBox
 /// <summary>The world-space bounds currently registered for a grid.</summary>
 public readonly struct GridWorldBounds
 {
+    [HotPath]
     internal GridWorldBounds(WorldBox box) => Box = box;
 
     /// <summary>Gets the axis-aligned world box.</summary>
@@ -82,6 +84,7 @@ public sealed class GridSpatialIndex
         _bounds[grid] = Calculate(grid);
     }
 
+    [HotPath]
     internal void Update(Grid grid)
     {
         if (!_bounds.ContainsKey(grid)) _grids.Add(grid);
@@ -94,6 +97,7 @@ public sealed class GridSpatialIndex
         _grids.Remove(grid);
     }
 
+    [HotPath]
     private static GridWorldBounds? Calculate(Grid grid)
     {
         if (grid.Bounds is not { } bounds) return null;

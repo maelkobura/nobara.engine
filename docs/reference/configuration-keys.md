@@ -37,6 +37,9 @@ player is described in [the core page](../../src/Core/README.md#configuration-ke
 | `items.defaultMaxStack` | distribution | [nItems](../../src/nItems/README.md#configuration) |
 | `lighting.color` | distribution | [nLighting](../../src/nLighting/README.md#configuration) |
 | `lighting.operationsPerTick` | distribution | [nLighting](../../src/nLighting/README.md#configuration) |
+| `physics.backend` | distribution | [nPhysics](../../src/nPhysics/README.md#configuration) |
+| `physics.substeps` | distribution | [nPhysics](../../src/nPhysics/README.md#configuration) |
+| `physics.velocityIterations` | distribution | [nPhysics](../../src/nPhysics/README.md#configuration) |
 | `ungp.exposure` | distribution | [UNGP](../../src/UNGP/README.md#configuration) |
 | `ungp.renderScale` | user | [UNGP](../../src/UNGP/README.md#configuration) |
 | `ungp.skyColor` | distribution | [UNGP](../../src/UNGP/README.md#configuration) |

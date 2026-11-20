@@ -81,4 +81,15 @@ public interface IVoxelWorlds
 
     /// <summary>Gets the terrain grid of a dimension, when its session has started.</summary>
     bool TryGetTerrain(DimensionId dimension, out Grid? terrain);
+
+    /// <summary>
+    /// Gives the writer of grid transforms to the module that reserves
+    /// <see cref="GridTransformWriter.Reservation"/>. A grid keeps the
+    /// transform it was created with until that module moves it; no other
+    /// module can.
+    /// </summary>
+    /// <param name="owner">The module that reserves the resource.</param>
+    /// <returns>The writer, the same one at each call.</returns>
+    /// <exception cref="InvalidOperationException">The module does not reserve <see cref="GridTransformWriter.Reservation"/>.</exception>
+    GridTransformWriter ClaimGridTransforms(ModuleContext owner);
 }

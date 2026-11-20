@@ -68,6 +68,13 @@ the block registry of nBlocks, such as `block:example.blocks.lamp`. The type
 describes the blocks; the blocks placed in a world belong to the module that
 stores them. See [the `Block` reference](../reference/formats/block.md).
 
+### Body
+
+An entity that nPhysics simulates: it carries the components of nPhysics,
+and nPhysics writes its position. A body is static (it never moves on its
+own), [kinematic](#kinematic-body), or dynamic (gravity, forces, and
+collisions move it). See [the physics of nPhysics](physics.md).
+
 ### Brightness query
 
 The service of nLighting that gives the light at a block, channel by
@@ -225,6 +232,13 @@ worlds](voxel-worlds.md#block-ticks-and-frozen-dimensions).
 
 For a column of chunks, the highest opaque block known in each of its 32 × 32
 columns of blocks. See [voxel worlds](voxel-worlds.md#height-maps-and-queries).
+
+### Collision layer
+
+One of the 32 layers a [body](#body) can belong to. Each body has the layers
+it belongs to and the layers it collides with, as two masks; two bodies
+collide when each belongs to a layer the other collides with. Physics
+queries use the same masks.
 
 ### Command buffer
 
@@ -721,6 +735,12 @@ The name of a piece of data that jobs read or write, such as the storage of a
 component. Jobs declare the job data they touch, so that the job system orders
 conflicting jobs, and checks the declarations in development mode.
 
+### Kinematic body
+
+A [body](#body) that code moves, through velocities or a target to reach at
+the end of the next step: it pushes dynamic bodies and is never pushed, as
+an elevator or a scripted platform.
+
 ### Level
 
 The classification of a module declared in its manifest: platform or
@@ -866,6 +886,13 @@ Where the core finds the modules of a distribution: one assembly per module in
 the `system/` and `game/` folders, or, on platforms without dynamic loading,
 modules compiled into the executable.
 
+### Movement authority
+
+The one module that writes the positions of simulated entities and the
+transforms of grids: nPhysics. Other modules move a body through its
+commands, and a grid only through the module that reserves
+`voxel.grid.transform`. See [the physics of nPhysics](physics.md#the-movement-authority).
+
 ### nAudio
 
 The audio module: the resource types `Sound` and `Bus`, the tree of buses,
@@ -950,6 +977,13 @@ propagation within a budget per tick, the light of the terrain around the
 other grids, and the brightness query. See [its module
 sheet](../../src/nLighting/README.md).
 
+### nPhysics
+
+The physics module: the neutral physics API, the registry of physics
+[backends](#backend), and the step of the [physics worlds](#physics-world).
+It is the [movement authority](#movement-authority). See [its module
+sheet](../../src/nPhysics/README.md).
+
 ### nRenderer
 
 The platform module, on the client, that organizes the rendering of a frame
@@ -1014,6 +1048,13 @@ sheet of nAudio](../../src/nAudio/README.md#emitters).
 A named part of the loop of a context, such as input, simulation, or
 rendering, declared by the distribution in `engine.nobara`. Modules subscribe
 handlers to the phases they need.
+
+### Physics world
+
+One simulation of a physics [backend](#backend), with an origin at the
+corner of a chunk: positions in it are offsets from that origin, so that no
+absolute coordinate in single precision reaches the backend. Physics worlds
+share nothing, and a context can hold several.
 
 ### Pipeline state
 

@@ -161,12 +161,14 @@ public sealed class Grid : IDisposable
     /// <summary>Gets the world transform stored on the grid entity.</summary>
     public WorldTransform Transform
     {
+        [HotPath]
         get => _world.Read(Entity, _transformComponent);
     }
 
-    /// <summary>Updates the transform of this grid and its spatial index.</summary>
+    /// <summary>Writes the transform of this grid and updates its entry in the spatial index; only <see cref="GridTransformWriter"/> calls it.</summary>
     /// <param name="transform">The new transform.</param>
-    public void UpdateTransform(in WorldTransform transform)
+    [HotPath]
+    internal void SetTransform(in WorldTransform transform)
     {
         RequireAlive();
         _world.Set(Entity, _transformComponent, transform);
@@ -189,9 +191,14 @@ public sealed class Grid : IDisposable
         Storage.Dispose();
     }
 
+    [HotPath]
     internal void UpdateSpatialIndex() => _index.Update(this);
 
-    internal void RequireAlive() => ObjectDisposedException.ThrowIf(_disposed, this);
+    [HotPath]
+    internal void RequireAlive()
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(Grid));
+    }
 }
 
 /// <summary>Chunk storage belonging to one grid.</summary>

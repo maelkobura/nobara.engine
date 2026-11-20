@@ -157,7 +157,7 @@ public sealed class BlockSoundTests : IDisposable
         TestVoice voice = Assert.Single(_harness.Started(() => _harness.Break(moved, new BlockCoordinate(0, 0, 0))));
         Vector3 before = voice.Parameters.Position;
 
-        moved.UpdateTransform(WorldProbe.MovedTransform with { Position = Nobara.Core.Mathematics.WorldPosition.FromBlocks(70, 10, 0) });
+        _harness.Probe.Worlds.ClaimGridTransforms(_harness.Probe.Context).Set(moved, WorldProbe.MovedTransform with { Position = Nobara.Core.Mathematics.WorldPosition.FromBlocks(70, 10, 0) });
         _harness.Frames(4);
 
         Assert.True(voice.Playing);

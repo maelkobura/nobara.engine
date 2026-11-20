@@ -67,6 +67,10 @@
     <Project Path="src/nLighting/Nobara.Lighting/Nobara.Lighting.csproj" />
     <Project Path="src/nLighting/Nobara.Lighting.Tests/Nobara.Lighting.Tests.csproj" />
   </Folder>
+  <Folder Name="/src/nPhysics/">
+    <Project Path="src/nPhysics/Nobara.Physics/Nobara.Physics.csproj" />
+    <Project Path="src/nPhysics/Nobara.Physics.Tests/Nobara.Physics.Tests.csproj" />
+  </Folder>
   <Folder Name="/src/nRenderer/">
     <Project Path="src/nRenderer/Nobara.Renderer/Nobara.Renderer.csproj" />
     <Project Path="src/nRenderer/Nobara.Renderer.Build/Nobara.Renderer.Build.csproj" />
