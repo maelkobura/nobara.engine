@@ -55,8 +55,10 @@ public sealed class BodyTests
 
     [Theory]
     [InlineData(0f)]
+    [InlineData(0.2f)]
     [InlineData(0.5f)]
     [InlineData(0.8f)]
+    [InlineData(1f)]
     public void ABallBouncesWithTheShareOfSpeedOfItsRestitution(float restitution)
     {
         using var scene = new BepuScene();
@@ -78,7 +80,7 @@ public sealed class BodyTests
 
         // A fall of 4.5 blocks: about 9.4 blocks per second at the impact.
         Assert.InRange(impact, -10.5f, -8.5f);
-        Assert.InRange(rebound / -impact, restitution - 0.15f, restitution + 0.15f);
+        Assert.InRange(rebound / -impact, restitution - 0.02f, restitution + 0.02f);
     }
 
     [Fact]

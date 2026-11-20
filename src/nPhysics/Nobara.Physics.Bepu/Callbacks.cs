@@ -42,13 +42,13 @@ internal struct Surface
     {
         [HotPath]
         get => new()
-    {
-        Friction = PhysicsMaterial.Default.Friction,
-        Restitution = PhysicsMaterial.Default.Restitution,
-        Layers = uint.MaxValue,
-        Mask = uint.MaxValue,
-        Body = -1,
-    };
+        {
+            Friction = PhysicsMaterial.Default.Friction,
+            Restitution = PhysicsMaterial.Default.Restitution,
+            Layers = uint.MaxValue,
+            Mask = uint.MaxValue,
+            Body = -1,
+        };
     }
 }
 

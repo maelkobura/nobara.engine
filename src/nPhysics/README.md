@@ -400,6 +400,8 @@ None.
 - The gravity is fixed: 9.81 blocks per square second downward.
 - nPhysics.Bepu bounces bodies along the normal of the contact, on their
   linear velocities only: a spinning ball bounces as one that does not spin.
+- nPhysics.Bepu notes at most 256 bouncing pairs per worker in a step; the
+  pairs past that limit do not bounce during that step.
 - In nPhysics.Bepu, every cell of a chunk that holds a block collides as a
   whole cube, whatever the shape of the block; a box that slides on the
   voxels can catch on the joints between cells.

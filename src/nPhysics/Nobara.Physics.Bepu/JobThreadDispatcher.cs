@@ -144,9 +144,26 @@ internal sealed unsafe class JobThreadDispatcher : IThreadDispatcher, IDisposabl
         {
             Invoke(0);
         }
-        finally
+        catch
+        {
+            WaitQuietly(workers);   // the failure of worker 0 is the one reported
+            throw;
+        }
+
+        workers.Complete();
+    }
+
+    /// <summary>Waits for the other workers, whose failure was logged already.</summary>
+    [HotPath]
+    private static void WaitQuietly(JobHandle workers)
+    {
+        try
         {
             workers.Complete();
+        }
+        catch (Exception)
+        {
+            // Logged by the worker that threw.
         }
     }
 

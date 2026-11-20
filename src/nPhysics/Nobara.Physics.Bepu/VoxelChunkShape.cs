@@ -69,7 +69,7 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     /// <summary>Gets the center of a cell, in the frame of the shape.</summary>
     [HotPath]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector3 CenterOf(int index) => new((index & (Size - 1)) + 0.5f, (index >> 10) + 0.5f, ((index >> 5) & (Size - 1)) + 0.5f);
+    public static Vector3 CenterOf(int index) => new((index % Size) + 0.5f, (index / (Size * Size)) + 0.5f, (index / Size % Size) + 0.5f);
 
     /// <inheritdoc/>
     public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
@@ -240,6 +240,7 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         child = -1;
         float enter = 0;
         float exit = maximumT;
+        int enterAxis = -1;
         for (int axis = 0; axis < 3; axis++)
         {
             float o = origin[axis];
@@ -261,7 +262,12 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
                 (t0, t1) = (t1, t0);
             }
 
-            enter = MathF.Max(enter, t0);
+            if (t0 > enter)
+            {
+                enter = t0;
+                enterAxis = axis;   // the ray comes into the chunk through a face of this axis
+            }
+
             exit = MathF.Min(exit, t1);
             if (enter > exit)
             {
@@ -282,7 +288,13 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         float deltaX = direction.X != 0 ? MathF.Abs(1 / direction.X) : float.MaxValue;
         float deltaY = direction.Y != 0 ? MathF.Abs(1 / direction.Y) : float.MaxValue;
         float deltaZ = direction.Z != 0 ? MathF.Abs(1 / direction.Z) : float.MaxValue;
-        Vector3 face = Vector3.Zero;
+        Vector3 face = enterAxis switch
+        {
+            0 => new Vector3(-stepX, 0, 0),
+            1 => new Vector3(0, -stepY, 0),
+            2 => new Vector3(0, 0, -stepZ),
+            _ => Vector3.Zero,   // starts inside the chunk
+        };
         float at = enter;
         while (at <= exit)
         {
