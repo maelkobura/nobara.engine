@@ -79,7 +79,11 @@ public readonly record struct PhysicsStepSettings(float Delta, int Substeps, int
 /// <summary>A body as nPhysics adds it to a world. Positions are relative to the origin of the world.</summary>
 public struct BackendBody
 {
-    /// <summary>The slot of the body in nPhysics, from 0: a backend can index its own tables with it.</summary>
+    /// <summary>
+    /// The slot of the body in nPhysics, from 0: a backend can index its own tables with it.
+    /// The ghost of a body in the world of a region next to its own carries the slot of that
+    /// body; a world holds at most one of the body and its ghost.
+    /// </summary>
     public int Slot;
 
     /// <summary>Whether the body is static, kinematic, or dynamic.</summary>

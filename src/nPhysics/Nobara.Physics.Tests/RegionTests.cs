@@ -263,7 +263,7 @@ public sealed class RegionTests : IDisposable
         }
 
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(allocated < 1024, $"{allocated} bytes allocated in 30 ticks.");
+        Assert.Equal(0, allocated);
     }
 
     private static void Commands(PhysicsProbe probe, BodyHandle[] lifts, int tick)
