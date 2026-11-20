@@ -51,12 +51,12 @@ public sealed class BodyTests : IDisposable
         Assert.Equal(body, found);
 
         TestPhysicsWorld physics = Assert.Single(_harness.Backend.Worlds);
-        Assert.Equal(new ChunkCoordinate(1, 2, -1), physics.Options.Origin);
+        Assert.Equal(new ChunkCoordinate(0, 0, 0), physics.Options.Origin);   // the center of the region of the active ticket
         Assert.Equal(new Vector3(0, -9.81f, 0), physics.Options.Gravity);
         TestBody added = Assert.Single(physics.Bodies);
-        Assert.Equal(new Vector3(8, 7, 22), added.Position);   // the center, one block above the entity, from the corner of chunk (1, 2, -1)
+        Assert.Equal(new Vector3(40, 71, -10), added.Position);   // the center, one block above the entity, from the corner of chunk (0, 0, 0)
         Assert.Equal(BodyInertia.Diagonal(new Vector3(4)), added.Description.Inertia);
-        Assert.Equal(new PhysicsWorldInfo(DimensionId.Default, new ChunkCoordinate(1, 2, -1), 1, 0), Assert.Single(probe.Physics.Worlds));
+        Assert.Equal(new PhysicsWorldInfo(DimensionId.Default, new ChunkCoordinate(0, 0, 0), 1, 0), Assert.Single(probe.Physics.Worlds));
         Assert.Equal(1, probe.Physics.Statistics.DynamicBodies);
     }
 

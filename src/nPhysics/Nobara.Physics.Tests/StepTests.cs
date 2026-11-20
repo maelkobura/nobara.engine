@@ -195,7 +195,7 @@ public sealed class StepTests : IDisposable
         probe.Physics.WakeArea(DimensionId.Default, Voxel.WorldBox.Around(WorldPosition.FromBlocks(41, 10, 0), Vector3.One));
         _harness.Tick(engine);
 
-        Assert.Contains($"wake area {new Vector3(8, 9, -1)} {new Vector3(10, 11, 1)}", Assert.Single(_harness.Backend.Worlds).Calls);
+        Assert.Contains($"wake area {new Vector3(40, 9, -1)} {new Vector3(42, 11, 1)}", Assert.Single(_harness.Backend.Worlds).Calls);
     }
 
     private sealed class RecordingObserver(PhysicsProbe probe) : IPhysicsStepObserver

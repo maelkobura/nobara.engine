@@ -84,10 +84,11 @@ internal sealed partial class PhysicsSimulation
         }
 
         BodyInertia inertia = description.Inertia ?? (shape.Kind == ShapeKind.Mesh ? default : _backend!.ComputeInertia(shape, description.Mass));
-        WorldEntry entry = GetOrCreateWorld(dimension, transform.Position);
+        Quaternion rotation = Quaternion.Normalize(transform.Rotation);
+        bool moves = description.Kind != BodyKind.Static;
+        UpdateRegions();
         int slot = AllocateBody();
         ref BodyRecord body = ref _bodies[slot];
-        body.World = entry;
         body.EntityWorld = world;
         body.Dimension = dimension;
         body.Entity = entity;
@@ -105,26 +106,23 @@ internal sealed partial class PhysicsSimulation
         body.Asleep = false;
         body.Dirty = false;
         body.TargetPending = false;
-        Quaternion rotation = Quaternion.Normalize(transform.Rotation);
-        bool moves = description.Kind != BodyKind.Static;
-        var added = new BackendBody
+        body.Position = transform.Position.Offset(Vector3.Transform(description.Center, rotation));
+        body.Rotation = rotation;
+        body.Linear = moves ? description.LinearVelocity : Vector3.Zero;
+        body.Angular = moves ? description.AngularVelocity : Vector3.Zero;
+        body.BackendId = -1;
+        if (FindRegion(dimension, body.Position) is { } region)
         {
-            Slot = slot,
-            Kind = description.Kind,
-            Shape = description.Shape,
-            Position = PhysicsFrame.ToLocal(entry.Origin, transform.Position) + Vector3.Transform(description.Center, rotation),
-            Rotation = rotation,
-            LinearVelocity = moves ? description.LinearVelocity : Vector3.Zero,
-            AngularVelocity = moves ? description.AngularVelocity : Vector3.Zero,
-            Mass = description.Mass,
-            Inertia = inertia,
-            Material = description.Material,
-            Filter = description.Filter,
-            Continuous = description.Continuous,
-            CanSleep = description.CanSleep,
-        };
-        body.BackendId = entry.Backend.AddBody(added);
-        entry.Bodies++;
+            WorldEntry entry = EnsureWorld(region);
+            body.BackendId = entry.Backend.AddBody(Describe(slot, body, entry));
+            body.World = entry;
+            entry.Bodies++;
+        }
+        else
+        {
+            _frozenBodies++;
+        }
+
         AcquireShape(description.Shape);
         CountKind(description.Kind, 1);
         var handle = new BodyHandle(slot, body.Generation);
@@ -132,7 +130,7 @@ internal sealed partial class PhysicsSimulation
         world.Add(entity, _shapeComponent, new BodyShape { Shape = description.Shape });
         world.Add(entity, _materialComponent, new BodyMaterial { Material = description.Material });
         world.Add(entity, _massComponent, MassOf(body));
-        world.Add(entity, _velocityComponent, new BodyVelocity { Linear = added.LinearVelocity, Angular = added.AngularVelocity });
+        world.Add(entity, _velocityComponent, new BodyVelocity { Linear = body.Linear, Angular = body.Angular });
         return handle;
     }
 
@@ -316,9 +314,9 @@ internal sealed partial class PhysicsSimulation
             throw new ArgumentException("A joint joins two different bodies.", nameof(second));
         }
 
-        if (a.World != b.World)
+        if (a.Dimension != b.Dimension)
         {
-            throw new ArgumentException($"The {first} and the {second} are not in the same physics world.", nameof(second));
+            throw new ArgumentException($"The {first} and the {second} are not in the same dimension.", nameof(second));
         }
 
         if (!IsFinite(description.AnchorA) || !IsFinite(description.AnchorB))
@@ -346,25 +344,21 @@ internal sealed partial class PhysicsSimulation
             RequireMotor(motor);
         }
 
-        WorldEntry world = a.World!;
         int slot = AllocateJoint();
         ref JointRecord joint = ref _joints[slot];
-        joint.World = world;
         joint.First = first;
         joint.Second = second;
         joint.Kind = description.Kind;
-        joint.BackendId = world.Backend.AddJoint(new BackendJoint
+        joint.Description = new BackendJoint
         {
             Kind = description.Kind,
-            BodyA = a.BackendId,
-            BodyB = b.BackendId,
             AnchorA = description.AnchorA,
             AnchorB = description.AnchorB,
             AxisA = axisA,
             AxisB = axisB,
             Motor = description.Motor,
-        });
-        world.Joints++;
+        };
+        AddJointToWorld(ref joint);   // otherwise once the bodies share a world, before the next step
         return new JointHandle(slot, joint.Generation);
     }
 
@@ -458,24 +452,6 @@ internal sealed partial class PhysicsSimulation
         return ref command;
     }
 
-    private WorldEntry GetOrCreateWorld(DimensionId dimension, in WorldPosition near)
-    {
-        foreach (WorldEntry world in _worlds)
-        {
-            if (world.Dimension == dimension)
-            {
-                return world;
-            }
-        }
-
-        ChunkCoordinate origin = PhysicsFrame.OriginAt(near);
-        var options = new PhysicsWorldOptions(origin, Gravity, this, _context.Logger);
-        var entry = new WorldEntry(dimension, origin, _backend!.CreateWorld(options));
-        _worlds.Add(entry);
-        _context.Logger.Debug($"Physics world of {dimension} created at chunk {origin}.");
-        return entry;
-    }
-
     [HotPath]
     private void RemoveBodyCore(int slot, bool removeComponents)
     {
@@ -490,9 +466,21 @@ internal sealed partial class PhysicsSimulation
             }
         }
 
-        WorldEntry world = body.World!;
-        world.Backend.RemoveBody(body.BackendId);
-        world.Bodies--;
+        RemoveGhosts(slot);
+        if (body.World is { } world)
+        {
+            world.Backend.RemoveBody(body.BackendId);
+            world.Bodies--;
+            if (world.Bodies == 0)
+            {
+                DisposeWorld(world);
+            }
+        }
+        else
+        {
+            _frozenBodies--;
+        }
+
         ReleaseShape(body.Shape);
         CountKind(body.Kind, -1);
         if (body.Asleep)
@@ -511,19 +499,18 @@ internal sealed partial class PhysicsSimulation
         }
 
         FreeBody(slot);
-        if (world.Bodies == 0)
-        {
-            world.Backend.Dispose();
-            _worlds.Remove(world);
-        }
     }
 
     [HotPath]
     private void DestroyJointCore(int slot)
     {
         ref JointRecord joint = ref _joints[slot];
-        joint.World!.Backend.RemoveJoint(joint.BackendId);
-        joint.World.Joints--;
+        if (joint.World is { } world)
+        {
+            world.Backend.RemoveJoint(joint.BackendId);
+            world.Joints--;
+        }
+
         FreeJoint(slot);
     }
 
@@ -541,6 +528,8 @@ internal sealed partial class PhysicsSimulation
             {
                 Array.Resize(ref _bodies, _bodies.Length * 2);
                 Array.Resize(ref _poses, _bodies.Length);
+                Array.Resize(ref _targets, _bodies.Length);
+                Array.Resize(ref _groups, _bodies.Length);
             }
 
             slot = _bodyHigh++;
@@ -619,7 +608,10 @@ internal sealed partial class PhysicsSimulation
 
     [HotPath]
     private static BodyFlags FlagsOf(in BodyRecord body) =>
-        (body.Continuous ? BodyFlags.Continuous : BodyFlags.None) | (body.CanSleep ? BodyFlags.CanSleep : BodyFlags.None) | (body.Asleep ? BodyFlags.Asleep : BodyFlags.None);
+        (body.Continuous ? BodyFlags.Continuous : BodyFlags.None)
+        | (body.CanSleep ? BodyFlags.CanSleep : BodyFlags.None)
+        | (body.Asleep ? BodyFlags.Asleep : BodyFlags.None)
+        | (body.World is null ? BodyFlags.Frozen : BodyFlags.None);
 
     [HotPath]
     private static BodyMass MassOf(in BodyRecord body) =>
@@ -721,6 +713,7 @@ internal sealed partial class PhysicsSimulation
         public int Generation;
         public bool Alive;
         public int NextFree;
+        /// <summary>The world the body is in; <see langword="null"/> while it is frozen, out of every region.</summary>
         public WorldEntry? World;
         public int BackendId;
         public EntityWorld? EntityWorld;
@@ -741,6 +734,23 @@ internal sealed partial class PhysicsSimulation
         public bool Dirty;
         public bool TargetPending;
         public ulong TargetTick;
+
+        /// <summary>The center of the body in the world, after the last step or command: where it enters a world, or stays while frozen.</summary>
+        public WorldPosition Position;
+        public Quaternion Rotation;
+
+        /// <summary>The velocities after the last step, kept while the body is frozen.</summary>
+        public Vector3 Linear;
+        public Vector3 Angular;
+
+        /// <summary>Whether a teleport set <see cref="Position"/> since the last pass on the bodies.</summary>
+        public bool Teleported;
+
+        /// <summary>Whether the body changes world in the current pass on the bodies.</summary>
+        public bool Moving;
+
+        /// <summary>The first ghost of the body, plus one; 0 when it has none.</summary>
+        public int FirstGhost;
     }
 
     private struct JointRecord
@@ -748,10 +758,15 @@ internal sealed partial class PhysicsSimulation
         public int Generation;
         public bool Alive;
         public int NextFree;
+
+        /// <summary>The world the joint is in; <see langword="null"/> until its bodies share one.</summary>
         public WorldEntry? World;
         public int BackendId;
         public BodyHandle First;
         public BodyHandle Second;
         public JointKind Kind;
+
+        /// <summary>The joint as nPhysics gives it to a world, without the numbers of its bodies, to add it again after a transfer.</summary>
+        public BackendJoint Description;
     }
 }

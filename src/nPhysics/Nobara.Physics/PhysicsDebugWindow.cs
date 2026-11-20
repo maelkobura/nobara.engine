@@ -12,7 +12,7 @@ namespace Nobara.Physics;
 /// <summary>
 /// The only place where nPhysics uses nDebug, its optional dependency: the
 /// "Physics" tool window, which shows the backend, the step, the bodies by
-/// kind, awake and asleep, and the physics worlds.
+/// kind, awake, asleep, and frozen, and the regions with their worlds.
 /// </summary>
 [UsesOptionalDependency(DebugModuleId)]
 internal sealed class PhysicsDebugWindow : IDisposable
@@ -54,15 +54,18 @@ internal sealed class PhysicsDebugWindow : IDisposable
             ImGui.TextUnformatted(string.Create(culture, $"Static: {statistics.StaticBodies}"));
             ImGui.TextUnformatted(string.Create(culture, $"Kinematic: {statistics.KinematicBodies}"));
             ImGui.TextUnformatted(string.Create(culture, $"Dynamic: {statistics.DynamicBodies}"));
-            ImGui.TextUnformatted(string.Create(culture, $"Awake: {statistics.AwakeBodies}, asleep: {statistics.SleepingBodies}"));
+            ImGui.TextUnformatted(string.Create(culture, $"Awake: {statistics.AwakeBodies}, asleep: {statistics.SleepingBodies}, frozen: {statistics.FrozenBodies}"));
             ImGui.TextUnformatted(string.Create(culture, $"Joints: {statistics.Joints}, shapes: {statistics.Shapes}"));
         }
 
-        if (ImGui.CollapsingHeader("Worlds", ImGuiTreeNodeFlags.DefaultOpen))
+        if (ImGui.CollapsingHeader("Regions", ImGuiTreeNodeFlags.DefaultOpen))
         {
-            foreach (PhysicsWorldInfo world in _simulation.Worlds)
+            ImGui.TextUnformatted(string.Create(culture, $"Regions: {statistics.Regions}, worlds: {statistics.Worlds}, ghosts: {statistics.Ghosts}"));
+            ImGui.TextUnformatted(string.Create(culture, $"Transfers: {statistics.Transfers}, merges: {statistics.Merges}, splits: {statistics.Splits}, recenters: {statistics.Recenters}"));
+            foreach (PhysicsRegionInfo region in _simulation.Regions)
             {
-                ImGui.TextUnformatted(string.Create(culture, $"{world.Dimension}: origin {world.Origin}, {world.Bodies} bodies, {world.Joints} joints"));
+                string world = region.HasWorld ? string.Create(culture, $"{region.Bodies} bodies, {region.Ghosts} ghosts, {region.Joints} joints") : "no world";
+                ImGui.TextUnformatted(string.Create(culture, $"#{region.Id} {region.Dimension}: chunks {region.Minimum} to {region.Maximum}, origin {region.Origin}, {world}"));
             }
         }
     }

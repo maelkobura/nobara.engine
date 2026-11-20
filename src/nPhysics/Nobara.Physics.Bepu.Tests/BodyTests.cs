@@ -181,7 +181,8 @@ public sealed class BodyTests
 
     private static WorldPosition Fall(double offset)
     {
-        using var scene = new BepuScene();
+        using var scene = new BepuScene(h => h.ActiveArea = null);
+        scene.Probe.Activate(WorldPosition.FromBlocks(offset + 16, 16, offset + 16), new ChunkArea(1, 1));   // a region whose origin is the chunk of the box
         BodyHandle box = scene.Add(WorldPosition.FromBlocks(offset + 16.25, 4, offset + 16.75), scene.Physics.CreateBox(Vector3.One), rotation: Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.3f));
         scene.Ground();
         scene.Tick(120);

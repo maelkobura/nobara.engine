@@ -560,6 +560,11 @@ A value of a resource that its own type does not declare, written in its
 `<Properties>` block for other modules to read, such as `Weight`. See [the
 `.nof` reference](../reference/formats/nof.md#free-properties).
 
+### Frozen body
+
+A body that no [physics region](#physics-region) holds: nPhysics keeps its
+position and velocities, and simulates it again once a region holds it.
+
 ### Game module
 
 A module that implements a feature of a game, such as a world generator or a
@@ -577,6 +582,12 @@ time scale. See [the nGame module sheet](../../src/nGame/README.md#game-time).
 The compiled form of XML content whose schema the compiler does not know: an
 element with its attributes, children, typed values, and positions. It holds
 components, free properties, and module configurations.
+
+### Ghost body
+
+The double of a body in the [physics region](#physics-region) next to its
+own, near their border: a body of the same kind, placed again where the body
+is before each step, so that the bodies of that region collide with it.
 
 ### Global event
 
@@ -1056,12 +1067,20 @@ A named part of the loop of a context, such as input, simulation, or
 rendering, declared by the distribution in `engine.nobara`. Modules subscribe
 handlers to the phases they need.
 
+### Physics region
+
+An island of active chunks of a dimension that nPhysics simulates in a
+[physics world](#physics-world) of its own, around an origin near its center.
+Regions follow the active area tickets of the terrain, merge when they share
+a chunk, and split again once far enough apart.
+
 ### Physics world
 
 One simulation of a physics [backend](#backend), with an origin at the
 corner of a chunk: positions in it are offsets from that origin, so that no
 absolute coordinate in single precision reaches the backend. Physics worlds
-share nothing, and a context can hold several.
+share nothing, and nPhysics keeps one for each
+[physics region](#physics-region) that has bodies.
 
 ### Pipeline state
 

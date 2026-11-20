@@ -15,9 +15,12 @@ entity or grid: the [movement authority](../../docs/explanation/glossary.md#move
 A body is an entity of nEntity that carries the components of nPhysics. Other
 modules create shapes, make entities bodies, join bodies with joints, and
 move them through commands: forces, impulses, velocities, kinematic targets,
-and teleports. nPhysics applies the commands before each step, steps every
-[physics world](../../docs/explanation/glossary.md#physics-world), then writes
-the transforms of the bodies that moved, grids included. The layers and the
+and teleports. nPhysics simulates each
+[physics region](../../docs/explanation/glossary.md#physics-region), an island
+of active chunks, in a [physics world](../../docs/explanation/glossary.md#physics-world)
+of its own: it applies the commands before each step, moves the bodies to the
+world of their region, steps every world, then writes the transforms of the
+bodies that moved, grids included. The layers and the
 authority are described in [the physics of nPhysics](../../docs/explanation/physics.md).
 
 ## Status
@@ -72,20 +75,22 @@ extension again. No other module sees the types of BEPUphysics.
 
 The optional dependency of nPhysics on nDebug is used by one isolation class,
 `PhysicsDebugWindow`: the "Physics" tool window, which shows the backend, the
-duration of the last step, the bodies by kind, awake and asleep, and the
-physics worlds with their origin.
+duration of the last step, the bodies by kind, awake, asleep, and frozen,
+the counts of transfers, merges, splits, and recenters, and the regions with
+their box, their origin, and their bodies, ghosts, and joints.
 
 ## Entry points
 
 | Member | Use |
 | --- | --- |
-| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
 | `BodyDescription`, `BodyKind`, `BodyHandle`, `PhysicsMaterial`, `CollisionFilter`, `BodyInertia`, `BodyState` | What a body is made of, its handle, and its state. |
 | `PhysicsBody`, `BodyShape`, `BodyMaterial`, `BodyMass`, `BodyVelocity`, `BodyFlags` | The components of a body, written by nPhysics only. |
 | `PhysicsShape`, `ShapeKind`, `ShapeDescription`, `CompoundChild` | Shapes, shared by the bodies that use them. |
 | `JointDescription`, `JointKind`, `JointHandle`, `JointMotor` | Hinges, sliders, and fixed joints, with an optional motor. |
 | `IPhysicsStepObserver`, `PhysicsStepEnd`, `BodyPose`, `PhysicsStepSubscription` | The end of each step, with the bodies whose transform it wrote. |
 | `IMediumProvider`, `MediumSample`, `MediumProviderHandle` | What fills a point, as a fluid module describes it. |
+| `PhysicsRegionInfo`, `PhysicsWorldInfo`, `PhysicsStatistics` | The regions, the physics worlds, and the counts after the last step. |
 | `PhysicsFrame` | The conversions between positions in the world and positions in a physics world. |
 | `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `BackendRayHit` | The interface of a backend, for the extensions that provide one. |
 | `PhysicsSettings` | The names of the configuration keys. |
@@ -197,8 +202,11 @@ JointHandle hinge = physics.CreateJoint(frame, door, new JointDescription(
 physics.SetMotor(hinge, null);
 ```
 
-A joint joins two bodies of the same physics world. Anchors and axes are in
-the frame of each body, from its center. A fixed joint keeps the place and
+A joint joins two bodies of the same dimension. Joined bodies stay in one
+physics world, the one of the region of the first body of their group: a
+joint between bodies of two regions takes effect at the next step, once the
+second body has moved there. Anchors and axes are in the frame of each body,
+from its center. A fixed joint keeps the place and
 the rotation the bodies had relative to each other when it was made, and has
 no motor. Removing a body destroys its joints.
 
@@ -209,10 +217,13 @@ Each tick, in the stage `Physics`, `nobara.physics.step`:
 1. removes the bodies whose entity, entity world, or grid is gone;
 2. applies the queued commands, in order;
 3. stops the kinematic bodies that reached their target at the last step;
-4. steps each physics world once, with `physics.substeps` substeps;
-5. writes the world transform and the velocities of each body that moved,
+4. derives the regions from the tickets, moves the bodies to the world of
+   their region, and places the ghosts;
+5. steps each physics world once, with `physics.substeps` substeps, the
+   worlds of independent regions at the same time;
+6. writes the world transform and the velocities of each body that moved,
    and the flag `Asleep` when it changes;
-6. publishes the end of the step to the observers.
+7. publishes the end of the step to the observers.
 
 The duration of a step is the duration of the tick. While the game is
 paused, the phase `Simulation` does not run, and nothing steps; under a time
@@ -226,9 +237,46 @@ chunk. Positions in it are offsets from the corner of that chunk, in blocks:
 coordinate in single precision reaches a backend. A body a billion blocks
 from the origin keeps the precision it has at the origin.
 
-nPhysics creates the world of a dimension when its first body is added, with
-the chunk of that body as its origin, and disposes it when its last body is
-removed. Several worlds can exist in one context.
+### Regions
+
+nPhysics simulates only the active areas: the area tickets of level `Active`
+on the terrain of each dimension, such as the simulation area of a viewer
+(`IChunkLoading.AddViewer`). It derives the regions from them before each
+step, and when a body is added:
+
+- a region is the box of chunks of one ticket, or of several tickets whose
+  boxes share a chunk; its origin is the chunk at its center;
+- a region gets a physics world when a body enters it, and loses it when the
+  last one leaves;
+- a body belongs to the region that holds its center, and stays in it while
+  its center is less than 1 block out of it. When it leaves, it moves to the
+  world of the region it enters, with its pose and its velocities: the move
+  costs about 5 µs per body. It arrives awake;
+- a body that no region holds is frozen: it keeps its position and its
+  velocities, carries the flag `Frozen`, and moves again once a region holds
+  it. Commands change what it is made of, its pose, and its velocities;
+  forces, impulses, and kinematic targets given to it are lost;
+- two regions that touch see each other's bodies near their border as ghosts:
+  a body less than 2 blocks plus its velocity over a step away from the other
+  region, beyond its bounds, has a double there, of the same kind, placed
+  again where the body is before each step. A dynamic ghost carries the mass
+  of its body, so that what it rests on bears its weight; the ghost of a
+  sleeping body is kinematic and still;
+- regions whose boxes share a chunk merge: the bodies move to the world of the
+  region with the most bodies. A merged region splits once two empty chunks
+  lie between its islands;
+- when the center of a region drifts more than 8 chunks from its origin, its
+  bodies move to a new world around its center;
+- the world with the most awake bodies steps on the loop thread, where its
+  backend may spread it over the workers; the others step at the same time,
+  each in one index of a parallel job of the job system.
+
+`IPhysicsSystem.Regions` lists the regions, and `Statistics` counts the
+frozen bodies, the ghosts, the transfers, the merges, the splits, and the
+recenters. The regions and their worlds belong to the world session. In
+development mode, nPhysics registers the world state counters `bodies`,
+`joints`, `regions`, `physics worlds`, and `ghosts`. The values are described
+in [the physics of nPhysics](../../docs/explanation/physics.md#regions-at-local-origins).
 
 ### End of the step
 
@@ -378,7 +426,11 @@ None.
   module that reserves `voxel.grid.transform`.
 - Once the queue of commands and the tables of bodies have grown, a step
   allocates no managed memory, commands, observers, and the writing of the
-  transforms included (checked by a test with a test backend).
+  transforms included (checked by a test with a test backend). The placing of
+  the bodies, which creates the regions, their worlds, and the records of the
+  ghosts when they appear, is not hot path code as a whole; it allocates
+  nothing once the regions are stable (checked by a test with three regions
+  and ghosts).
 - Bodies, joints, and physics worlds belong to the world session: they are
   forgotten when it ends. Shapes belong to the context.
 - nPhysics keeps no static state.
@@ -387,8 +439,22 @@ None.
 
 - No backend ships in this module: a distribution needs a backend extension
   of `nobara.physics`.
-- One physics world per dimension, whose origin is the chunk of its first
-  body: bodies far from that origin lose precision, without a warning.
+- Only area tickets of level `Active` on a terrain grid make regions: a
+  ticket on a single chunk, a ticket of level `ReducedActive`, and a ticket on
+  another grid do not. A body there is frozen.
+- A region is the box of its tickets, so it covers the chunks between two
+  tickets that share a chunk, even when no ticket holds them.
+- The state of the chunks is not read: a body in an active chunk that is not
+  loaded yet is simulated, and falls through it.
+- A body that leaves the world of a region loses its sleep, and the backend
+  loses its contacts: it can move by a few hundredths of a block per second
+  at the next step. A transferred joint is made again: a fixed joint keeps
+  the pose the bodies have then, and a slider the rotation they have then.
+- Across a border, a body and the ghost of another do not push each other as
+  two bodies of one world do: each world solves its own bodies, and the
+  ghost of a dynamic body follows its body again at the next step.
+- Joined bodies are simulated in the region of the first body of their group,
+  however far from it the others are.
 - Bodies do not collide with voxels yet, and there are no queries nor contact
   events: only the backend collides bodies with each other.
 - No character controller.

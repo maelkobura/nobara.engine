@@ -41,6 +41,9 @@ internal sealed class BepuHarness : IDisposable
     /// <summary>Gets the values of the keys of nPhysics, by key.</summary>
     public Dictionary<string, string> Settings { get; } = new(StringComparer.Ordinal);
 
+    /// <summary>Gets or sets the area of the active ticket that the harness places around the origin once the session starts, so that the bodies there are simulated; <see langword="null"/> for none.</summary>
+    public ChunkArea? ActiveArea { get; set; } = new ChunkArea(4, 2);
+
     public BepuProbe Probe { get; private set; } = null!;
 
     public BepuModule Module { get; private set; } = null!;
@@ -84,6 +87,11 @@ internal sealed class BepuHarness : IDisposable
         });
         engine.MainContext.Start();
         engine.MainContext.RunFrame();   // enters the play state, which starts the world session, without a tick
+        if (ActiveArea is { } area)
+        {
+            Probe.Activate(WorldPosition.FromBlocks(16, 16, 16), area);
+        }
+
         return engine;
     }
 
@@ -260,8 +268,36 @@ internal sealed class BepuProbe : IModule
         Voxels = context.Resolve<IVoxelWorlds>();
         Time = context.Resolve<IGameTime>();
         Schedule = context.Resolve<ITickSchedule>();
+        Loading = context.Resolve<IChunkLoading>();
         IWorldSessions sessions = context.Resolve<IWorldSessions>();
+        sessions.SubscribeEnding(context, _ =>
+        {
+            foreach (AreaTicket ticket in Tickets)
+            {
+                ticket.Dispose();
+            }
+
+            Tickets.Clear();
+        });
         context.Resolve<IStateStack>().Register(context, "state:example.game.play", () => new PlayState(sessions));
+    }
+
+    public IChunkLoading Loading { get; private set; } = null!;
+
+    /// <summary>Gets the active tickets this module placed; they are disposed when the session ends.</summary>
+    public List<AreaTicket> Tickets { get; } = [];
+
+    /// <summary>Holds an area of the terrain of the default dimension at the level <see cref="TicketLevel.Active"/>: nPhysics simulates the bodies there.</summary>
+    public AreaTicket Activate(in WorldPosition center, ChunkArea area)
+    {
+        if (!Voxels.TryGetTerrain(DimensionId.Default, out Grid? terrain))
+        {
+            throw new InvalidOperationException("No terrain.");
+        }
+
+        AreaTicket ticket = Loading.AddAreaTicket(Context, terrain!, center, area, TicketLevel.Active);
+        Tickets.Add(ticket);
+        return ticket;
     }
 
     /// <summary>Creates an entity with a world transform, outside entity systems.</summary>

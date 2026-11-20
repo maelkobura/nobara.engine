@@ -38,6 +38,9 @@ public enum BodyFlags : byte
 
     /// <summary>The body sleeps: the backend does not simulate it until something wakes it.</summary>
     Asleep = 4,
+
+    /// <summary>The body is out of every region: nPhysics does not simulate it until a region holds it again.</summary>
+    Frozen = 8,
 }
 
 /// <summary>Identifies a body. It names no body any more once the body is removed.</summary>
