@@ -47,14 +47,14 @@ public struct CharacterBody
     {
         [HotPath]
         get => new()
-    {
-        Size = new Vector3(0.6f, 1.8f, 0.6f),
-        StepHeight = 0.6f,
-        GravityScale = 1f,
-        AirAcceleration = 2f,
-        Mass = 80f,
-        Filter = CollisionFilter.Default,
-    };
+        {
+            Size = new Vector3(0.6f, 1.8f, 0.6f),
+            StepHeight = 0.6f,
+            GravityScale = 1f,
+            AirAcceleration = 2f,
+            Mass = 80f,
+            Filter = CollisionFilter.Default,
+        };
     }
 }
 

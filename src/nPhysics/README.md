@@ -635,6 +635,9 @@ None.
   of their boxes in that frame.
 - A character pushes a dynamic body by the sphere that holds its shape,
   starting before their surfaces touch for a box.
+- Each character looks at every body of the context for static bodies to
+  meet and dynamic bodies to push: the cost of a step grows with the number
+  of characters times the number of bodies.
 - A character on a support grid whose position in the grid is thousands of
   blocks from its origin loses precision as single precision does there.
 - A shape of a block that depends on its instance, in a chunk that no physics

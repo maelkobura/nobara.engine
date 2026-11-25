@@ -116,7 +116,13 @@ internal sealed partial class PhysicsSimulation
             throw new InvalidOperationException("A character is removed outside entity systems: the structure of the world is locked while one runs.");
         }
 
-        RemoveCharacterCore(world.Read(entity, _characterStateComponent).Slot);
+        int slot = world.Read(entity, _characterStateComponent).Slot;
+        if ((uint)slot >= (uint)_characterHigh || !_characters[slot].Alive || _characters[slot].World != world || _characters[slot].Entity != entity)
+        {
+            throw new ArgumentException($"The {entity} is not a character of {dimension}: its state names another one.", nameof(entity));
+        }
+
+        RemoveCharacterCore(slot);
     }
 
     [HotPath]
@@ -925,9 +931,9 @@ internal sealed partial class PhysicsSimulation
             body.Size = fallback.Size;
         }
 
-        body.StepHeight = body.StepHeight >= 0 && float.IsFinite(body.StepHeight) ? body.StepHeight : 0;
+        body.StepHeight = body.StepHeight >= 0 && float.IsFinite(body.StepHeight) ? body.StepHeight : fallback.StepHeight;
         body.GravityScale = body.GravityScale >= 0 && float.IsFinite(body.GravityScale) ? body.GravityScale : fallback.GravityScale;
-        body.AirAcceleration = body.AirAcceleration >= 0 && float.IsFinite(body.AirAcceleration) ? body.AirAcceleration : 0;
+        body.AirAcceleration = body.AirAcceleration >= 0 && float.IsFinite(body.AirAcceleration) ? body.AirAcceleration : fallback.AirAcceleration;
         body.Mass = body.Mass > 0 && float.IsFinite(body.Mass) ? body.Mass : fallback.Mass;
         return body;
     }
