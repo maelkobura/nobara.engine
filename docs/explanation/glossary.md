@@ -104,6 +104,15 @@ component records, per entity and per block, so that a reader finds what
 changed since its last read. See [the nEntity module
 sheet](../../src/nEntity/README.md#change-detection).
 
+### Character controller
+
+The part of nPhysics that moves characters: entities with the component
+`CharacterBody`, upright boxes that follow their
+[movement intent](#movement-intent) against the voxels and the static bodies,
+and stand on a [support grid](#support-grid). It needs no backend, runs the
+same code on both sides, and reads no input: the player controller of a game
+decides the intent. See [Make a character walk](../guides/make-a-character-walk.md).
+
 ### Chunk
 
 A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid
@@ -914,6 +923,14 @@ transforms of grids: nPhysics. Other modules move a body through its
 commands, and a grid only through the module that reserves
 `voxel.grid.transform`. See [the physics of nPhysics](physics.md#the-movement-authority).
 
+### Movement intent
+
+The component `MovementIntent` of a character: the horizontal velocity it
+wants, relative to the ground it stands on, and the speed of a jump. Any
+module writes it at the stage `Intents`, from the input of a player or the
+decisions of a mob; the [character controller](#character-controller)
+follows it.
+
 ### nAudio
 
 The audio module: the resource types `Sound` and `Bus`, the tree of buses,
@@ -1380,6 +1397,15 @@ page](../../src/Core/README.md#reserved-phases-and-levers).
 Decoding a sound in blocks while it plays, in background jobs, instead of
 decoding it whole when it loads; for music and long ambiences. See
 [the nAudio module sheet](../../src/nAudio/README.md#decoding).
+
+### Support grid
+
+The grid a character stands on. The
+[character controller](#character-controller) makes the character a child of
+the grid entity, through a [parent link](#parent-link), so that it moves and
+turns with the grid, and resolves its collisions in the frame of the grid. It
+changes the support grid when the ground belongs to another grid, and takes
+it away a few steps after the character leaves the ground.
 
 ### Swapchain
 

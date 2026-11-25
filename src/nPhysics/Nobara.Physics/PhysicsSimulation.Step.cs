@@ -15,8 +15,8 @@ namespace Nobara.Physics;
 /// The step, in the stage <c>Physics</c>: bodies whose entity is gone are
 /// removed, commands apply in order, the regions follow the tickets, bodies
 /// move to the world of their region and leave ghosts next to it, every
-/// world steps, then nPhysics writes the transforms of the bodies that moved
-/// and publishes the end of the step.
+/// world steps, then nPhysics writes the transforms of the bodies that moved,
+/// moves the characters, and publishes the end of the step.
 /// </summary>
 internal sealed partial class PhysicsSimulation
 {
@@ -35,6 +35,7 @@ internal sealed partial class PhysicsSimulation
         _placeBodies(delta);   // through a delegate: not hot path code as a whole
         StepWorlds(delta);
         int written = WriteTransforms();
+        MoveCharacters(delta);
         Publish(time, written);
         _steps++;
         _lastStep = Stopwatch.GetElapsedTime(start);
@@ -441,7 +442,11 @@ internal sealed partial class PhysicsSimulation
             return;
         }
 
-        var end = new PhysicsStepEnd(time.Tick, time.Delta, new ReadOnlySpan<BodyPose>(_poses, 0, written));
+        var end = new PhysicsStepEnd(time.Tick, time.Delta, new ReadOnlySpan<BodyPose>(_poses, 0, written))
+        {
+            CharacterSteps = new ReadOnlySpan<CharacterStep>(_characterSteps, 0, _characterStepCount),
+            CharacterLandings = new ReadOnlySpan<CharacterLanding>(_characterLandings, 0, _characterLandingCount),
+        };
         for (_publishing = 0; _publishing < _observers.Count; _publishing++)
         {
             PhysicsStepSubscription subscription = _observers[_publishing];

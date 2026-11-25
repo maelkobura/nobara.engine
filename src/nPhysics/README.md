@@ -21,7 +21,12 @@ of active chunks, in a [physics world](../../docs/explanation/glossary.md#physic
 of its own: it applies the commands before each step, moves the bodies to the
 world of their region, steps every world, then writes the transforms of the
 bodies that moved, grids included. Bodies collide with the voxels of every
-grid, read where nVoxel keeps them, with no geometry to rebuild. The layers and the
+grid, read where nVoxel keeps them, with no geometry to rebuild. Its
+[character controller](../../docs/explanation/glossary.md#character-controller)
+moves characters, players and mobs alike, after the
+[movement intent](../../docs/explanation/glossary.md#movement-intent) that a
+game writes for them, and carries them on their
+[support grid](../../docs/explanation/glossary.md#support-grid). The layers and the
 authority are described in [the physics of nPhysics](../../docs/explanation/physics.md).
 
 ## Status
@@ -85,12 +90,13 @@ their box, their origin, and their bodies, ghosts, and joints.
 
 | Member | Use |
 | --- | --- |
-| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
 | `BodyDescription`, `BodyKind`, `BodyHandle`, `PhysicsMaterial`, `CollisionFilter`, `BodyInertia`, `BodyState` | What a body is made of, its handle, and its state. |
 | `PhysicsBody`, `BodyShape`, `BodyMaterial`, `BodyMass`, `BodyVelocity`, `BodyFlags` | The components of a body, written by nPhysics only. |
 | `PhysicsShape`, `ShapeKind`, `ShapeDescription`, `CompoundChild` | Shapes, shared by the bodies that use them. |
 | `JointDescription`, `JointKind`, `JointHandle`, `JointMotor` | Hinges, sliders, and fixed joints, with an optional motor. |
-| `IPhysicsStepObserver`, `PhysicsStepEnd`, `BodyPose`, `PhysicsStepSubscription` | The end of each step, with the bodies whose transform it wrote. |
+| `CharacterBody`, `MovementIntent`, `CharacterState`, `CharacterGround`, `CharacterGroundKind`, `CharacterController` | The components of a character, what it stands on, and the fixed rules of the character controller. |
+| `IPhysicsStepObserver`, `PhysicsStepEnd`, `BodyPose`, `CharacterStep`, `CharacterLanding`, `PhysicsStepSubscription` | The end of each step, with the bodies whose transform it wrote and the steps and landings of the characters. |
 | `IMediumProvider`, `MediumSample`, `MediumProviderHandle` | What fills a point, as a fluid module describes it. |
 | `PhysicsRegionInfo`, `PhysicsWorldInfo`, `PhysicsStatistics` | The regions, the physics worlds, and the counts after the last step. |
 | `PhysicsFrame` | The conversions between positions in the world and positions in a physics world. |
@@ -127,7 +133,8 @@ BodyHandle body = physics.AddBody(DimensionId.Default, entity, new BodyDescripti
 });
 ```
 
-- The entity has a world transform, no parent, and is not a body already.
+- The entity has a world transform, no parent, and is neither a body nor a
+  character.
   The body starts where the entity is; `Center` places the center of the
   body, the origin of its shape and its center of mass, in the frame of the
   entity.
@@ -233,7 +240,9 @@ Each tick, in the stage `Physics`, `nobara.physics.step`:
    worlds of independent regions at the same time;
 6. writes the world transform and the velocities of each body that moved,
    and the flag `Asleep` when it changes;
-7. publishes the end of the step to the observers.
+7. moves the characters, on the grids where the step has just put them (see
+   [Characters](#characters));
+8. publishes the end of the step to the observers.
 
 The duration of a step is the duration of the tick. While the game is
 paused, the phase `Simulation` does not run, and nothing steps; under a time
@@ -285,7 +294,8 @@ step, and when a body is added:
 frozen bodies, the ghosts, the transfers, the merges, the splits, and the
 recenters. The regions and their worlds belong to the world session. In
 development mode, nPhysics registers the world state counters `bodies`,
-`joints`, `regions`, `physics worlds`, `ghosts`, and `voxel chunks`. The
+`joints`, `regions`, `physics worlds`, `ghosts`, `voxel chunks`, and
+`characters`. The
 values are described in [the physics of nPhysics](../../docs/explanation/physics.md#regions-at-local-origins).
 
 ### Voxels
@@ -330,6 +340,82 @@ them, while the world steps.
 `Statistics.VoxelChunks` counts the chunks the worlds hold, and
 `Statistics.VoxelWakes` the times changed blocks woke the bodies of a world.
 
+### Characters
+
+A character is an entity that the character controller moves: an upright
+box, at the feet of the entity, that follows its `MovementIntent`. The
+controller is part of nPhysics, needs no backend, and runs the same code on
+both sides; it reads no input and knows no walking speed. The guide
+[Make a character walk](../../docs/guides/make-a-character-walk.md) shows
+where the player controller of a game plugs in.
+
+```csharp
+CharacterBody body = CharacterBody.Default;   // 0.6 × 1.8 × 0.6 blocks, steps of 0.6 block
+physics.AddCharacter(DimensionId.Default, farmer, body);
+world.Set(farmer, intent, new MovementIntent { Velocity = new Vector3(4.3f, 0, 0), JumpSpeed = jumping ? 7f : 0 });
+```
+
+- **Components.** `AddCharacter` adds `CharacterBody` (`nobara.physics.character`),
+  `CharacterState` (`nobara.physics.character_state`), and, when the entity
+  lacks them, `MovementIntent` (`nobara.physics.movement_intent`) and
+  `BodyVelocity`. The module of the character writes `CharacterBody` when it
+  wants; any module writes `MovementIntent` at the stage `Intents`; nPhysics
+  alone writes `CharacterState`, `BodyVelocity`, and the position. The entity
+  has a world transform, no parent, and no body.
+- **Movement.** On the ground, the character takes the wanted horizontal
+  velocity at once, relative to the ground; while `JumpSpeed` is above 0, it
+  jumps each time it stands on the ground. In the air, gravity times
+  `GravityScale` pulls it, and its horizontal velocity turns toward the wanted
+  one at `AirAcceleration`, or stays when the wanted one is zero.
+- **Collision.** The box moves along the vertical, then X, then Z, and stops
+  at each box it meets on the way: it slides along walls and out of inner
+  corners. It meets the collision boxes of the voxels of every grid, read as
+  the voxel layer reads them, and the static bodies, by the box that holds
+  each shape or each child of a compound. A step no higher than `StepHeight`
+  is walked up when the way ahead is blocked and the character stood on the
+  ground.
+- **Ground.** The character stands on the ground when its downward motion
+  was stopped. `CharacterState.Ground` gives what it stands on: a block, its
+  grid, and its state, or a static body; of several, the one under most of
+  its feet. A jump leaves the ground at once.
+- **Support grid.** When the ground is a block of a grid other than the
+  terrain, that grid becomes the support grid of the character: the character
+  becomes a child of the grid entity (`ParentLink`), its local transform is
+  where it stands on the grid, and the controller resolves it in the frame of
+  the grid. It moves and turns with the grid with no drift, since it does not
+  move in that frame. When the ground belongs to another grid, or to the
+  terrain, the character passes to that frame at once, with its velocity in
+  the world kept. After `CharacterController.SupportGraceSteps` steps in the
+  air, 3, it leaves the grid with the velocity the grid had at its feet. A
+  grid turned more than 45 degrees from the vertical, or scaled, is never a
+  support grid.
+- **Dynamic bodies.** The character goes through dynamic bodies, and pushes
+  those its box touches, by the sphere that holds their shape: each step, an
+  impulse along the way from the character to the body, of the collision
+  that would leave both at one speed. A crate of 2 kilograms takes almost all
+  the speed of a character of 80; a block of 2 tonnes, almost none. Dynamic
+  bodies never push the character back.
+- **Freezing.** A character that reaches a chunk of the terrain that is not
+  loaded or not active does not move, and keeps its velocity:
+  `CharacterState.IsFrozen` tells so.
+- **Removal.** `RemoveCharacter`, or removing `CharacterBody` from the entity
+  (seen at the next step), takes the character off its support grid where it
+  is in the world, removes `CharacterBody` and `CharacterState`, and keeps
+  `MovementIntent` and `BodyVelocity`, with the last velocity. nPhysics writes
+  its transform no more: its module moves it, or makes it a body.
+  `AddCharacter` gives it back to the controller from where it is, with the
+  velocity of its `BodyVelocity`.
+- **Position.** nPhysics keeps no position of its own for a character: each
+  step starts from its transform, its local transform on a support grid. It
+  writes the position only: the module of the character turns it, through its
+  local transform while it has a parent.
+
+The end of each step lists in `CharacterSteps` the characters that walked on
+the ground, with the distance and the ground, and in `CharacterLandings`
+those that landed at `CharacterController.LandingSpeed` (1 block per second)
+or faster, with their speed, their steps in the air, and the ground.
+`Statistics.Characters` counts the characters.
+
 ### End of the step
 
 ```csharp
@@ -348,7 +434,8 @@ physics.SubscribeStepEnd(context, new History());
 ```
 
 The observers are called on the loop thread, once the transforms are
-written, with the bodies whose transform the step wrote. `OnStepEnd` is hot
+written and the characters moved, with the bodies whose transform the step
+wrote, and the steps and landings of the characters. `OnStepEnd` is hot
 path code. An exception is charged to the module of the observer.
 
 ### Providers of medium
@@ -489,14 +576,18 @@ None.
   the bodies, which creates the regions, their worlds, and the records of the
   ghosts when they appear, is not hot path code as a whole; it allocates
   nothing once the regions are stable (checked by a test with three regions
-  and ghosts). The voxel layer allocates when a chunk enters a world, and
+  and ghosts). Moving characters allocates nothing once they walk on voxels,
+  on a grid, and along static bodies (checked by a test with the backend of
+  nPhysics.Bepu); putting a character on a grid for the first time gives it
+  the components of the hierarchy, a change of structure. The voxel layer allocates when a chunk enters a world, and
   nothing once the bodies rest on chunks the worlds hold (checked by a test
   with bodies on the voxels).
 - The step reads the blocks of every grid: its tick system declares
-  `IVoxelWorlds.ChunkAccess` as a read. Blocks change at the stage `World`, before the
+  `IVoxelWorlds.ChunkAccess` as a read. It writes the structure of the entity
+  worlds, since characters change parents and lose their components there. Blocks change at the stage `World`, before the
   step, and not during it.
-- Bodies, joints, and physics worlds belong to the world session: they are
-  forgotten when it ends. Shapes belong to the context.
+- Bodies, joints, characters, and physics worlds belong to the world
+  session: they are forgotten when it ends. Shapes belong to the context.
 - nPhysics keeps no static state.
 
 ## Known limitations
@@ -535,7 +626,20 @@ None.
 - A body woken by a changed block is one that overlaps the block grown by
   one block: a body that rests on a body that rests on the block wakes when
   the one below starts to move.
-- No character controller.
+- A character collides with static bodies by the box that holds each shape,
+  along the axes of its frame: a sphere, a turned box, or a capsule stops it
+  before its surface. It goes through meshes and kinematic bodies.
+- A grid that moves into a character that does not stand on it does not push
+  it: the character can end up inside the grid. The voxels of a grid turned
+  relative to the frame of the character collide by the box that holds each
+  of their boxes in that frame.
+- A character pushes a dynamic body by the sphere that holds its shape,
+  starting before their surfaces touch for a box.
+- A character on a support grid whose position in the grid is thousands of
+  blocks from its origin loses precision as single precision does there.
+- A shape of a block that depends on its instance, in a chunk that no physics
+  world holds, is evaluated at each step for the characters near it, which
+  allocates.
 - The providers of medium are asked only through `TrySampleMedium`: nPhysics
   applies no buoyancy nor drag.
 - Bodies are added and removed outside entity systems only.

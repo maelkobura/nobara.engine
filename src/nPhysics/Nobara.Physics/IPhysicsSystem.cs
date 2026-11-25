@@ -80,6 +80,9 @@ public readonly record struct PhysicsStatistics(
 
     /// <summary>Gets the times changed blocks woke the bodies of a world around them since the start.</summary>
     public long VoxelWakes { get; init; }
+
+    /// <summary>Gets the characters that the character controller moves.</summary>
+    public int Characters { get; init; }
 }
 
 /// <summary>
@@ -362,4 +365,39 @@ public interface IPhysicsSystem
     /// <param name="observer">The observer.</param>
     /// <returns>The subscription; dispose it to stop.</returns>
     PhysicsStepSubscription SubscribeStepEnd(ModuleContext module, IPhysicsStepObserver observer);
+
+    /// <summary>
+    /// Makes an entity a character: from the next step on, the character
+    /// controller moves it after its <see cref="MovementIntent"/>, and writes
+    /// its transform, its <see cref="CharacterState"/>, and its
+    /// <see cref="BodyVelocity"/>. It adds <see cref="CharacterBody"/>,
+    /// <see cref="CharacterState"/>, and, when the entity lacks them,
+    /// <see cref="MovementIntent"/> and <see cref="BodyVelocity"/>.
+    /// </summary>
+    /// <param name="dimension">The dimension of the entity.</param>
+    /// <param name="entity">An entity with a world transform, no parent, and no body; it starts where it is, with the velocity of its <see cref="BodyVelocity"/> if it has one.</param>
+    /// <param name="character">The size and the other values of the character.</param>
+    /// <exception cref="ArgumentException">The dimension has no entity world, the entity is not alive, has no world transform, has a parent, is a body or a character already, or a value of the character is out of range.</exception>
+    /// <exception cref="InvalidOperationException">nPhysics has not started, or an entity system runs on the world.</exception>
+    void AddCharacter(DimensionId dimension, EntityId entity, in CharacterBody character);
+
+    /// <summary>
+    /// Stops moving a character, at once: it leaves its support grid and keeps
+    /// its place in the world, its <see cref="BodyVelocity"/> keeps its last
+    /// velocity, and nPhysics writes its transform no more. It loses
+    /// <see cref="CharacterBody"/> and <see cref="CharacterState"/>, and keeps
+    /// <see cref="MovementIntent"/>. Removing <see cref="CharacterBody"/> from
+    /// the entity does the same at the next step.
+    /// </summary>
+    /// <param name="dimension">The dimension of the entity.</param>
+    /// <param name="entity">The character.</param>
+    /// <exception cref="ArgumentException">The entity is not a character of the dimension.</exception>
+    /// <exception cref="InvalidOperationException">An entity system runs on the world.</exception>
+    void RemoveCharacter(DimensionId dimension, EntityId entity);
+
+    /// <summary>Tells whether an entity is a character.</summary>
+    /// <param name="dimension">The dimension of the entity.</param>
+    /// <param name="entity">The entity.</param>
+    /// <returns><see langword="true"/> when the character controller moves it.</returns>
+    bool IsCharacter(DimensionId dimension, EntityId entity);
 }
