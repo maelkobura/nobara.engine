@@ -145,7 +145,7 @@ internal sealed class PhysicsHarness : IDisposable
                 "nobara.items" => Manifest("nobara.items", "Items", "nobara.game"),
                 "nobara.blocks" => Manifest("nobara.blocks", "Blocks", "nobara.items"),
                 "nobara.voxel" => Manifest("nobara.voxel", "Voxel", "nobara.game", "nobara.items", "nobara.blocks", "nobara.entity", "nobara.context"),
-                PhysicsModule.ModuleId => Manifest(PhysicsModule.ModuleId, "Physics", "nobara.game", "nobara.context", "nobara.entity", "nobara.voxel"),
+                PhysicsModule.ModuleId => Manifest(PhysicsModule.ModuleId, "Physics", "nobara.game", "nobara.context", "nobara.entity", "nobara.voxel", "nobara.blocks"),
                 BackendModuleId => BackendManifest(),
                 _ => GameManifest(),
             };

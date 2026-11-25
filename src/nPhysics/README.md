@@ -20,7 +20,8 @@ and teleports. nPhysics simulates each
 of active chunks, in a [physics world](../../docs/explanation/glossary.md#physics-world)
 of its own: it applies the commands before each step, moves the bodies to the
 world of their region, steps every world, then writes the transforms of the
-bodies that moved, grids included. The layers and the
+bodies that moved, grids included. Bodies collide with the voxels of every
+grid, read where nVoxel keeps them, with no geometry to rebuild. The layers and the
 authority are described in [the physics of nPhysics](../../docs/explanation/physics.md).
 
 ## Status
@@ -48,6 +49,7 @@ nPhysics:
 <!-- nobara:generated:begin dependencies -->
 | Module | Versions | Kind |
 | --- | --- | --- |
+| `nobara.blocks` | `^1.0` | Required |
 | `nobara.context` | `^1.0` | Required |
 | `nobara.entity` | `^1.0` | Required |
 | `nobara.game` | `^1.0` | Required |
@@ -92,7 +94,7 @@ their box, their origin, and their bodies, ghosts, and joints.
 | `IMediumProvider`, `MediumSample`, `MediumProviderHandle` | What fills a point, as a fluid module describes it. |
 | `PhysicsRegionInfo`, `PhysicsWorldInfo`, `PhysicsStatistics` | The regions, the physics worlds, and the counts after the last step. |
 | `PhysicsFrame` | The conversions between positions in the world and positions in a physics world. |
-| `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `BackendRayHit` | The interface of a backend, for the extensions that provide one. |
+| `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `VoxelChunkCells`, `BackendRayHit` | The interface of a backend, for the extensions that provide one. |
 | `PhysicsSettings` | The names of the configuration keys. |
 | `PhysicsModule` | The identifier of the module and the name of its tick system. |
 
@@ -189,6 +191,14 @@ a layer the other collides with:
 var player = new CollisionFilter(Layers: 1 << 1, Mask: ~(1u << 1));   // players do not collide with players
 ```
 
+The voxels of every grid belong to `CollisionFilter.VoxelLayer`, the last
+layer (bit 31), and collide with every layer. Keep that bit out of the layers
+of bodies; a body whose mask leaves it out goes through the voxels:
+
+```csharp
+var ghost = new CollisionFilter(Layers: 1 << 2, Mask: ~CollisionFilter.VoxelLayer);   // through walls and floors
+```
+
 ### Joints
 
 ```csharp
@@ -275,8 +285,50 @@ step, and when a body is added:
 frozen bodies, the ghosts, the transfers, the merges, the splits, and the
 recenters. The regions and their worlds belong to the world session. In
 development mode, nPhysics registers the world state counters `bodies`,
-`joints`, `regions`, `physics worlds`, and `ghosts`. The values are described
-in [the physics of nPhysics](../../docs/explanation/physics.md#regions-at-local-origins).
+`joints`, `regions`, `physics worlds`, `ghosts`, and `voxel chunks`. The
+values are described in [the physics of nPhysics](../../docs/explanation/physics.md#regions-at-local-origins).
+
+### Voxels
+
+Bodies collide with the voxels of the terrain and of every other grid, with
+no geometry built from them: the backend reads the blocks where nVoxel keeps
+them, while the world steps.
+
+- **Chunks in a world.** Before each step, each dynamic body (and each
+  dynamic ghost) holds the chunks its bounds reach, grown by its velocity
+  over the step and 1 block, in the frame of each grid the spatial index of
+  nVoxel finds there. A world adds a chunk to its backend
+  (`AddVoxelChunk`) when a body first holds it, and removes it 30 steps after
+  the last one lets it go, or before the chunk leaves memory. A sleeping body
+  keeps its chunks without computing them again. Static and kinematic bodies
+  hold none: they do not collide with voxels.
+- **Shapes.** Each cell gives its collision boxes, in the frame of the cell:
+  a cube is one box; a model, or a part of a multi-block, the boxes of its
+  shape, turned by its orientation, as nVoxel gives them; a shape that
+  depends on the instance, the boxes it gives for the block data of the cell,
+  computed again when that cell changes. Air and blocks with
+  `<Collision>none` have none. nPhysics reads the shape of every block state
+  once, when it starts, and keeps at most 16 boxes per cell: the boxes past
+  the 16th are merged into one.
+- **Inner faces.** A contact that leaves a box through a face of its cell,
+  when the cell next to it covers that face whole, is dropped: a body cannot
+  reach that face without going through the neighbor. A box that slides over
+  a flat floor then does not catch on the joints between its cells.
+- **Turned grids.** A grid that is turned collides in its own frame: its
+  chunks enter the world with the rotation of the grid.
+- **Changed blocks.** A block placed or broken is seen at the next step, at
+  no cost to the physics. The notifications of nVoxel wake the bodies that
+  overlap the changed blocks, grown by one block, at the next step: a crate
+  asleep on a block that breaks falls. Blocks filled as a chunk is generated
+  wake nobody.
+- **Freezing.** A dynamic or kinematic body that reaches a chunk of the
+  terrain that is not loaded or not active, within its bounds, its velocity
+  over a step, and 1 block, is frozen as a body that no region holds is
+  (see [Regions](#regions)). It moves again, with the velocities it had,
+  once those chunks are active: a body is never lost in an empty chunk.
+
+`Statistics.VoxelChunks` counts the chunks the worlds hold, and
+`Statistics.VoxelWakes` the times changed blocks woke the bodies of a world.
 
 ### End of the step
 
@@ -332,8 +384,12 @@ public void Initialize(ModuleContext context) =>
   on the loop thread. A world stepped from a job must not wait for other jobs.
 - `ComputeInertia` gives the inertia of a shape when a description gives
   none.
-- `AddVoxelChunk`, `RemoveVoxelChunk`, and `RayCast` are part of the
-  interface; nPhysics does not call them in this version.
+- nPhysics calls `AddVoxelChunk` and `RemoveVoxelChunk` for the chunks
+  around the dynamic bodies of a world (see [Voxels](#voxels)). A backend
+  reads the collision boxes of each cell from `VoxelChunkCollider.Cells`
+  while the world steps, and drops the contacts that
+  `VoxelChunkCells.IsInnerContact` sets apart. `RayCast` is part of the
+  interface; nPhysics does not call it in this version.
 
 | Extension | Backend name | Library |
 | --- | --- | --- |
@@ -379,11 +435,14 @@ the world; two worlds share nothing and can step at the same time.
   made, plus a linear motor; a fixed joint is a weld. A motor drives the
   second body relative to the first: about the axis of the first body for a
   hinge, along it for a slider. A slider uses the axis of the first body only.
-- **Voxels.** `AddVoxelChunk` adds a static whose shape reads the cells of
-  the chunk where they are, while the world steps: a cell that holds a block
-  collides as a whole cube, and a block placed or broken is seen at the next
-  step, with no structure to rebuild. The chunk does not change during a
-  step.
+- **Voxels.** `AddVoxelChunk` adds a static whose shape is a compound of the
+  collision boxes of the cells, read where they are while the world steps,
+  with no tree and no copy: a block placed or broken is seen at the next
+  step, with no structure to rebuild. Each cell has up to 16 children, one per
+  box. The callback that configures the contacts drops those that go through
+  an inner face. The voxels have the default material. The chunk does not
+  change during a step. Without `VoxelChunkCollider.Cells`, every cell that
+  holds a block collides as a whole cube.
 - **Threads.** A world steps on the thread that calls it. When
   `MaySpread` is set and the world has at least 1,000 awake bodies, the step
   spreads over the job system: the calling thread is a worker, and the other
@@ -430,7 +489,12 @@ None.
   the bodies, which creates the regions, their worlds, and the records of the
   ghosts when they appear, is not hot path code as a whole; it allocates
   nothing once the regions are stable (checked by a test with three regions
-  and ghosts).
+  and ghosts). The voxel layer allocates when a chunk enters a world, and
+  nothing once the bodies rest on chunks the worlds hold (checked by a test
+  with bodies on the voxels).
+- The step reads the blocks of every grid: its tick system declares
+  `IVoxelWorlds.ChunkAccess` as a read. Blocks change at the stage `World`, before the
+  step, and not during it.
 - Bodies, joints, and physics worlds belong to the world session: they are
   forgotten when it ends. Shapes belong to the context.
 - nPhysics keeps no static state.
@@ -444,8 +508,12 @@ None.
   another grid do not. A body there is frozen.
 - A region is the box of its tickets, so it covers the chunks between two
   tickets that share a chunk, even when no ticket holds them.
-- The state of the chunks is not read: a body in an active chunk that is not
-  loaded yet is simulated, and falls through it.
+- Only the chunks of the terrain freeze a body: a body that reaches a chunk
+  of another grid that is not in memory meets no voxel there.
+- A body frozen by a chunk is looked at again when a chunk enters or leaves
+  memory, when the regions change, or when a command touches it: a chunk
+  already in memory that becomes active through a ticket that makes no
+  region does not free it by itself.
 - A body that leaves the world of a region loses its sleep, and the backend
   loses its contacts: it can move by a few hundredths of a block per second
   at the next step. A transferred joint is made again: a fixed joint keeps
@@ -455,8 +523,18 @@ None.
   ghost of a dynamic body follows its body again at the next step.
 - Joined bodies are simulated in the region of the first body of their group,
   however far from it the others are.
-- Bodies do not collide with voxels yet, and there are no queries nor contact
-  events: only the backend collides bodies with each other.
+- There are no queries nor contact events.
+- Static and kinematic bodies do not collide with voxels, and grids do not
+  collide with anything yet: the voxels of a grid that is a body, and of a
+  scaled grid, are left out of the voxel layer.
+- The voxels have the default material, whatever the block.
+- A cell keeps at most 16 collision boxes: the boxes of a shape past the 16th
+  are merged into their bounds.
+- Across the border of a chunk, a cell whose shape depends on its instance
+  is never taken as covering a face: a body can catch on the joint there.
+- A body woken by a changed block is one that overlaps the block grown by
+  one block: a body that rests on a body that rests on the block wakes when
+  the one below starts to move.
 - No character controller.
 - The providers of medium are asked only through `TrySampleMedium`: nPhysics
   applies no buoyancy nor drag.
@@ -468,9 +546,6 @@ None.
   linear velocities only: a spinning ball bounces as one that does not spin.
 - nPhysics.Bepu notes at most 256 bouncing pairs per worker in a step; the
   pairs past that limit do not bounce during that step.
-- In nPhysics.Bepu, every cell of a chunk that holds a block collides as a
-  whole cube, whatever the shape of the block; a box that slides on the
-  voxels can catch on the joints between cells.
 - In nPhysics.Bepu, a body that reaches the back face of a mesh is not held,
   and can be thrown out of it.
 - nPhysics.Bepu depends on a beta of BEPUphysics, whose interface changes

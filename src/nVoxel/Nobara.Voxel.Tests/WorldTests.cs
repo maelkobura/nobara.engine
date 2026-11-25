@@ -35,6 +35,29 @@ public sealed class WorldTests
     }
 
     [Fact]
+    public void TheIndexFillsAListWithoutAllocatingOnceItHasGrown()
+    {
+        using var harness = new VoxelHarness();
+        using var engine = harness.Start();
+        harness.Tick(engine, 2);
+        GridSpatialIndex index = harness.Owner.Worlds.SpatialIndex;
+        var box = WorldBox.Around(WorldPosition.FromBlocks(10, 0, 0), new Vector3(3));
+        var results = new List<Grid>();
+        index.Query(box, results);
+
+        Assert.Equal(index.Query(box), results);
+        results.Clear();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            results.Clear();
+            index.Query(box, results);
+        }
+
+        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+    }
+
+    [Fact]
     public void ASecondSessionCreatesItsGridsInTheNewEntityWorld()
     {
         using var harness = new VoxelHarness();

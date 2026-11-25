@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+using Nobara.Blocks;
 using Nobara.Context;
 using Nobara.Core;
 using Nobara.Entity;
@@ -45,6 +46,9 @@ public sealed class PhysicsModule : IModule
             context.Resolve<IEntityWorlds>(),
             context.Resolve<IVoxelWorlds>(),
             context.Resolve<IChunkLoading>(),
+            context.Resolve<IVoxelBatches>(),
+            context.Resolve<IShapeRegistry>(),
+            context.Resolve<IBlockRegistry>(),
             context.Resolve<ITickSchedule>(),
             context.Resolve<IWorldSessions>());
         if (context.IsModuleActive(PhysicsDebugWindow.DebugModuleId))

@@ -54,13 +54,13 @@ public sealed class StepTests : IDisposable
         _harness.Tick(engine);
 
         Quaternion turned = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
-        probe.Physics.Teleport(body, WorldPosition.FromBlocks(100, 50, 100), turned);
+        probe.Physics.Teleport(body, WorldPosition.FromBlocks(70, 40, 70), turned);   // in a loaded chunk of the active area, away from its edge
         _harness.Tick(engine);
 
         WorldTransform transform = probe.TransformOf(body);
-        Assert.Equal(WorldPosition.FromBlocks(100, 50, 100 + (6 * Delta)).ChunkX, transform.Position.ChunkX);
-        Assert.Equal((100 % 32) + 0f, transform.Position.Local.X, 4);
-        Assert.Equal((100 % 32) + (6 * Delta), transform.Position.Local.Z, 4);
+        Assert.Equal(WorldPosition.FromBlocks(70, 40, 70 + (6 * Delta)).ChunkX, transform.Position.ChunkX);
+        Assert.Equal((70 % 32) + 0f, transform.Position.Local.X, 4);
+        Assert.Equal((70 % 32) + (6 * Delta), transform.Position.Local.Z, 4);
         Assert.True(Quaternion.Dot(turned, transform.Rotation) > 0.99999f);
     }
 

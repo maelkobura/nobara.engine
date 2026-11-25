@@ -83,9 +83,12 @@ internal sealed partial class PhysicsSimulation
     /// </remarks>
     private void PlaceBodies(float delta)
     {
+        _placeDelta = delta;
         UpdateRegions();
+        KeepTerrains();
         UpdateMembership();
         UpdateGhosts(delta);
+        UpdateVoxels(delta);
     }
 
     /// <summary>
@@ -418,6 +421,7 @@ internal sealed partial class PhysicsSimulation
     private void DisposeWorld(WorldEntry world)
     {
         ForgetGhosts(world);
+        ForgetVoxels(world);
         world.Backend.Dispose();
         if (!_worlds.Remove(world))
         {
@@ -447,7 +451,7 @@ internal sealed partial class PhysicsSimulation
                 continue;
             }
 
-            if (!_regionsChanged && !body.Dirty && (body.World is null || body.Asleep || body.Kind == BodyKind.Static))
+            if (!_regionsChanged && !_chunksChanged && !body.Dirty && (body.World is null || body.Asleep || body.Kind == BodyKind.Static))
             {
                 _targets[i] = body.World?.Region;   // nothing moved it, and no region changed
                 continue;
@@ -492,19 +496,22 @@ internal sealed partial class PhysicsSimulation
 
         Array.Clear(_targets, 0, _bodyHigh);
         _regionsChanged = false;
+        _chunksChanged = false;
     }
 
-    /// <summary>Finds the region of a body: the one it is in while its center stays near it, or else the first that holds its center.</summary>
+    /// <summary>
+    /// Finds the region of a body: the one it is in while its center stays near
+    /// it, or else the first that holds its center; none when the body reaches
+    /// a chunk of the terrain that is not loaded or not active.
+    /// </summary>
     [HotPath]
     private RegionEntry? FindRegion(in BodyRecord body)
     {
         RegionEntry? current = body.World?.Region;
-        if (current is { Alive: true } && Holds(current, body.Position, BodyHysteresis))
-        {
-            return current;
-        }
-
-        return FindRegion(body.Dimension, body.Position);
+        RegionEntry? region = current is { Alive: true } && Holds(current, body.Position, BodyHysteresis)
+            ? current
+            : FindRegion(body.Dimension, body.Position);
+        return region is not null && TouchesInactive(body) ? null : region;
     }
 
     [HotPath]

@@ -374,7 +374,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
             {
                 if (_chunks[i].Used)
                 {
-                    GCHandle.FromIntPtr(_chunks[i].Chunk).Free();
+                    GCHandle.FromIntPtr(_chunks[i].Cells).Free();
                 }
             }
 

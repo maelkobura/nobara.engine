@@ -467,6 +467,7 @@ internal sealed partial class PhysicsSimulation
         }
 
         RemoveGhosts(slot);
+        Release(ref body.Voxels);
         if (body.World is { } world)
         {
             world.Backend.RemoveBody(body.BackendId);
@@ -546,8 +547,10 @@ internal sealed partial class PhysicsSimulation
     {
         ref BodyRecord body = ref _bodies[slot];
         int generation = body.Generation == int.MaxValue ? 1 : body.Generation + 1;
+        int[]? footprint = body.Voxels.Slots;
         body = default;
         body.Generation = generation;
+        body.Voxels.Slots = footprint;   // kept for the next body of the slot
         body.NextFree = _bodyFree;
         _bodyFree = slot;
     }
@@ -751,6 +754,9 @@ internal sealed partial class PhysicsSimulation
 
         /// <summary>The first ghost of the body, plus one; 0 when it has none.</summary>
         public int FirstGhost;
+
+        /// <summary>The chunks of voxels the body holds in its world, while it is dynamic.</summary>
+        public VoxelFootprint Voxels;
     }
 
     private struct JointRecord

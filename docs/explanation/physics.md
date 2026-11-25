@@ -1,7 +1,8 @@
 # The physics of nPhysics
 
 This page explains how nPhysics is layered, why it is the only module that
-moves simulated things, and how a step turns commands into transforms. Terms
+moves simulated things, how a step turns commands into transforms, and how
+bodies collide with voxels without any geometry built from them. Terms
 are defined in [the glossary](glossary.md). The API is described in [the
 module sheet](../../src/nPhysics/README.md).
 
@@ -27,8 +28,9 @@ flowchart TD
 Modules depend on nPhysics, never on a backend. No type of the physics
 library appears in the neutral API: a need that it does not cover enriches
 the neutral API, with a concept that every serious physics library offers.
-Collisions with voxels, the character controller, queries, and contact
-events belong to the engine layer too; this version has none of them.
+Collisions with voxels belong to the engine layer too (see [Collision with
+voxels](#collision-with-voxels)); so will the character controller, queries,
+and contact events, which this version does not have yet.
 
 ## The movement authority
 
@@ -151,6 +153,43 @@ There is one player per client, but a server simulates around all of them:
 one origin cannot be near players a million blocks apart, and moving it
 moves every body. Regions keep an origin near each group of bodies, and the
 independent regions are the unit in which the server steps in parallel.
+
+## Collision with voxels
+
+A physics library collides bodies with meshes or with shapes it knows. The
+usual way to put a voxel world in it is to build a mesh of the surface of
+each chunk, and to build it again whenever a block changes. nPhysics builds
+nothing: the backend reads the blocks of a chunk where nVoxel keeps them,
+while it steps.
+
+- **Which chunks.** Before each step, each dynamic body takes the chunks
+  that its bounds reach, grown by its velocity over the step and one block,
+  in the frame of every grid around it. Its world hands those chunks to the
+  backend, and keeps a chunk for 30 steps after the last body lets it go,
+  so that a body on the border of a chunk does not add and remove it at
+  every step. A sleeping body keeps its chunks without looking again.
+- **What a cell is.** When nPhysics starts, it reads the collision of every
+  block state from the shape registry of nVoxel: one box for a cube, the
+  boxes of its shape for a model or a part of a multi-block, already turned
+  by the orientation of the state. The backend finds the cells that a body
+  overlaps from their coordinates, then reads the state of each cell from
+  the chunk and its boxes from that table. A shape that depends on the
+  instance gives its boxes from the block data of the cell; nPhysics computes
+  them when the chunk enters a world, and again when that cell changes.
+- **Inner faces.** A box that slides over a floor made of cubes meets the
+  edges of the cells under it: the contact on such an edge has a sideways
+  normal, and the box stops or tips over. A face of a cell that the cell next
+  to it covers whole cannot be reached without going through that
+  neighbor, so a contact that leaves a box through such a face is dropped.
+  The floor then behaves as one flat surface.
+- **Changed blocks.** Since nothing is built, a block placed or broken costs
+  nothing to the physics: the next step reads the new state. nVoxel notifies
+  every batch of changed blocks; nPhysics wakes the bodies around them at the
+  next step, so that a crate asleep on a block that breaks falls.
+- **Freezing.** A body that reaches a chunk of the terrain that is not
+  loaded, or not active, is frozen, as a body outside every region is: it
+  would otherwise fall through the missing blocks and be lost below the
+  world. It moves again with the velocities it had once the chunk is active.
 
 ## Backends
 

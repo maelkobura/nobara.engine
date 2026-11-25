@@ -31,6 +31,7 @@ internal sealed class TestPhysicsWorld(TestPhysicsBackend backend, PhysicsWorldO
 {
     private readonly List<TestBody> _bodies = [];
     private readonly List<BackendJoint?> _joints = [];
+    private int _nextChunk;
 
     public PhysicsWorldOptions Options { get; } = options;
 
@@ -232,9 +233,27 @@ internal sealed class TestPhysicsWorld(TestPhysicsBackend backend, PhysicsWorldO
         Record("step");
     }
 
-    public override int AddVoxelChunk(in VoxelChunkCollider chunk) => throw new NotSupportedException();
+    /// <summary>Gets the chunks of voxels in the world, by number.</summary>
+    public Dictionary<int, VoxelChunkCollider> VoxelChunks { get; } = [];
 
-    public override void RemoveVoxelChunk(int chunk) => throw new NotSupportedException();
+    public override int AddVoxelChunk(in VoxelChunkCollider chunk)
+    {
+        int id = _nextChunk++;
+        VoxelChunks.Add(id, chunk);
+        Track(chunk.Position);
+        Record("add chunk");
+        return id;
+    }
+
+    public override void RemoveVoxelChunk(int chunk)
+    {
+        if (!VoxelChunks.Remove(chunk))
+        {
+            throw new ArgumentException($"No chunk {chunk}.", nameof(chunk));
+        }
+
+        Record("remove chunk");
+    }
 
     public override bool RayCast(Vector3 origin, Vector3 direction, float maxDistance, CollisionFilter filter, out BackendRayHit hit) => throw new NotSupportedException();
 

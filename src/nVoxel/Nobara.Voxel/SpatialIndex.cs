@@ -75,6 +75,21 @@ public sealed class GridSpatialIndex
         return result;
     }
 
+    /// <summary>Adds the grids that overlap a box to a list, in insertion order, without allocating once the list has grown.</summary>
+    /// <param name="box">The box.</param>
+    /// <param name="results">The list that receives the grids; it is not cleared first.</param>
+    [HotPath]
+    public void Query(in WorldBox box, List<Grid> results)
+    {
+        ArgumentNullException.ThrowIfNull(results);
+        for (int i = 0; i < _grids.Count; i++)
+        {
+            Grid grid = _grids[i];
+            GridWorldBounds? bounds = _bounds[grid];
+            if (bounds is null || bounds.Value.Box.Intersects(box)) results.Add(grid);
+        }
+    }
+
     /// <summary>Returns grids around a center and half extents.</summary>
     public IReadOnlyList<Grid> Query(WorldPosition center, Vector3 halfExtents) => Query(WorldBox.Around(center, halfExtents));
 

@@ -13,8 +13,8 @@ namespace Nobara.Physics.Bepu;
 /// <summary>
 /// The chunks of voxels of a world: each is a static of BEPUphysics whose shape
 /// is a <see cref="VoxelChunkShape"/>, placed at the corner of the chunk with
-/// the rotation of its grid. Every cell that holds a block collides as a whole
-/// cube.
+/// the rotation of its grid, which reads the collision boxes of its cells from
+/// the <see cref="VoxelChunkCells"/> that nPhysics gives.
 /// </summary>
 internal sealed partial class BepuWorld
 {
@@ -45,11 +45,12 @@ internal sealed partial class BepuWorld
             id = _chunkHigh++;
         }
 
-        nint handle = GCHandle.ToIntPtr(GCHandle.Alloc(chunk.Chunk));
+        VoxelChunkCells cells = chunk.Cells ?? VoxelChunkCells.Cubes(chunk.Grid, chunk.Chunk, System.Numerics.Quaternion.Normalize(chunk.Rotation));
+        nint handle = GCHandle.ToIntPtr(GCHandle.Alloc(cells));
         TypedIndex shape = Simulation.Shapes.Add(new VoxelChunkShape(handle));
         StaticHandle body = Simulation.Statics.Add(new StaticDescription(new RigidPose(chunk.Position, System.Numerics.Quaternion.Normalize(chunk.Rotation)), shape, ContinuousDetection.Passive));
-        _surfaces.Allocate(body) = Surface.Voxels;
-        _chunks[id] = new ChunkEntry { Used = true, Chunk = handle, Shape = shape, Static = body, NextFree = -1 };
+        _surfaces.Allocate(body) = Surface.Voxels(handle);
+        _chunks[id] = new ChunkEntry { Used = true, Cells = handle, Shape = shape, Static = body, NextFree = -1 };
         ChunkCount++;
         return id;
     }
@@ -65,7 +66,7 @@ internal sealed partial class BepuWorld
         ref ChunkEntry entry = ref _chunks[chunk];
         Simulation.Statics.Remove(entry.Static);
         Simulation.Shapes.Remove(entry.Shape);
-        GCHandle.FromIntPtr(entry.Chunk).Free();
+        GCHandle.FromIntPtr(entry.Cells).Free();
         entry = new ChunkEntry { NextFree = _chunkFree };
         _chunkFree = chunk;
         ChunkCount--;
@@ -75,7 +76,7 @@ internal sealed partial class BepuWorld
     private struct ChunkEntry
     {
         public bool Used;
-        public nint Chunk;
+        public nint Cells;
         public TypedIndex Shape;
         public StaticHandle Static;
         public int NextFree;

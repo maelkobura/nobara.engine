@@ -18,22 +18,24 @@ using Nobara.Voxel;
 namespace Nobara.Physics.Bepu;
 
 /// <summary>
-/// The collidable of one chunk of voxels: a compound of unit boxes whose
-/// children are the cells of the chunk that hold a block, found by reading the
-/// cells that a query covers straight from the chunk, with no tree and no copy.
-/// A block placed or broken is seen at the next step, at no cost.
+/// The collidable of one chunk of voxels: a compound of boxes whose children
+/// are the collision boxes of the cells of the chunk, found by reading the
+/// cells that a query covers straight from the chunk, through the
+/// <see cref="VoxelChunkCells"/> of nPhysics, with no tree and no copy. A
+/// block placed or broken is seen at the next step, at no cost.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The index of a child is the local index of its cell in the chunk. The shape
-/// sits at the corner of the chunk: cell (x, y, z) spans from (x, y, z) to
-/// (x + 1, y + 1, z + 1) in the frame of the shape.
+/// The index of a child is the local index of its cell times
+/// <see cref="VoxelChunkCells.MaxBoxesPerCell"/>, plus the index of the box in
+/// the cell. The shape sits at the corner of the chunk: cell (x, y, z) spans
+/// from (x, y, z) to (x + 1, y + 1, z + 1) in the frame of the shape.
 /// </para>
 /// <para>
 /// A shape of BEPUphysics is an unmanaged value, so the shape holds a handle to
-/// the chunk, which the world that adds the shape owns and frees. The threads
-/// of the solver read the palette of the chunk while the world steps: the chunk
-/// does not change during a step.
+/// the cells, which the world that adds the shape owns and frees. The threads
+/// of the solver read them while the world steps: the chunk does not change
+/// during a step.
 /// </para>
 /// </remarks>
 internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
@@ -41,21 +43,24 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     /// <summary>The type identifier of the shape, outside the range of the shapes of BEPUphysics.</summary>
     public const int Id = 24;
 
+    /// <summary>The number of child indices of one cell.</summary>
+    public const int Stride = VoxelChunkCells.MaxBoxesPerCell;
+
     private const int Size = VoxelCoordinates.ChunkSize;
 
-    /// <summary>The handle of the chunk, from <see cref="GCHandle.ToIntPtr"/>.</summary>
-    public nint Chunk;
+    /// <summary>The handle of the cells, from <see cref="GCHandle.ToIntPtr"/>.</summary>
+    public nint Cells;
 
     /// <summary>Creates the shape of a chunk.</summary>
-    /// <param name="chunk">The handle of the chunk.</param>
+    /// <param name="cells">The handle of the cells of the chunk.</param>
     [HotPath]
-    public VoxelChunkShape(nint chunk) => Chunk = chunk;
+    public VoxelChunkShape(nint cells) => Cells = cells;
 
     /// <inheritdoc/>
     public static int TypeId => Id;
 
     /// <inheritdoc/>
-    public readonly int ChildCount => Nobara.Voxel.Chunk.Volume;
+    public readonly int ChildCount => Nobara.Voxel.Chunk.Volume * Stride;
 
     /// <inheritdoc/>
     public static ShapeBatch CreateShapeBatch(BufferPool pool, int initialCapacity, Shapes shapeBatches) =>
@@ -66,10 +71,35 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static int IndexOf(int x, int y, int z) => x + (Size * (z + (Size * y)));
 
-    /// <summary>Gets the center of a cell, in the frame of the shape.</summary>
+    /// <summary>Gets the corner of a cell, in the frame of the shape.</summary>
     [HotPath]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Vector3 CenterOf(int index) => new((index % Size) + 0.5f, (index / (Size * Size)) + 0.5f, (index / Size % Size) + 0.5f);
+    public static Vector3 CornerOf(int cell) => new(cell % Size, cell / (Size * Size), cell / Size % Size);
+
+    /// <summary>Gets the cells behind a handle.</summary>
+    [HotPath]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static VoxelChunkCells CellsOf(nint cells) => Unsafe.As<VoxelChunkCells>(GCHandle.FromIntPtr(cells).Target!);
+
+    /// <summary>Gets the box of a child: its full widths and its center, in the frame of the shape.</summary>
+    [HotPath]
+    public readonly void GetChild(int childIndex, out Box box, out Vector3 center)
+    {
+        int cell = childIndex / Stride;
+        ReadOnlySpan<CollisionBox> boxes = CellsOf(Cells).GetBoxes(cell);
+        int index = childIndex - (cell * Stride);
+        if ((uint)index >= (uint)boxes.Length)
+        {
+            box = new Box(1e-3f, 1e-3f, 1e-3f);   // no such box: a speck at the center of the cell
+            center = CornerOf(cell) + new Vector3(0.5f);
+            return;
+        }
+
+        CollisionBox bounds = boxes[index];
+        Vector3 size = Vector3.Max(bounds.Maximum - bounds.Minimum, new Vector3(1e-3f));
+        box = new Box(size.X, size.Y, size.Z);
+        center = CornerOf(cell) + ((bounds.Minimum + bounds.Maximum) * 0.5f);
+    }
 
     /// <inheritdoc/>
     public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
@@ -86,21 +116,22 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     }
 
     /// <inheritdoc/>
-    public readonly void GetLocalChild(int childIndex, out Box childShape) => childShape = new Box(1, 1, 1);
+    public readonly void GetLocalChild(int childIndex, out Box childShape) => GetChild(childIndex, out childShape, out _);
 
     /// <inheritdoc/>
     public readonly void GetPosedLocalChild(int childIndex, out Box childShape, out RigidPose childPose)
     {
-        childShape = new Box(1, 1, 1);
-        childPose = new RigidPose(CenterOf(childIndex));
+        GetChild(childIndex, out childShape, out Vector3 center);
+        childPose = new RigidPose(center);
     }
 
     /// <inheritdoc/>
     public readonly void GetLocalChild(int childIndex, ref BoxWide shapeWide)
     {
-        GatherScatter.GetFirst(ref shapeWide.HalfWidth) = 0.5f;
-        GatherScatter.GetFirst(ref shapeWide.HalfHeight) = 0.5f;
-        GatherScatter.GetFirst(ref shapeWide.HalfLength) = 0.5f;
+        GetChild(childIndex, out Box box, out _);
+        GatherScatter.GetFirst(ref shapeWide.HalfWidth) = box.HalfWidth;
+        GatherScatter.GetFirst(ref shapeWide.HalfHeight) = box.HalfHeight;
+        GatherScatter.GetFirst(ref shapeWide.HalfLength) = box.HalfLength;
     }
 
     /// <inheritdoc/>
@@ -111,7 +142,7 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         for (int i = 0; i < pairs.Length; i++)
         {
             ref OverlapQueryForPair pair = ref pairs[i];
-            Palette cells = PaletteOf(Unsafe.AsRef<VoxelChunkShape>(pair.Container).Chunk);
+            VoxelChunkCells cells = CellsOf(Unsafe.AsRef<VoxelChunkShape>(pair.Container).Cells);
             ref TSubpairOverlaps target = ref overlaps.GetOverlapsForPair(i);
             Range(pair.Min, pair.Max, out int x0, out int y0, out int z0, out int x1, out int y1, out int z1);
             for (int y = y0; y <= y1; y++)
@@ -120,10 +151,15 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
                 {
                     for (int x = x0; x <= x1; x++)
                     {
-                        int index = IndexOf(x, y, z);
-                        if (cells.Get(index) != 0)
+                        int cell = IndexOf(x, y, z);
+                        ReadOnlySpan<CollisionBox> boxes = cells.GetBoxes(cell);
+                        var corner = new Vector3(x, y, z);
+                        for (int b = 0; b < boxes.Length; b++)
                         {
-                            target.Allocate(pool) = index;
+                            if (Overlaps(boxes[b], corner, pair.Min, pair.Max))
+                            {
+                                target.Allocate(pool) = (cell * Stride) + b;
+                            }
                         }
                     }
                 }
@@ -135,20 +171,27 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     public readonly void FindLocalOverlaps<TOverlaps>(Vector3 min, Vector3 max, Vector3 sweep, float maximumT, BufferPool pool, Shapes shapes, void* overlaps)
         where TOverlaps : ICollisionTaskSubpairOverlaps
     {
-        // Every cell with a block in the bounds swept over the whole interval.
+        // Every box in the bounds swept over the whole interval.
         Vector3 end = sweep * maximumT;
-        Range(Vector3.Min(min, min + end), Vector3.Max(max, max + end), out int x0, out int y0, out int z0, out int x1, out int y1, out int z1);
-        Palette cells = PaletteOf(Chunk);
+        Vector3 low = Vector3.Min(min, min + end);
+        Vector3 high = Vector3.Max(max, max + end);
+        Range(low, high, out int x0, out int y0, out int z0, out int x1, out int y1, out int z1);
+        VoxelChunkCells cells = CellsOf(Cells);
         for (int y = y0; y <= y1; y++)
         {
             for (int z = z0; z <= z1; z++)
             {
                 for (int x = x0; x <= x1; x++)
                 {
-                    int index = IndexOf(x, y, z);
-                    if (cells.Get(index) != 0)
+                    int cell = IndexOf(x, y, z);
+                    ReadOnlySpan<CollisionBox> boxes = cells.GetBoxes(cell);
+                    var corner = new Vector3(x, y, z);
+                    for (int b = 0; b < boxes.Length; b++)
                     {
-                        Unsafe.AsRef<TOverlaps>(overlaps).Allocate(pool) = index;
+                        if (Overlaps(boxes[b], corner, low, high))
+                        {
+                            Unsafe.AsRef<TOverlaps>(overlaps).Allocate(pool) = (cell * Stride) + b;
+                        }
                     }
                 }
             }
@@ -160,17 +203,22 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         where TEnumerator : IBreakableForEach<int>
     {
         Range(min, max, out int x0, out int y0, out int z0, out int x1, out int y1, out int z1);
-        Palette cells = PaletteOf(Chunk);
+        VoxelChunkCells cells = CellsOf(Cells);
         for (int y = y0; y <= y1; y++)
         {
             for (int z = z0; z <= z1; z++)
             {
                 for (int x = x0; x <= x1; x++)
                 {
-                    int index = IndexOf(x, y, z);
-                    if (cells.Get(index) != 0 && !enumerator.LoopBody(index))
+                    int cell = IndexOf(x, y, z);
+                    ReadOnlySpan<CollisionBox> boxes = cells.GetBoxes(cell);
+                    var corner = new Vector3(x, y, z);
+                    for (int b = 0; b < boxes.Length; b++)
                     {
-                        return;
+                        if (Overlaps(boxes[b], corner, min, max) && !enumerator.LoopBody((cell * Stride) + b))
+                        {
+                            return;
+                        }
                     }
                 }
             }
@@ -184,7 +232,7 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         Quaternion inverse = Quaternion.Conjugate(pose.Orientation);
         Vector3 origin = Vector3.Transform(ray.Origin - pose.Position, inverse);
         Vector3 direction = Vector3.Transform(ray.Direction, inverse);
-        if (RayLocal(PaletteOf(Chunk), origin, direction, maximumT, out float t, out Vector3 normal, out int child))
+        if (RayLocal(CellsOf(Cells), origin, direction, maximumT, out float t, out Vector3 normal, out int child))
         {
             hitHandler.OnRayHit(ray, ref maximumT, t, Vector3.Transform(normal, pose.Orientation), child);
         }
@@ -204,13 +252,18 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     /// <inheritdoc/>
     public void Dispose(BufferPool pool)
     {
-        // The chunk belongs to nVoxel, and its handle to the world.
+        // The cells belong to nPhysics, and their handle to the world.
     }
 
-    /// <summary>Gets the palette of the chunk behind a handle.</summary>
+    /// <summary>Tells whether a box of a cell overlaps local bounds.</summary>
     [HotPath]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static Palette PaletteOf(nint chunk) => Unsafe.As<Chunk>(GCHandle.FromIntPtr(chunk).Target!).Palette;
+    private static bool Overlaps(in CollisionBox box, Vector3 corner, Vector3 min, Vector3 max)
+    {
+        Vector3 low = corner + box.Minimum;
+        Vector3 high = corner + box.Maximum;
+        return low.X <= max.X && high.X >= min.X && low.Y <= max.Y && high.Y >= min.Y && low.Z <= max.Z && high.Z >= min.Z;
+    }
 
     /// <summary>Clamps local bounds to the cells of the chunk.</summary>
     [HotPath]
@@ -231,16 +284,18 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     [HotPath]
     private static int Clamp(float value) => value <= 0 ? 0 : value >= Size ? Size - 1 : (int)value;
 
-    /// <summary>Walks the cells along a ray (Amanatides and Woo), in the frame of the shape.</summary>
+    /// <summary>
+    /// Walks the cells along a ray (Amanatides and Woo), in the frame of the
+    /// shape, and tests the ray against the boxes of each cell it crosses.
+    /// </summary>
     [HotPath]
-    private static bool RayLocal(Palette cells, Vector3 origin, Vector3 direction, float maximumT, out float t, out Vector3 normal, out int child)
+    private static bool RayLocal(VoxelChunkCells cells, Vector3 origin, Vector3 direction, float maximumT, out float t, out Vector3 normal, out int child)
     {
         t = 0;
         normal = default;
         child = -1;
         float enter = 0;
         float exit = maximumT;
-        int enterAxis = -1;
         for (int axis = 0; axis < 3; axis++)
         {
             float o = origin[axis];
@@ -262,12 +317,7 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
                 (t0, t1) = (t1, t0);
             }
 
-            if (t0 > enter)
-            {
-                enter = t0;
-                enterAxis = axis;   // the ray comes into the chunk through a face of this axis
-            }
-
+            enter = MathF.Max(enter, t0);
             exit = MathF.Min(exit, t1);
             if (enter > exit)
             {
@@ -288,23 +338,30 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         float deltaX = direction.X != 0 ? MathF.Abs(1 / direction.X) : float.MaxValue;
         float deltaY = direction.Y != 0 ? MathF.Abs(1 / direction.Y) : float.MaxValue;
         float deltaZ = direction.Z != 0 ? MathF.Abs(1 / direction.Z) : float.MaxValue;
-        Vector3 face = enterAxis switch
-        {
-            0 => new Vector3(-stepX, 0, 0),
-            1 => new Vector3(0, -stepY, 0),
-            2 => new Vector3(0, 0, -stepZ),
-            _ => Vector3.Zero,   // starts inside the chunk
-        };
         float at = enter;
         while (at <= exit)
         {
-            int index = IndexOf(x, y, z);
-            if (cells.Get(index) != 0)
+            int cell = IndexOf(x, y, z);
+            ReadOnlySpan<CollisionBox> boxes = cells.GetBoxes(cell);
+            if (boxes.Length > 0)
             {
-                t = at;
-                normal = face;
-                child = index;
-                return true;
+                var corner = new Vector3(x, y, z);
+                float best = float.MaxValue;
+                for (int b = 0; b < boxes.Length; b++)
+                {
+                    if (RayBox(origin, direction, corner + boxes[b].Minimum, corner + boxes[b].Maximum, out float hit, out Vector3 face) && hit < best && hit <= maximumT)
+                    {
+                        best = hit;
+                        normal = face;
+                        child = (cell * Stride) + b;
+                    }
+                }
+
+                if (child >= 0)
+                {
+                    t = best;
+                    return true;
+                }
             }
 
             if (nextX < nextY && nextX < nextZ)
@@ -312,21 +369,18 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
                 x += stepX;
                 at = nextX;
                 nextX += deltaX;
-                face = new Vector3(-stepX, 0, 0);
             }
             else if (nextY < nextZ)
             {
                 y += stepY;
                 at = nextY;
                 nextY += deltaY;
-                face = new Vector3(0, -stepY, 0);
             }
             else
             {
                 z += stepZ;
                 at = nextZ;
                 nextZ += deltaZ;
-                face = new Vector3(0, 0, -stepZ);
             }
 
             if ((uint)x >= Size || (uint)y >= Size || (uint)z >= Size)
@@ -336,6 +390,64 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
         }
 
         return false;
+    }
+
+    /// <summary>Intersects a ray with a box (slab test); a ray that starts inside the box hits it at 0, with no normal.</summary>
+    [HotPath]
+    private static bool RayBox(Vector3 origin, Vector3 direction, Vector3 low, Vector3 high, out float t, out Vector3 normal)
+    {
+        t = 0;
+        normal = default;
+        float enter = 0;
+        float exit = float.MaxValue;
+        int entering = -1;
+        float sign = 0;
+        for (int axis = 0; axis < 3; axis++)
+        {
+            float o = origin[axis];
+            float d = direction[axis];
+            if (MathF.Abs(d) < 1e-12f)
+            {
+                if (o < low[axis] || o > high[axis])
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            float t0 = (low[axis] - o) / d;
+            float t1 = (high[axis] - o) / d;
+            float side = -1;
+            if (t0 > t1)
+            {
+                (t0, t1) = (t1, t0);
+                side = 1;
+            }
+
+            if (t0 > enter)
+            {
+                enter = t0;
+                entering = axis;
+                sign = side;
+            }
+
+            exit = MathF.Min(exit, t1);
+            if (enter > exit)
+            {
+                return false;
+            }
+        }
+
+        t = enter;
+        normal = entering switch
+        {
+            0 => new Vector3(sign, 0, 0),
+            1 => new Vector3(0, sign, 0),
+            2 => new Vector3(0, 0, sign),
+            _ => Vector3.Zero,
+        };
+        return true;
     }
 
     [HotPath]
