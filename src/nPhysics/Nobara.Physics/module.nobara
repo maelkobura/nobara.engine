@@ -15,6 +15,7 @@
     <Module id="nobara.context" version="^1.0" />
     <Module id="nobara.entity" version="^1.0" />
     <Module id="nobara.voxel" version="^1.0" />
+    <Module id="nobara.blocks" version="^1.0" />
     <Module id="nobara.debug" version="^1.0" optional="true" />
   </Dependencies>
 

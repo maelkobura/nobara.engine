@@ -10,6 +10,7 @@ using BepuPhysics.CollisionDetection;
 using BepuPhysics.Constraints;
 using BepuUtilities;
 using Nobara.Core;
+using Nobara.Voxel;
 
 namespace Nobara.Physics.Bepu;
 
@@ -34,22 +35,25 @@ internal struct Surface
     /// <summary>The number of the body in the world, or -1 for a chunk of voxels.</summary>
     public int Body;
 
+    /// <summary>The handle of the cells of a chunk of voxels, from <see cref="System.Runtime.InteropServices.GCHandle.ToIntPtr"/>; 0 for a body.</summary>
+    public nint Cells;
+
     /// <summary>Whether the body uses continuous collision detection.</summary>
     public bool Continuous;
 
-    /// <summary>Gets the surface of the chunks of voxels: the default material, in every layer, colliding with every layer.</summary>
-    public static Surface Voxels
+    /// <summary>Gets the surface of a chunk of voxels: the default material, in the layer of the voxels, colliding with every layer.</summary>
+    /// <param name="cells">The handle of the cells of the chunk.</param>
+    /// <returns>The surface.</returns>
+    [HotPath]
+    public static Surface Voxels(nint cells) => new()
     {
-        [HotPath]
-        get => new()
-        {
-            Friction = PhysicsMaterial.Default.Friction,
-            Restitution = PhysicsMaterial.Default.Restitution,
-            Layers = uint.MaxValue,
-            Mask = uint.MaxValue,
-            Body = -1,
-        };
-    }
+        Friction = PhysicsMaterial.Default.Friction,
+        Restitution = PhysicsMaterial.Default.Restitution,
+        Layers = CollisionFilter.VoxelLayer,
+        Mask = uint.MaxValue,
+        Body = -1,
+        Cells = cells,
+    };
 }
 
 /// <summary>
@@ -59,10 +63,18 @@ internal struct Surface
 /// of the two; <see cref="Bounces"/> applies the restitution after the step.
 /// </summary>
 /// <remarks>
+/// <para>
+/// A contact between a body and a box of a cell of voxels that goes through an
+/// inner face, one that the cell next to it covers whole, is dropped
+/// (<see cref="VoxelChunkCells.IsInnerContact"/>): a body that slides over a
+/// flat floor does not catch on the joints between its cells.
+/// </para>
+/// <para>
 /// The contacts are springs of <see cref="ContactFrequency"/>. A pair that
 /// holds a body with continuous detection gets the stiffest spring the
 /// substeps can integrate, half their rate: a softer contact stops a fast body
 /// too late, and lets it through a thin wall.
+/// </para>
 /// </remarks>
 internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounces bounces) : INarrowPhaseCallbacks
 {
@@ -131,12 +143,39 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
     }
 
     /// <inheritdoc/>
+    /// <remarks>Drops the contacts of a cell of voxels that go through an inner face. The normal points from B to A.</remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly bool ConfigureContactManifold(int workerIndex, CollidablePair pair, int childIndexA, int childIndexB, ref ConvexContactManifold manifold) => true;
+    public readonly bool ConfigureContactManifold(int workerIndex, CollidablePair pair, int childIndexA, int childIndexB, ref ConvexContactManifold manifold)
+    {
+        if (manifold.Count == 0)
+        {
+            return true;
+        }
+
+        ref Surface first = ref surfaces[pair.A];
+        if (first.Cells != 0)
+        {
+            return !IsInner(first.Cells, childIndexA, -manifold.Normal);
+        }
+
+        ref Surface second = ref surfaces[pair.B];
+        return second.Cells == 0 || !IsInner(second.Cells, childIndexB, manifold.Normal);
+    }
 
     /// <inheritdoc/>
     public readonly void Dispose()
     {
+    }
+
+    /// <summary>Tells whether a contact with a child of a chunk of voxels goes through an inner face.</summary>
+    /// <param name="cells">The handle of the cells of the chunk.</param>
+    /// <param name="child">The child of the chunk: its cell and its box.</param>
+    /// <param name="normal">The normal, out of the box toward the body.</param>
+    [HotPath]
+    private static bool IsInner(nint cells, int child, Vector3 normal)
+    {
+        int cell = child / VoxelChunkShape.Stride;
+        return VoxelChunkShape.CellsOf(cells).IsInnerContact(cell, child - (cell * VoxelChunkShape.Stride), normal);
     }
 }
 

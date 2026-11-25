@@ -62,6 +62,7 @@ internal sealed class PhysicsDebugWindow : IDisposable
         {
             ImGui.TextUnformatted(string.Create(culture, $"Regions: {statistics.Regions}, worlds: {statistics.Worlds}, ghosts: {statistics.Ghosts}"));
             ImGui.TextUnformatted(string.Create(culture, $"Transfers: {statistics.Transfers}, merges: {statistics.Merges}, splits: {statistics.Splits}, recenters: {statistics.Recenters}"));
+            ImGui.TextUnformatted(string.Create(culture, $"Chunks of voxels: {statistics.VoxelChunks}, wakes by changed blocks: {statistics.VoxelWakes}"));
             foreach (PhysicsRegionInfo region in _simulation.Regions)
             {
                 string world = region.HasWorld ? string.Create(culture, $"{region.Bodies} bodies, {region.Ghosts} ghosts, {region.Joints} joints") : "no world";

@@ -44,6 +44,15 @@ internal sealed class BepuHarness : IDisposable
     /// <summary>Gets or sets the area of the active ticket that the harness places around the origin once the session starts, so that the bodies there are simulated; <see langword="null"/> for none.</summary>
     public ChunkArea? ActiveArea { get; set; } = new ChunkArea(4, 2);
 
+    /// <summary>Gets or sets the center of the active ticket of <see cref="ActiveArea"/>.</summary>
+    public WorldPosition ActiveCenter { get; set; } = WorldPosition.FromBlocks(16, 16, 16);
+
+    /// <summary>Gets or sets the compiled resources of the game module, such as its blocks; <see langword="null"/> for none.</summary>
+    public byte[]? Resources { get; set; }
+
+    /// <summary>Gets or sets what the game module does when it initializes, before nVoxel starts: register shapes, providers of chunks.</summary>
+    public Action<BepuProbe>? Configure { get; set; }
+
     public BepuProbe Probe { get; private set; } = null!;
 
     public BepuModule Module { get; private set; } = null!;
@@ -89,7 +98,7 @@ internal sealed class BepuHarness : IDisposable
         engine.MainContext.RunFrame();   // enters the play state, which starts the world session, without a tick
         if (ActiveArea is { } area)
         {
-            Probe.Activate(WorldPosition.FromBlocks(16, 16, 16), area);
+            Probe.Activate(ActiveCenter, area);
         }
 
         return engine;
@@ -134,7 +143,7 @@ internal sealed class BepuHarness : IDisposable
                 "nobara.items" => Manifest("nobara.items", "Items", "nobara.game"),
                 "nobara.blocks" => Manifest("nobara.blocks", "Blocks", "nobara.items"),
                 "nobara.voxel" => Manifest("nobara.voxel", "Voxel", "nobara.game", "nobara.items", "nobara.blocks", "nobara.entity", "nobara.context"),
-                PhysicsModule.ModuleId => Manifest(PhysicsModule.ModuleId, "Physics", "nobara.game", "nobara.context", "nobara.entity", "nobara.voxel"),
+                PhysicsModule.ModuleId => Manifest(PhysicsModule.ModuleId, "Physics", "nobara.game", "nobara.context", "nobara.entity", "nobara.voxel", "nobara.blocks"),
                 BepuModule.ModuleId => BackendManifest(),
                 _ => GameManifest(),
             };
@@ -151,13 +160,13 @@ internal sealed class BepuHarness : IDisposable
             "nobara.voxel" => new LoadedModule(typeof(VoxelModule).Assembly, () => new VoxelModule()),
             PhysicsModule.ModuleId => new LoadedModule(typeof(PhysicsModule).Assembly, () => new PhysicsModule()),
             BepuModule.ModuleId => new LoadedModule(typeof(BepuModule).Assembly, () => harness.Module = new BepuModule()),
-            _ => new LoadedModule(typeof(BepuProbe).Assembly, () => harness.Probe = new BepuProbe()),
+            _ => new LoadedModule(typeof(BepuProbe).Assembly, () => harness.Probe = new BepuProbe(harness.Configure), name => name == "nobara/resources.pb" && harness.Resources is not null ? new MemoryStream(harness.Resources) : null),
         };
 
         private F.ModuleManifest GameManifest()
         {
             var manifest = new F.ModuleManifest { Format = 1, Id = GameId, Version = "1.0.0", Level = F.Level.Game, Side = F.Side.Both };
-            foreach (string dependency in new[] { PhysicsModule.ModuleId, "nobara.voxel", "nobara.entity", "nobara.context", "nobara.game" })
+            foreach (string dependency in new[] { PhysicsModule.ModuleId, "nobara.voxel", "nobara.blocks", "nobara.items", "nobara.entity", "nobara.context", "nobara.game" })
             {
                 manifest.Dependencies.Add(new F.Dependency { Id = dependency, Range = "^1.0" });
             }
@@ -240,7 +249,7 @@ internal sealed class BepuHarness : IDisposable
 }
 
 /// <summary>The game module of the tests: it resolves the services and starts a world session.</summary>
-internal sealed class BepuProbe : IModule
+internal sealed class BepuProbe(Action<BepuProbe>? configure = null) : IModule
 {
     public ModuleContext Context { get; private set; } = null!;
 
@@ -256,6 +265,12 @@ internal sealed class BepuProbe : IModule
 
     public ITickSchedule Schedule { get; private set; } = null!;
 
+    public IBlockRegistry Blocks { get; private set; } = null!;
+
+    public IVoxelBatches Batches { get; private set; } = null!;
+
+    public IShapeRegistry Shapes { get; private set; } = null!;
+
     public EntityWorld World => Entities.TryGet(DimensionId.Default, out EntityWorld? world) ? world : throw new InvalidOperationException("No entity world.");
 
     public void Register(ModuleContext context) => Context = context;
@@ -269,6 +284,10 @@ internal sealed class BepuProbe : IModule
         Time = context.Resolve<IGameTime>();
         Schedule = context.Resolve<ITickSchedule>();
         Loading = context.Resolve<IChunkLoading>();
+        Blocks = context.Resolve<IBlockRegistry>();
+        Batches = context.Resolve<IVoxelBatches>();
+        Shapes = context.Resolve<IShapeRegistry>();
+        configure?.Invoke(this);
         IWorldSessions sessions = context.Resolve<IWorldSessions>();
         sessions.SubscribeEnding(context, _ =>
         {

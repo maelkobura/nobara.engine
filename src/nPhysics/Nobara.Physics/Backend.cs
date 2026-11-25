@@ -179,7 +179,15 @@ public struct BackendJoint
 /// <param name="Chunk">The chunk, read without a copy.</param>
 /// <param name="Position">The corner of the chunk, relative to the origin of the world.</param>
 /// <param name="Rotation">The rotation of the grid.</param>
-public readonly record struct VoxelChunkCollider(Grid Grid, Chunk Chunk, Vector3 Position, Quaternion Rotation);
+public readonly record struct VoxelChunkCollider(Grid Grid, Chunk Chunk, Vector3 Position, Quaternion Rotation)
+{
+    /// <summary>
+    /// Gets the cells of the chunk: the collision boxes of each cell and the
+    /// rule of inner faces. nPhysics always gives them; <see langword="null"/>
+    /// makes every cell that holds a block collide as a whole cube.
+    /// </summary>
+    public VoxelChunkCells? Cells { get; init; }
+}
 
 /// <summary>The closest hit of a ray in a world.</summary>
 /// <param name="Distance">The distance along the ray, in blocks.</param>
@@ -298,7 +306,13 @@ public abstract class PhysicsBackendWorld : IDisposable
     /// <param name="settings">The duration and the substeps.</param>
     public abstract void Step(in PhysicsStepSettings settings);
 
-    /// <summary>Adds a chunk of voxels that bodies collide with. Part of the interface; nPhysics does not call it in this version.</summary>
+    /// <summary>
+    /// Adds a chunk of voxels that bodies collide with: the backend reads its
+    /// cells through <see cref="VoxelChunkCollider.Cells"/> while the world
+    /// steps, and drops the contacts that <see cref="VoxelChunkCells.IsInnerContact"/>
+    /// sets apart. nPhysics adds the chunks around the dynamic bodies of the
+    /// world, and removes a chunk before it leaves memory.
+    /// </summary>
     /// <param name="chunk">The chunk.</param>
     /// <returns>The number of the chunk in this world.</returns>
     public abstract int AddVoxelChunk(in VoxelChunkCollider chunk);

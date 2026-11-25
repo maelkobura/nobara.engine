@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Numerics;
+using Nobara.Blocks;
 using Nobara.Context;
 using Nobara.Core;
 using Nobara.Core.Jobs;
@@ -93,14 +94,18 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         Merges = _merges,
         Splits = _splits,
         Recenters = _recenters,
+        VoxelChunks = _voxelChunkCount,
+        VoxelWakes = _wakes,
     };
 
-    /// <summary>Resolves the services of the dependencies, registers the components, the tick system, and the counters of world state.</summary>
-    public void Initialize(IEntityWorlds entities, IVoxelWorlds voxels, IChunkLoading loading, ITickSchedule schedule, IWorldSessions sessions)
+    /// <summary>Resolves the services of the dependencies, registers the components, the tick system, and the counters of world state, and follows the chunks and their blocks.</summary>
+    public void Initialize(IEntityWorlds entities, IVoxelWorlds voxels, IChunkLoading loading, IVoxelBatches batches, IShapeRegistry shapes, IBlockRegistry blocks, ITickSchedule schedule, IWorldSessions sessions)
     {
         _entities = entities;
         _voxels = voxels;
         _loading = loading;
+        _shapeRegistry = shapes;
+        _blocks = blocks;
         _gridWriter = voxels.ClaimGridTransforms(_context);
         _transform = entities.WorldTransform;
         _parent = entities.ParentLink;
@@ -111,7 +116,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         _velocityComponent = entities.RegisterComponent<BodyVelocity>(_context, "nobara.physics.velocity");
         _step = schedule.AddSystem(_context, StepSystem, TickStages.Physics, this, new TickSystemOptions
         {
-            Reads = [entities.Structure],
+            Reads = [entities.Structure, voxels.ChunkAccess],
             Writes =
             [
                 Data(_transform),
@@ -123,11 +128,14 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
             ],
         });
         _sessionEnded = sessions.SubscribeEnded(_context, _ => Reset());
+        _residency = loading.SubscribeResidency(_context, OnResidency);
+        _notifications = batches.Subscribe(_context, OnBlocksChanged);
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "bodies", () => _staticBodies + _kinematicBodies + _dynamicBodies));
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "joints", () => _jointCount));
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "regions", () => _regions.Count));
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "physics worlds", () => _worlds.Count + _retiring.Count));
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "ghosts", () => _ghostCount));
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "voxel chunks", () => _voxelChunkCount));
     }
 
     /// <summary>Chooses the backend from <c>physics.backend</c> and reads the settings of the step.</summary>
@@ -136,6 +144,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         Substeps = _context.Settings.GetInt(PhysicsSettings.Substeps);
         VelocityIterations = _context.Settings.GetInt(PhysicsSettings.VelocityIterations);
         _backend = ChooseBackend();
+        BuildVoxelShapes();
         _started = true;
         _context.Logger.Info($"Physics backend '{_backend.Name}' chosen; {Substeps} substeps and {VelocityIterations} velocity iterations per step.");
     }
@@ -204,6 +213,8 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         _disposed = true;
         _step?.Dispose();
         _sessionEnded?.Dispose();
+        _residency?.Dispose();
+        _notifications?.Dispose();
         foreach (SessionSubscription counter in _counters)
         {
             counter.Dispose();
@@ -243,13 +254,22 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
 
         foreach (WorldEntry world in _worlds)
         {
+            ForgetVoxels(world);
             world.Backend.Dispose();
         }
 
         foreach (WorldEntry world in _retiring)
         {
+            ForgetVoxels(world);
             world.Backend.Dispose();
         }
+
+        _cells.Clear();
+        _wakeQueue.Clear();
+        Array.Clear(_terrains);
+        _terrainCount = 0;
+        _voxelChunkCount = 0;
+        _voxelsRecompute = _voxelsReset = _chunksChanged = false;
 
         foreach (RegionEntry region in _regions)
         {
@@ -338,5 +358,8 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
 
         /// <summary>Gets or sets the number of its kinematic and dynamic bodies that were awake after the last step.</summary>
         public int Awake { get; set; }
+
+        /// <summary>Gets or sets the chunks of voxels the world holds, once a dynamic body needs one.</summary>
+        public VoxelTable? Voxels { get; set; }
     }
 }

@@ -44,16 +44,16 @@ internal static class VoxelCollisionTasks
         sweeps.Register(new CompoundHomogeneousCompoundSweepTask<BigCompound, VoxelChunkShape, Box, BoxWide, CompoundPairSweepOverlapFinder<BigCompound, VoxelChunkShape>>());
     }
 
-    /// <summary>Gives the box of a cell of a chunk, posed in the frame of the pair.</summary>
+    /// <summary>Gives a box of a cell of a chunk, posed in the frame of the pair; the chunk is the second shape of the pair.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static unsafe void GetCell<TCallbacks>(ref CollisionBatcher<TCallbacks> batcher, in BoundsTestedPair pair, int shapeTypeA, int cell, out RigidPose pose, out int type, out void* data)
+    public static unsafe void GetCell<TCallbacks>(ref CollisionBatcher<TCallbacks> batcher, in BoundsTestedPair pair, int shapeTypeA, int child, out RigidPose pose, out int type, out void* data)
         where TCallbacks : struct, ICollisionCallbacks
     {
-        QuaternionEx.TransformWithoutOverlap(VoxelChunkShape.CenterOf(cell), pair.OrientationB, out pose.Position);
+        Unsafe.AsRef<VoxelChunkShape>(pair.B).GetChild(child, out Box box, out Vector3 center);
+        QuaternionEx.TransformWithoutOverlap(center, pair.OrientationB, out pose.Position);
         pose.Orientation = pair.OrientationB;
         type = Box.Id;
-        var half = new Box(1, 1, 1);
-        batcher.CacheShapeB(shapeTypeA, type, Unsafe.AsPointer(ref half), Unsafe.SizeOf<Box>(), out data);
+        batcher.CacheShapeB(shapeTypeA, type, Unsafe.AsPointer(ref box), Unsafe.SizeOf<Box>(), out data);
     }
 }
 

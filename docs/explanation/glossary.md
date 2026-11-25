@@ -238,7 +238,8 @@ columns of blocks. See [voxel worlds](voxel-worlds.md#height-maps-and-queries).
 One of the 32 layers a [body](#body) can belong to. Each body has the layers
 it belongs to and the layers it collides with, as two masks; two bodies
 collide when each belongs to a layer the other collides with. Physics
-queries use the same masks.
+queries use the same masks. The last layer, bit 31, is kept for the voxels
+of every grid (`CollisionFilter.VoxelLayer`).
 
 ### Continuous collision detection
 
@@ -562,8 +563,10 @@ A value of a resource that its own type does not declare, written in its
 
 ### Frozen body
 
-A body that no [physics region](#physics-region) holds: nPhysics keeps its
-position and velocities, and simulates it again once a region holds it.
+A body that no [physics region](#physics-region) holds, or that reaches a
+chunk of the terrain that is not loaded or not active: nPhysics keeps its
+position and velocities, and simulates it again once a region holds it and
+those chunks are active.
 
 ### Game module
 

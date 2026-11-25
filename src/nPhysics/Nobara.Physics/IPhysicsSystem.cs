@@ -57,7 +57,7 @@ public readonly record struct PhysicsStatistics(
     /// <summary>Gets the regions.</summary>
     public int Regions { get; init; }
 
-    /// <summary>Gets the bodies out of every region, which are not simulated.</summary>
+    /// <summary>Gets the frozen bodies, which are not simulated: those out of every region, and those that reach a chunk of the terrain that is not loaded or not active.</summary>
     public int FrozenBodies { get; init; }
 
     /// <summary>Gets the ghosts: bodies seen by a region next to their own.</summary>
@@ -74,6 +74,12 @@ public readonly record struct PhysicsStatistics(
 
     /// <summary>Gets the times the origin of a region moved since the start.</summary>
     public long Recenters { get; init; }
+
+    /// <summary>Gets the chunks of voxels that the physics worlds hold, those near their dynamic bodies.</summary>
+    public int VoxelChunks { get; init; }
+
+    /// <summary>Gets the times changed blocks woke the bodies of a world around them since the start.</summary>
+    public long VoxelWakes { get; init; }
 }
 
 /// <summary>

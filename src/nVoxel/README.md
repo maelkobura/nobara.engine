@@ -162,6 +162,10 @@ writer.Set(grid, WorldTransform.At(WorldPosition.FromBlocks(10, 64, 10)));
 Any other module that claims it gets an `InvalidOperationException`: it moves
 a grid through the API of the physics module.
 
+`GridSpatialIndex.Query(box)` returns a new list of the grids that overlap a
+box. Hot path code passes its own list to `Query(box, results)`, which adds to
+it without allocating once the list has grown.
+
 nVoxel joins the `World` stage with four tick systems, in this order:
 `nobara.voxel.loading`, `nobara.voxel.batches`,
 `nobara.voxel.scheduled_ticks`, and `nobara.voxel.random_ticks`.

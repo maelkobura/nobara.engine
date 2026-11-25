@@ -39,7 +39,7 @@ public enum BodyFlags : byte
     /// <summary>The body sleeps: the backend does not simulate it until something wakes it.</summary>
     Asleep = 4,
 
-    /// <summary>The body is out of every region: nPhysics does not simulate it until a region holds it again.</summary>
+    /// <summary>The body is out of every region, or reaches a chunk of the terrain that is not loaded or not active: nPhysics does not simulate it until a region holds it again and those chunks are active.</summary>
     Frozen = 8,
 }
 
@@ -102,13 +102,18 @@ public readonly record struct PhysicsMaterial(float Friction, float Restitution)
 
 /// <summary>
 /// The collision layers of a body: the layers it belongs to, and the layers
-/// it collides with. Queries use the same masks.
+/// it collides with. Queries use the same masks. The voxels of every grid
+/// belong to <see cref="VoxelLayer"/> and collide with every layer: a body
+/// whose mask leaves that layer out goes through the voxels.
 /// </summary>
 /// <param name="Layers">The layers the body belongs to, one bit each.</param>
 /// <param name="Mask">The layers the body collides with.</param>
 [HotPath]
 public readonly record struct CollisionFilter(uint Layers, uint Mask)
 {
+    /// <summary>The layer of the voxels, the last one (bit 31): keep it for them, and out of the layers of bodies.</summary>
+    public const uint VoxelLayer = 1u << 31;
+
     /// <summary>Gets the default filter: layer 0, colliding with every layer.</summary>
     public static CollisionFilter Default => new(1u, uint.MaxValue);
 

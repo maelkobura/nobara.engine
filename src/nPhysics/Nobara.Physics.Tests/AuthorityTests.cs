@@ -76,7 +76,7 @@ public sealed class AuthorityTests : IDisposable
         using Engine engine = _harness.Start();
         PhysicsProbe probe = _harness.Probe;
         WorldPosition start = WorldPosition.FromBlocks(x, y, z);
-        probe.Activate(start, new ChunkArea(1, 1));
+        probe.Activate(start, new ChunkArea(2, 1));   // every chunk around the start is loaded: a body near a chunk that is not is frozen
         BodyHandle body = probe.CreateBody(start, BodyKind.Kinematic);
         BodyHandle neighbor = probe.CreateBody(start.Offset(new Vector3(5, 0, 0)), BodyKind.Kinematic);
 
@@ -97,7 +97,7 @@ public sealed class AuthorityTests : IDisposable
         using Engine engine = _harness.Start();
         PhysicsProbe probe = _harness.Probe;
         WorldPosition start = WorldPosition.FromBlocks(-1_000_000_000.5, 80, 1_000_000_000.25);
-        probe.Activate(start, new ChunkArea(1, 1));
+        probe.Activate(start, new ChunkArea(2, 1));   // every chunk around the start is loaded: a body near a chunk that is not is frozen
         Grid ship = probe.Voxels.CreateGrid(probe.Context, DimensionId.Default, new GridOptions
         {
             Bounds = new GridBounds(new BlockCoordinate(0, 0, 0), new BlockCoordinate(1, 1, 1)),

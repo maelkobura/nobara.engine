@@ -257,7 +257,10 @@ internal sealed partial class PhysicsSimulation
         }
 
         ghost.Host!.Ghosts--;
+        Release(ref ghost.Voxels);
+        int[]? footprint = ghost.Voxels.Slots;
         ghost = default;
+        ghost.Voxels.Slots = footprint;   // kept for the next ghost of the record
         ghost.NextFree = _ghostFree;
         _ghostFree = index;
         _ghostCount--;
@@ -288,5 +291,8 @@ internal sealed partial class PhysicsSimulation
 
         /// <summary>The next ghost of the same body, plus one; 0 at the end.</summary>
         public int NextOfBody;
+
+        /// <summary>The chunks of voxels the ghost holds in its world, while it is dynamic.</summary>
+        public VoxelFootprint Voxels;
     }
 }
