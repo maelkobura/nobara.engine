@@ -13,7 +13,7 @@ public enum VoxelContactMode
     /// <summary>The collision boxes of each surface cell: exact to the block, the cost grows with the boxes tested.</summary>
     Blocks,
 
-    /// <summary>The corners of the box of each surface cell: much cheaper, but an edge can go into the voxels between two corners.</summary>
+    /// <summary>The corners of the box that holds the collision boxes of each surface cell: much cheaper, but an edge can go into the voxels between two corners.</summary>
     Corners,
 }
 
@@ -49,6 +49,10 @@ public readonly record struct VoxelContactCounts(long Pairs, long Tests, long De
 /// from a tick system that runs before the step of nPhysics. The counts are
 /// written by the backend from the threads of its solver.
 /// </para>
+/// <para>
+/// Give each grid its own: two grids that share one mix their counts and
+/// their cursor.
+/// </para>
 /// </remarks>
 public sealed class GridVoxelCollision
 {
@@ -77,7 +81,12 @@ public sealed class GridVoxelCollision
     /// <summary>Gets the number of surface cells.</summary>
     public int SurfaceCount { get; private set; }
 
-    /// <summary>Gets or sets where the next pair that runs out of budget starts, so that the cells it leaves are tested first at a later step; the backend moves it.</summary>
+    /// <summary>
+    /// Gets or sets where the next pair that runs out of budget starts, so
+    /// that the cells it leaves are tested first at a later step. For
+    /// backends: they move it past the cells they tested; several pairs of the
+    /// grid may move it at once, in any order.
+    /// </summary>
     public int Cursor
     {
         get => Volatile.Read(ref _cursor);
@@ -163,7 +172,7 @@ public sealed class GridVoxelCollision
         SurfaceCount = 0;
     }
 
-    /// <summary>Adds the work of one pair in a step, from a thread of the solver of the backend.</summary>
+    /// <summary>Adds the work of one pair in a step. For backends, from a thread of their solver.</summary>
     /// <param name="tests">The tests made.</param>
     /// <param name="deferred">The surface cells left for a later step.</param>
     [HotPath]

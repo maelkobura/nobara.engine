@@ -60,7 +60,7 @@ public static class ContactEvents
 /// <param name="Dimension">The dimension of the bodies.</param>
 /// <param name="Body">The body that reports the contact.</param>
 /// <param name="Entity">Its entity.</param>
-/// <param name="Other">The other body, or the default handle for a block.</param>
+/// <param name="Other">The other body, the body of a grid included, or the default handle for a block of a grid that is not a body.</param>
 /// <param name="OtherEntity">The entity of the other body, or the default for a block.</param>
 /// <param name="Grid">The grid of the block, or <see langword="null"/> for a body that is not the body of a grid.</param>
 /// <param name="Block">The block, in the coordinates of its grid.</param>

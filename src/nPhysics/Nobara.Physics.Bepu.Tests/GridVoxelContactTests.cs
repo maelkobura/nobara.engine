@@ -193,6 +193,33 @@ public sealed class GridVoxelContactTests
     }
 
     [Fact]
+    public void AContactWithAGridBodyEndsAtOnceWhenTheBodyIsRemoved()
+    {
+        using var scene = new VoxelScene(Small);
+        var ended = new List<ContactEvent>();
+        scene.Physics.SubscribeStepEnd(scene.Probe.Context, new Log(ended, endings: true));
+        Grid grid = Slab(scene, scene.At(16, 5, 16));
+        BodyHandle platform = Body(scene, grid, null, BodyKind.Static);
+        EntityId entity = scene.Probe.CreateEntity(WorldTransform.At(scene.At(16.5, 7.4, 16.5)));
+        BodyHandle box = scene.Physics.AddBody(DimensionId.Default, entity, new BodyDescription
+        {
+            Shape = scene.Physics.CreateBox(new Vector3(0.5f)),
+            Contacts = ContactReporting.Default,
+        });
+        scene.Tick(90);
+        Assert.True(scene.State(box).IsAsleep);
+        Assert.Empty(ended);
+
+        scene.Physics.RemoveBody(platform);   // the grid stays, its body goes
+        scene.Tick();
+
+        ContactEvent end = Assert.Single(ended);
+        Assert.Equal(box, end.Body);
+        Assert.Equal(platform, end.Other);
+        Assert.False(scene.Physics.IsAlive(end.Other));
+    }
+
+    [Fact]
     public void AGridRestingOnTheTerrainAllocatesNothing()
     {
         using var scene = new VoxelScene(Small);
@@ -269,8 +296,8 @@ public sealed class GridVoxelContactTests
     private static double Bottom(VoxelScene scene, BodyHandle body) => scene.State(body).Transform.Position.RelativeTo(scene.At(0, 0, 0)).Y;
 
     /// <summary>Keeps the impacts of the steps.</summary>
-    private sealed class Log(List<ContactEvent> impacts) : IPhysicsStepObserver
+    private sealed class Log(List<ContactEvent> events, bool endings = false) : IPhysicsStepObserver
     {
-        public void OnStepEnd(in PhysicsStepEnd step) => impacts.AddRange(step.Impacts);
+        public void OnStepEnd(in PhysicsStepEnd step) => events.AddRange(endings ? step.ContactsEnded : step.Impacts);
     }
 }

@@ -238,9 +238,9 @@ VoxelContactCounts counts = collision.TakeCounts();          // pairs, tests, de
   against the voxels of the other.
 - **Blocks or corners.** In `VoxelContactMode.Blocks`, each collision box of a
   surface cell is tested against each box of the other voxels it may touch:
-  exact to the block. In `VoxelContactMode.Corners`, each corner of the box of
-  a surface cell is: cheaper, but an edge can go into the voxels between two
-  corners. Between two grid bodies, `Corners` wins when either asks for it.
+  exact to the block. In `VoxelContactMode.Corners`, each corner of the box
+  that holds the collision boxes of a surface cell is: cheaper, but an edge
+  can go into the voxels between two corners. Between two grid bodies, `Corners` wins when either asks for it.
 - **Budget.** A pair makes at most about `PairBudget` tests in a step (0, the
   default, for no limit; between two grid bodies, the smaller budget); the
   last cell tested may pass it by its own tests. The cells that go into the
@@ -254,7 +254,8 @@ VoxelContactCounts counts = collision.TakeCounts();          // pairs, tests, de
 - Set it, change its surface, its mode, or its budget on the loop thread,
   outside the step: from a tick system that runs before
   `nobara.physics.step`. It holds for every shape of the grid until the grid
-  is destroyed or the world session ends. A small grid whose shape is a
+  is destroyed or the world session ends. Give each grid its own: two grids
+  that share one mix their counts and their cursor. A small grid whose shape is a
   compound collides with the other voxels through the voxel layer once it has
   one.
 

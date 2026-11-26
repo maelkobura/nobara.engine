@@ -84,7 +84,7 @@ internal sealed partial class PhysicsSimulation
             {
                 CollectionsMarshal.GetValueRefOrAddDefault(_contactsNow, pair.Key, out _) = pair.Value with { Speed = 0, Missing = 0 };   // the backend no longer looks at it
             }
-            else if (IsAlive(pair.Value.Body) && (pair.Value.Grid is not null || IsAlive(pair.Value.Other)) && pair.Value.Missing + 1 < ContactEvents.GraceSteps)
+            else if (IsAlive(pair.Value.Body) && (pair.Value.Other.IsNone ? pair.Value.Grid is not null : IsAlive(pair.Value.Other)) && pair.Value.Missing + 1 < ContactEvents.GraceSteps)
             {
                 CollectionsMarshal.GetValueRefOrAddDefault(_contactsNow, pair.Key, out _) = pair.Value with { Speed = 0, Missing = pair.Value.Missing + 1 };   // a hop as it settles
             }
@@ -309,9 +309,9 @@ internal sealed partial class PhysicsSimulation
             return false;
         }
 
-        if (record.Grid is not null)
+        if (record.Other.IsNone)
         {
-            return !record.Grid.IsDestroyed;
+            return record.Grid is not null && !record.Grid.IsDestroyed;   // a block of a grid that is not a body
         }
 
         return IsAlive(record.Other) && (_bodies[record.Other.Index].Kind == BodyKind.Static || Still(_bodies[record.Other.Index]));
