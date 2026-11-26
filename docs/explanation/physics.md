@@ -204,6 +204,8 @@ dynamic; a
 crate on a grid that moves is carried by friction. Two sets of voxels never
 collide in the backend: the collision of a grid with the terrain or with
 another grid needs other means than a body against a body.
+Motion is the module that makes grids bodies: see [grids that
+move](moving-grids.md).
 
 ## Characters
 
