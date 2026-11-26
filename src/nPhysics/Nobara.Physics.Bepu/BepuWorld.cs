@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using BepuPhysics;
 using BepuPhysics.Collidables;
@@ -44,6 +45,8 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
     private readonly JobThreadDispatcher? _dispatcher;
     private readonly BepuBackend _backend;
     private readonly Bounces _bounces;
+    private readonly ContactReports _reports;
+    private readonly StrongBox<Vector3> _gravity;
     private Buffer<BodyEntry> _bodies;
     private int _bodyHigh;
     private int _bodyFree = -1;
@@ -62,10 +65,19 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
         _backend = backend;
         _surfaces = new CollidableProperty<Surface>(_pool);
         _bounces = new Bounces(dispatcher?.ThreadCount ?? 1);
+        _reports = new ContactReports(dispatcher?.ThreadCount ?? 1);
+        _gravity = new StrongBox<Vector3>(options.Gravity);
+        _queryPools = new BufferPool?[Math.Max(1, options.QueryThreads)];
+        _queryHits = new BackendQueryHit[_queryPools.Length][];
+        for (int i = 0; i < _queryPools.Length; i++)
+        {
+            _queryPools[i] = i == 0 ? null : new BufferPool();   // thread 0 uses the pool of the world
+            _queryHits[i] = new BackendQueryHit[8];
+        }
         Simulation = Simulation.Create(
             _pool,
-            new NarrowPhaseCallbacks(_surfaces, _bounces),
-            new PoseIntegratorCallbacks(options.Gravity),
+            new NarrowPhaseCallbacks(_surfaces, _bounces, _reports),
+            new PoseIntegratorCallbacks(_gravity),
             new SolveDescription(1, 8));
         VoxelCollisionTasks.Register(Simulation);
         _pool.Take(16, out _bodies);
@@ -109,6 +121,9 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
             Layers = body.Filter.Layers,
             Mask = body.Filter.Mask,
             Body = id,
+            Slot = body.Slot,
+            Chunk = -1,
+            Reports = body.ReportsContacts,
             Continuous = body.Continuous,
         };
         var pose = new RigidPose(body.Position, Quaternion.Normalize(body.Rotation));
@@ -276,6 +291,20 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
     }
 
     /// <inheritdoc/>
+    public override void SetReportsContacts(int body, bool reports)
+    {
+        ref BodyEntry entry = ref Require(body);
+        entry.Surface.Reports = reports;
+        WriteSurface(entry);
+    }
+
+    /// <inheritdoc/>
+    public override ReadOnlySpan<BackendContact> Contacts => _reports.Gathered;
+
+    /// <inheritdoc/>
+    public override void SetGravity(Vector3 gravity) => _gravity.Value = gravity;
+
+    /// <inheritdoc/>
     public override void Wake(int body)
     {
         ref BodyEntry entry = ref Require(body);
@@ -337,6 +366,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
         }
 
         _bounces.Prepare(settings.Delta, settings.Substeps);
+        _reports.Prepare(settings.Delta);
         if (settings.MaySpread && _dispatcher is not null && Simulation.Bodies.ActiveSet.Count >= _backend.SpreadThreshold)
         {
             SpreadSteps++;
@@ -348,15 +378,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
         }
 
         _bounces.Apply();
-    }
-
-    /// <inheritdoc/>
-    public override bool RayCast(Vector3 origin, Vector3 direction, float maxDistance, CollisionFilter filter, out BackendRayHit hit)
-    {
-        var handler = new ClosestHit(_surfaces, filter);
-        Simulation.RayCast(origin, direction, maxDistance, _pool, ref handler);
-        hit = handler.Hit;
-        return handler.Found;
+        _reports.Gather();
     }
 
     /// <inheritdoc/>
@@ -378,6 +400,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
                 }
             }
 
+            DisposeQueries();
             Simulation.Dispose();
             _dispatcher?.Dispose();
             _backend.Forget(this);
@@ -556,35 +579,6 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
             }
 
             return true;
-        }
-    }
-
-    /// <summary>Keeps the closest hit of a ray among the collidables its filter lets through.</summary>
-    [HotPath]
-    private struct ClosestHit(CollidableProperty<Surface> surfaces, CollisionFilter filter) : IRayHitHandler
-    {
-        public bool Found;
-        public BackendRayHit Hit;
-
-        [HotPath]
-        public readonly bool AllowTest(CollidableReference collidable)
-        {
-            ref Surface surface = ref surfaces[collidable];
-            return (surface.Layers & filter.Mask) != 0 && (filter.Layers & surface.Mask) != 0;
-        }
-
-        [HotPath]
-        public readonly bool AllowTest(CollidableReference collidable, int childIndex) => true;
-
-        [HotPath]
-        public void OnRayHit(in RayData ray, ref float maximumT, float t, Vector3 normal, CollidableReference collidable, int childIndex)
-        {
-            if (t < maximumT || !Found)
-            {
-                maximumT = t;
-                Found = true;
-                Hit = new BackendRayHit(t, normal, surfaces[collidable].Body);
-            }
         }
     }
 }

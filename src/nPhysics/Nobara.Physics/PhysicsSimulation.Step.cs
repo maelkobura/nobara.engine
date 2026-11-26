@@ -29,12 +29,15 @@ internal sealed partial class PhysicsSimulation
     {
         long start = Stopwatch.GetTimestamp();
         float delta = (float)time.Delta.TotalSeconds;
+        _lastQueries = _queries;
+        _queries = 0;
         RemoveOrphans();
         ApplyCommands(delta, time.Tick);
         StopReachedTargets(time.Tick);
         _placeBodies(delta);   // through a delegate: not hot path code as a whole
         StepWorlds(delta);
         int written = WriteTransforms();
+        GatherContacts(time.Tick, delta);
         MoveCharacters(delta);
         Publish(time, written);
         _steps++;
@@ -206,6 +209,12 @@ internal sealed partial class PhysicsSimulation
             case CommandKind.SetContinuous:
                 body.Continuous = command.Flag;
                 backend?.SetContinuous(id, command.Flag);
+                body.EntityWorld!.Write(body.Entity, _bodyComponent).Flags = FlagsOf(body);
+                break;
+            case CommandKind.SetContactReporting:
+                body.ReportsContacts = command.Flag;
+                body.ImpactSpeed = command.Value;
+                backend?.SetReportsContacts(id, command.Flag);
                 body.EntityWorld!.Write(body.Entity, _bodyComponent).Flags = FlagsOf(body);
                 break;
         }
@@ -446,6 +455,9 @@ internal sealed partial class PhysicsSimulation
         {
             CharacterSteps = new ReadOnlySpan<CharacterStep>(_characterSteps, 0, _characterStepCount),
             CharacterLandings = new ReadOnlySpan<CharacterLanding>(_characterLandings, 0, _characterLandingCount),
+            ContactsBegun = new ReadOnlySpan<ContactEvent>(_begun, 0, _begunCount),
+            ContactsEnded = new ReadOnlySpan<ContactEvent>(_ended, 0, _endedCount),
+            Impacts = new ReadOnlySpan<ContactEvent>(_impacts, 0, _impactCount),
         };
         for (_publishing = 0; _publishing < _observers.Count; _publishing++)
         {

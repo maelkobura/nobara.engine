@@ -26,7 +26,11 @@ grid, read where nVoxel keeps them, with no geometry to rebuild. Its
 moves characters, players and mobs alike, after the
 [movement intent](../../docs/explanation/glossary.md#movement-intent) that a
 game writes for them, and carries them on their
-[support grid](../../docs/explanation/glossary.md#support-grid). The layers and the
+[support grid](../../docs/explanation/glossary.md#support-grid). Its
+[queries](../../docs/explanation/glossary.md#physics-query) meet the voxels of
+every grid and the bodies of every region as one world, and the bodies that
+ask for them get [contact events](../../docs/explanation/glossary.md#contact-event)
+at the end of each step. The layers and the
 authority are described in [the physics of nPhysics](../../docs/explanation/physics.md).
 
 ## Status
@@ -60,6 +64,8 @@ nPhysics:
 | `nobara.game` | `^1.0` | Required |
 | `nobara.voxel` | `^1.0` | Required |
 | `nobara.debug` | `^1.0` | Optional |
+| `nobara.graphics` | `^1.0` | Optional |
+| `nobara.renderer` | `^1.0` | Optional |
 <!-- nobara:generated:end -->
 
 nPhysics.Bepu:
@@ -80,27 +86,36 @@ library. The version is a beta, chosen on purpose and given exactly: a newer
 version is taken by an explicit change, after running the tests of the
 extension again. No other module sees the types of BEPUphysics.
 
-The optional dependency of nPhysics on nDebug is used by one isolation class,
-`PhysicsDebugWindow`: the "Physics" tool window, which shows the backend, the
-duration of the last step, the bodies by kind, awake, asleep, and frozen,
-the counts of transfers, merges, splits, and recenters, and the regions with
-their box, their origin, and their bodies, ghosts, and joints.
+The optional dependencies of nPhysics on nDebug, nRenderer, and nGraphics
+are used by one isolation class, `PhysicsDebugWindow`: the "Physics" tool
+window, which shows the backend, the duration of the last step, the queries
+of the last tick and the contact events of the last step, the bodies by
+kind, awake, asleep, and frozen, the counts of transfers, merges, splits,
+and recenters, and the regions with their box, their origin, and their
+bodies, ghosts, and joints. In development mode, it adjusts the substeps and
+the gravity of the context until it stops, without saving them. When
+nRenderer is active and draws in development mode, it draws in the world,
+through `IDebugDraw`, the shapes of the bodies (colored by kind, sleep, and
+freezing) and the boxes of the characters, the contacts of the bodies that
+report them, and the boxes of the regions.
 
 ## Entry points
 
 | Member | Use |
 | --- | --- |
-| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `QueryShape`, `QueryFilter`, `PhysicsHit`, `PhysicsHitKind`, `RayQuery`, `SweepQuery` | The shapes, filters, and results of the queries. |
+| `ContactReporting`, `ContactEvent`, `ContactEvents` | How a body reports its contacts, the events, and their fixed rules. |
 | `BodyDescription`, `BodyKind`, `BodyHandle`, `PhysicsMaterial`, `CollisionFilter`, `BodyInertia`, `BodyState` | What a body is made of, its handle, and its state. |
 | `PhysicsBody`, `BodyShape`, `BodyMaterial`, `BodyMass`, `BodyVelocity`, `BodyFlags` | The components of a body, written by nPhysics only. |
 | `PhysicsShape`, `ShapeKind`, `ShapeDescription`, `CompoundChild` | Shapes, shared by the bodies that use them. |
 | `JointDescription`, `JointKind`, `JointHandle`, `JointMotor` | Hinges, sliders, and fixed joints, with an optional motor. |
 | `CharacterBody`, `MovementIntent`, `CharacterState`, `CharacterGround`, `CharacterGroundKind`, `CharacterController` | The components of a character, what it stands on, and the fixed rules of the character controller. |
-| `IPhysicsStepObserver`, `PhysicsStepEnd`, `BodyPose`, `CharacterStep`, `CharacterLanding`, `PhysicsStepSubscription` | The end of each step, with the bodies whose transform it wrote and the steps and landings of the characters. |
+| `IPhysicsStepObserver`, `PhysicsStepEnd`, `BodyPose`, `CharacterStep`, `CharacterLanding`, `PhysicsStepSubscription` | The end of each step, with the bodies whose transform it wrote, the contact events, and the steps and landings of the characters. |
 | `IMediumProvider`, `MediumSample`, `MediumProviderHandle` | What fills a point, as a fluid module describes it. |
 | `PhysicsRegionInfo`, `PhysicsWorldInfo`, `PhysicsStatistics` | The regions, the physics worlds, and the counts after the last step. |
 | `PhysicsFrame` | The conversions between positions in the world and positions in a physics world. |
-| `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `VoxelChunkCells`, `BackendRayHit` | The interface of a backend, for the extensions that provide one. |
+| `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `VoxelChunkCells`, `BackendQuery`, `BackendQueryHit`, `BackendContact` | The interface of a backend, for the extensions that provide one. |
 | `PhysicsSettings` | The names of the configuration keys. |
 | `PhysicsModule` | The identifier of the module and the name of its tick system. |
 
@@ -183,6 +198,7 @@ order the commands were given:
 | `ApplyImpulse`, `ApplyImpulseAt`, `ApplyAngularImpulse` | dynamic | Applies an impulse before the next step. |
 | `Wake`, `WakeArea` | all | Wakes a body, or the bodies of a dimension that overlap a box. |
 | `SetKind`, `SetShape`, `SetMass`, `SetMaterial`, `SetFilter`, `SetContinuous` | all | Changes what the body is made of. |
+| `SetContactReporting` | all | Turns its [contact events](#contact-events) on or off. |
 
 A command on a body that is not alive throws `ArgumentException`; a body
 removed between the command and the step skips it. Commands are hot path
@@ -240,9 +256,11 @@ Each tick, in the stage `Physics`, `nobara.physics.step`:
    worlds of independent regions at the same time;
 6. writes the world transform and the velocities of each body that moved,
    and the flag `Asleep` when it changes;
-7. moves the characters, on the grids where the step has just put them (see
+7. reads the contacts of the bodies that report them (see
+   [Contact events](#contact-events));
+8. moves the characters, on the grids where the step has just put them (see
    [Characters](#characters));
-8. publishes the end of the step to the observers.
+9. publishes the end of the step to the observers.
 
 The duration of a step is the duration of the tick. While the game is
 paused, the phase `Simulation` does not run, and nothing steps; under a time
@@ -416,6 +434,97 @@ those that landed at `CharacterController.LandingSpeed` (1 block per second)
 or faster, with their speed, their steps in the air, and the ground.
 `Statistics.Characters` counts the characters.
 
+### Queries
+
+```csharp
+if (physics.RayCast(DimensionId.Default, eye, look, 5, out PhysicsHit hit, new QueryFilter(CrateLayer | CollisionFilter.VoxelLayer)))
+{
+    // hit.Kind: Block (hit.Grid, hit.Block, hit.State), Body (hit.Body), or NotLoaded.
+}
+```
+
+The guide [Query the physics](../../docs/guides/query-the-physics.md) goes
+through each kind of query.
+
+- **Kinds.** `RayCast` gives the closest hit along a ray, `RayCastAll` the
+  closest ones into a span, closest first. `Sweep` and `SweepAll` move a
+  `QueryShape` (a sphere, a capsule along Y, or a box) along a line without
+  turning it; a shape that starts inside something meets it at distance 0,
+  with the opposite of the direction as normal. `Overlap` gives what a shape
+  touches where it is, in no particular order. All take positions as
+  `WorldPosition`, and a direction of any length.
+- **Voxels and bodies.** A query meets the blocks of every grid of the
+  dimension, terrain included, by their collision boxes as the voxel layer
+  reads them, and the bodies of every region it may reach. nPhysics tests the
+  voxels itself, in the frame of each grid, whether a physics world holds
+  their chunk or not; the backend tests the bodies, in the frame of each
+  world. A body and its ghost are met once.
+- **Filter.** `QueryFilter` gives the layers a query meets, the voxels when
+  its mask holds `CollisionFilter.VoxelLayer`, and one body it goes through.
+  A body is met when it belongs to a layer of the mask. The default filter
+  meets everything.
+- **Chunks that are not loaded.** A chunk of a grid loaded by tickets that is
+  not in memory is reported as a hit of kind `NotLoaded`, at the distance
+  where the query reaches it, and nothing past it is reported. A grid that
+  keeps its chunks has no such chunk.
+- **Results.** `PhysicsHit` gives the distance along the direction, the
+  point, the normal toward the query, and the body, or the grid, the block,
+  and its state. A ray reports the point it reaches; a sweep a point of the
+  surface it touches; an overlap the center of its shape and no normal.
+- **Batches.** `RayCast` and `Sweep` take a batch, `ReadOnlySpan<RayQuery>`
+  or `ReadOnlySpan<SweepQuery>`, and give the closest hit of each at its
+  index. A batch of more than 32 queries runs in slices on the workers of
+  the job system, each with its own scratch, and returns once all are done.
+  Call it on the loop thread, outside a job. Its jobs declare the reads of
+  `IVoxelWorlds.ChunkAccess` and of the data of `WorldTransform`: a tick
+  system that runs a batch declares them too.
+- **Cost.** Queries are hot path code, and allocate nothing once their
+  tables have grown (checked with a batch of 1,000 rays), except a single
+  query that meets a block whose shape depends on its instance in a chunk
+  that no physics world holds, which evaluates its shape.
+
+`Statistics.Queries` counts the queries asked between the last two steps.
+
+### Contact events
+
+A body reports its contacts when its description, or `SetContactReporting`,
+gives it a `ContactReporting`; it then carries the flag `ReportsContacts`.
+Other bodies cost nothing.
+
+```csharp
+BodyHandle crate = physics.AddBody(DimensionId.Default, entity, new BodyDescription
+{
+    Shape = shape,
+    Contacts = new ContactReporting(ImpactSpeed: 6),   // ContactReporting.Default: 1 block per second
+});
+```
+
+- **Pairs.** A contact is a pair: a body that reports and another body, or a
+  body and a grid. A body touches a grid once, however many of its blocks
+  it touches; the event gives the block under the deepest contact. Two
+  bodies that both report give one event, whose `Body` has the lower slot.
+- **Begun.** A pair begins when its parts come within
+  `ContactEvents.BeginReach` (0.01 block) of each other, their approach over
+  the step counted, and is listed in `PhysicsStepEnd.ContactsBegun`.
+- **Ended.** A pair ends once the backend has not reported it for
+  `ContactEvents.GraceSteps` (3) steps in a row, and is listed in
+  `ContactsEnded` with what it last was. A pair whose body sleeps or is
+  frozen goes on. A pair of a removed body ends at once, with its dead
+  handle. A pair whose bodies stop reporting is dropped without an event.
+- **Impacts.** A pair whose parts approached, along the normal and before
+  the step, at the impact speed of its body or faster (the lower one when
+  both report) is listed in `Impacts`, with `Speed` and an estimate of the
+  `Impulse`: the speed times the reduced mass of the pair, a body that is not
+  dynamic and a block counting as of infinite mass, times one plus the
+  restitution of the pair.
+- **Where.** `Point` is the deepest contact, and `Normal` goes from the other
+  part toward `Body`.
+
+The events are published by batches in the end of the step, on the loop
+thread, to the observers of `SubscribeStepEnd`. `Statistics.ContactEvents`
+counts the events of the last step. The steps and landings of the
+characters stay apart, in `CharacterSteps` and `CharacterLandings`.
+
 ### End of the step
 
 ```csharp
@@ -435,8 +544,9 @@ physics.SubscribeStepEnd(context, new History());
 
 The observers are called on the loop thread, once the transforms are
 written and the characters moved, with the bodies whose transform the step
-wrote, and the steps and landings of the characters. `OnStepEnd` is hot
-path code. An exception is charged to the module of the observer.
+wrote, the contact events, and the steps and landings of the characters.
+`OnStepEnd` is hot path code. An exception is charged to the module of the
+observer.
 
 ### Providers of medium
 
@@ -475,8 +585,19 @@ public void Initialize(ModuleContext context) =>
   around the dynamic bodies of a world (see [Voxels](#voxels)). A backend
   reads the collision boxes of each cell from `VoxelChunkCollider.Cells`
   while the world steps, and drops the contacts that
-  `VoxelChunkCells.IsInnerContact` sets apart. `RayCast` is part of the
-  interface; nPhysics does not call it in this version.
+  `VoxelChunkCells.IsInnerContact` sets apart.
+- `RayCast`, `Sweep`, and `Overlap` meet the bodies of the world only, never
+  its chunks of voxels: nPhysics tests the voxels itself. They give hits by
+  `BackendBody.Slot`, which a ghost shares with its body, and keep the
+  closest ones that fit the span. They are the only members called from
+  several threads at once, each with its index below
+  `PhysicsWorldOptions.QueryThreads`, while no other member runs.
+- After each step, `Contacts` lists the pairs that hold a body whose
+  `BackendBody.ReportsContacts` is set (`SetReportsContacts`), once per pair
+  of bodies or of a body and a chunk, at their deepest contact, while they
+  touch or will touch during the step within `BackendContact.Reach`.
+- `SetGravity` changes the gravity of a world; the debug window uses it in
+  development mode.
 
 | Extension | Backend name | Library |
 | --- | --- | --- |
@@ -530,6 +651,17 @@ the world; two worlds share nothing and can step at the same time.
   an inner face. The voxels have the default material. The chunk does not
   change during a step. Without `VoxelChunkCollider.Cells`, every cell that
   holds a block collides as a whole cube.
+- **Queries.** Rays, sweeps, and overlaps are the queries of BEPUphysics,
+  among the bodies and statics of the world, its chunks of voxels left out.
+  Each thread that queries at once has a pool of memory of its own. An
+  overlap is a sweep over a ten-thousandth of a block whose hits at distance
+  0 count.
+- **Contacts.** The callback that configures the contacts of a pair notes,
+  for a pair with a body that reports, its deepest contact and the speed at
+  which the pair approaches, in a list per worker of the step; the world
+  gathers the lists after the step. BEPUphysics finds no contact for a pair
+  that parts slowly a few millimeters apart, hence the grace steps of
+  nPhysics before a contact ends.
 - **Threads.** A world steps on the thread that calls it. When
   `MaySpread` is set and the world has at least 1,000 awake bodies, the step
   spreads over the job system: the calling thread is a worker, and the other
@@ -539,8 +671,8 @@ the world; two worlds share nothing and can step at the same time.
 
 ## Events
 
-None. The end of each step is published to the observers of
-`SubscribeStepEnd`, synchronously, on the loop thread.
+None. The end of each step, with its contact events, is published to the
+observers of `SubscribeStepEnd`, synchronously, on the loop thread.
 
 ## Configuration
 
@@ -582,6 +714,10 @@ None.
   the components of the hierarchy, a change of structure. The voxel layer allocates when a chunk enters a world, and
   nothing once the bodies rest on chunks the worlds hold (checked by a test
   with bodies on the voxels).
+- Queries read the blocks and the transforms of the grids: a tick system
+  that queries declares `IVoxelWorlds.ChunkAccess` and the data of
+  `WorldTransform` among its reads. Call them outside the step of nPhysics,
+  or from its observers.
 - The step reads the blocks of every grid: its tick system declares
   `IVoxelWorlds.ChunkAccess` as a read. It writes the structure of the entity
   worlds, since characters change parents and lose their components there. Blocks change at the stage `World`, before the
@@ -614,7 +750,26 @@ None.
   ghost of a dynamic body follows its body again at the next step.
 - Joined bodies are simulated in the region of the first body of their group,
   however far from it the others are.
-- There are no queries nor contact events.
+- Queries meet neither characters nor frozen bodies, nor the voxels of a
+  scaled grid.
+- A query goes through one body at most (`QueryFilter.Ignored`).
+- A batch takes a block whose shape depends on its instance, in a chunk
+  that no physics world holds, as a whole cell: it does not call the shapes
+  of other modules from its jobs.
+- A sweep of a capsule or a sphere stops a ten-thousandth of a block before
+  it touches; one that only grazes the corner of a box after many steps of
+  its advancement is not reported.
+- A contact event names the block under the deepest contact of a body
+  against a grid, not every block the body touches.
+- Static and kinematic bodies give no contact events with each other nor
+  with the voxels, since the backend computes no contact there.
+- The impulse of an impact is an estimate from the speed and the masses,
+  not the impulse the solver applied.
+- A contact ends three steps after its parts part; a body that bounces off
+  and comes back within them keeps it.
+- The debug drawing shows a cylinder, a convex hull, and a mesh by the box
+  that holds them, at most 2,000 bodies, and the contacts of the bodies that
+  report them only.
 - Static and kinematic bodies do not collide with voxels, and grids do not
   collide with anything yet: the voxels of a grid that is a body, and of a
   scaled grid, are left out of the voxel layer.
@@ -648,7 +803,8 @@ None.
 - Bodies are added and removed outside entity systems only.
 - A transform written to a body entity by another module is not detected; the
   next step overwrites it.
-- The gravity is fixed: 9.81 blocks per square second downward.
+- The gravity is 9.81 blocks per square second downward, and no setting
+  changes it: only the debug window does, in development mode.
 - nPhysics.Bepu bounces bodies along the normal of the contact, on their
   linear velocities only: a spinning ball bounces as one that does not spin.
 - nPhysics.Bepu notes at most 256 bouncing pairs per worker in a step; the

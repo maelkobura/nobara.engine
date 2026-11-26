@@ -14,55 +14,65 @@ namespace Nobara.Physics.Bepu.Tests;
 public sealed class WorldTests
 {
     [Fact]
-    public void ARayThatComesIntoAChunkFromAboveHitsTheTopOfTheGround()
+    public void ARayOfTheWorldGoesThroughItsChunksOfVoxels()
     {
         using var scene = new BepuScene();
-        scene.Add(WorldPosition.FromBlocks(1, 40, 1), scene.Physics.CreateSphere(0.5f), BodyKind.Static);
-        scene.Ground(height: 32);   // the top of the chunk is the ground
+        BodyHandle ball = scene.Add(WorldPosition.FromBlocks(8.5, 20, 8.5), scene.Physics.CreateSphere(0.5f), BodyKind.Static);
+        scene.Ground(height: 32);   // nPhysics tests the voxels itself: the backend leaves them out of its queries
+        var hits = new BackendQueryHit[4];
 
-        bool hit = scene.World.RayCast(new Vector3(8.5f, 40, 8.5f), -Vector3.UnitY, 20, CollisionFilter.Default, out BackendRayHit result);
+        int count = scene.World.RayCast(Ray(new Vector3(8.5f, 40, 8.5f), -Vector3.UnitY, 60), 0, hits);
 
-        Assert.True(hit);
-        Assert.Equal(8f, result.Distance, 1e-4f);
-        Assert.Equal(Vector3.UnitY, result.Normal);
-        Assert.Equal(-1, result.Body);
+        Assert.Equal(1, count);
+        Assert.Equal(ball.Index, hits[0].Slot);
+        Assert.Equal(Vector3.UnitY, hits[0].Normal);
     }
 
     [Fact]
-    public void ARayThatStartsInsideAChunkHitsTheFaceItCrosses()
-    {
-        using var scene = new BepuScene();
-        scene.Add(WorldPosition.FromBlocks(1, 20, 1), scene.Physics.CreateSphere(0.5f), BodyKind.Static);
-        scene.Ground(height: 4);
-
-        bool hit = scene.World.RayCast(new Vector3(10.5f, 2.5f, 0.5f), Vector3.UnitZ, 40, CollisionFilter.Default, out BackendRayHit result);
-        Assert.True(hit);
-        Assert.Equal(0f, result.Distance, 1e-4f);   // it starts in a block
-
-        hit = scene.World.RayCast(new Vector3(10.5f, 6, 10.5f), Vector3.Normalize(new Vector3(1, -1, 0)), 40, CollisionFilter.Default, out result);
-        Assert.True(hit);
-        Assert.Equal(MathF.Sqrt(8), result.Distance, 1e-3f);
-        Assert.Equal(Vector3.UnitY, result.Normal);
-    }
-
-    [Fact]
-    public void ARayHitsTheClosestBodyThatItsLayersLetThrough()
+    public void ARayGivesTheClosestBodiesThatItsMaskLetsThrough()
     {
         using var scene = new BepuScene();
         PhysicsShape crate = scene.Physics.CreateBox(Vector3.One);
         BodyHandle near = scene.Add(WorldPosition.FromBlocks(5, 10, 10), crate, BodyKind.Static, filter: new CollisionFilter(1 << 2, uint.MaxValue));
         BodyHandle far = scene.Add(WorldPosition.FromBlocks(9, 10, 10), crate, BodyKind.Static);
         BepuWorld world = scene.World;
+        var hits = new BackendQueryHit[1];
 
-        Assert.True(world.RayCast(new Vector3(0, 10, 10), Vector3.UnitX, 20, CollisionFilter.Default, out BackendRayHit first));
-        Assert.Equal(4.5f, first.Distance, 1e-3f);
-        Assert.Equal(-Vector3.UnitX, first.Normal);
-        Assert.True(world.RayCast(new Vector3(0, 10, 10), Vector3.UnitX, 20, new CollisionFilter(1, ~(1u << 2)), out BackendRayHit second));
-        Assert.Equal(8.5f, second.Distance, 1e-3f);
-        Assert.NotEqual(first.Body, second.Body);
-        Assert.False(world.RayCast(new Vector3(0, 10, 10), Vector3.UnitX, 4, CollisionFilter.Default, out _));
-        Assert.True(scene.Physics.IsAlive(near) && scene.Physics.IsAlive(far));
+        Assert.Equal(1, world.RayCast(Ray(new Vector3(0, 10, 10), Vector3.UnitX, 20), 0, hits));
+        Assert.Equal(4.5f, hits[0].Distance, 1e-3f);
+        Assert.Equal(-Vector3.UnitX, hits[0].Normal);
+        Assert.Equal(near.Index, hits[0].Slot);
+        Assert.Equal(1, world.RayCast(Ray(new Vector3(0, 10, 10), Vector3.UnitX, 20, mask: ~(1u << 2)), 0, hits));
+        Assert.Equal(8.5f, hits[0].Distance, 1e-3f);
+        Assert.Equal(far.Index, hits[0].Slot);
+        Assert.Equal(0, world.RayCast(Ray(new Vector3(0, 10, 10), Vector3.UnitX, 4), 0, hits));
+        Assert.Equal(0, world.RayCast(Ray(new Vector3(0, 10, 10), Vector3.UnitX, 20, ignored: near.Index, mask: 1u << 2), 0, hits));
+
+        var both = new BackendQueryHit[4];
+        Assert.Equal(2, world.RayCast(Ray(new Vector3(0, 10, 10), Vector3.UnitX, 20), 0, both));
     }
+
+    [Fact]
+    public void ASweepAndAnOverlapMeetTheBodiesOfTheWorld()
+    {
+        using var scene = new BepuScene();
+        BodyHandle wall = scene.Add(WorldPosition.FromBlocks(10, 10, 10), scene.Physics.CreateBox(new Vector3(1, 4, 4)), BodyKind.Static);
+        BepuWorld world = scene.World;
+        var hits = new BackendQueryHit[2];
+        var sweep = new BackendQuery { Origin = new Vector3(0, 10, 10), Rotation = Quaternion.Identity, Direction = Vector3.UnitX, MaxDistance = 20, Shape = QueryShape.Sphere(0.5f), Mask = uint.MaxValue, IgnoredSlot = -1 };
+
+        Assert.Equal(1, world.Sweep(sweep, 0, hits));
+        Assert.Equal(wall.Index, hits[0].Slot);
+        Assert.Equal(9f, hits[0].Distance, 0.01f);   // the face at x = 9.5, less the radius
+        Assert.True(Vector3.Dot(hits[0].Normal, -Vector3.UnitX) > 0.99f, $"normal {hits[0].Normal}");
+
+        var inside = sweep with { Origin = new Vector3(10.3f, 10, 10) };
+        Assert.Equal(1, world.Overlap(inside, 1, hits));
+        Assert.Equal(0, world.Overlap(sweep, 1, hits));
+    }
+
+    private static BackendQuery Ray(Vector3 origin, Vector3 direction, float length, uint mask = uint.MaxValue, int ignored = -1) =>
+        new() { Origin = origin, Rotation = Quaternion.Identity, Direction = direction, MaxDistance = length, Mask = mask, IgnoredSlot = ignored };
 
     [Fact]
     public void ABodyFallsOnceItsChunkIsRemoved()

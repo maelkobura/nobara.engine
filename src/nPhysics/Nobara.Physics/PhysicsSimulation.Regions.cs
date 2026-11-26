@@ -408,7 +408,7 @@ internal sealed partial class PhysicsSimulation
             return existing;
         }
 
-        var options = new PhysicsWorldOptions(region.Origin, Gravity, this, _context.Logger);
+        var options = new PhysicsWorldOptions(region.Origin, _gravity, this, _context.Logger) { QueryThreads = _queryScratch.Length };
         var world = new WorldEntry(region, region.Origin, _backend!.CreateWorld(options));
         region.World = world;
         _worlds.Add(world);
@@ -659,6 +659,7 @@ internal sealed partial class PhysicsSimulation
             Filter = body.Filter,
             Continuous = body.Continuous,
             CanSleep = body.CanSleep,
+            ReportsContacts = body.ReportsContacts,
         };
     }
 

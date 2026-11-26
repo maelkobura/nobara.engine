@@ -41,6 +41,9 @@ public enum BodyFlags : byte
 
     /// <summary>The body is out of every region, or reaches a chunk of the terrain that is not loaded or not active: nPhysics does not simulate it until a region holds it again and those chunks are active.</summary>
     Frozen = 8,
+
+    /// <summary>The body reports its contacts: they are listed at the end of each step.</summary>
+    ReportsContacts = 16,
 }
 
 /// <summary>Identifies a body. It names no body any more once the body is removed.</summary>
@@ -188,6 +191,9 @@ public sealed class BodyDescription
 
     /// <summary>Gets or initializes the angular velocity at the start, in radians per second, along the axes of the world.</summary>
     public Vector3 AngularVelocity { get; init; }
+
+    /// <summary>Gets or initializes how the body reports its contacts; <see langword="null"/>, the default, for a body without contact events.</summary>
+    public ContactReporting? Contacts { get; init; }
 }
 
 /// <summary>The component <c>nobara.physics.body</c>: the body of an entity, written by nPhysics only.</summary>

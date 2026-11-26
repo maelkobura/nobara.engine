@@ -255,7 +255,66 @@ internal sealed class TestPhysicsWorld(TestPhysicsBackend backend, PhysicsWorldO
         Record("remove chunk");
     }
 
-    public override bool RayCast(Vector3 origin, Vector3 direction, float maxDistance, CollisionFilter filter, out BackendRayHit hit) => throw new NotSupportedException();
+    /// <summary>Gets the hits that every query of the world gives, as a backend would find them.</summary>
+    public List<BackendQueryHit> QueryHits { get; } = [];
+
+    /// <summary>Gets the queries the world received.</summary>
+    public List<BackendQuery> Queries { get; } = [];
+
+    /// <summary>Gets or sets the contacts that the world reports after each step, as a backend would note them.</summary>
+    public List<BackendContact> ReportedContacts { get; } = [];
+
+    /// <summary>Gets the gravity the world was last given.</summary>
+    public Vector3 Gravity { get; private set; } = options.Gravity;
+
+    public override int RayCast(in BackendQuery query, int thread, Span<BackendQueryHit> hits) => Answer(query, hits);
+
+    public override int Sweep(in BackendQuery query, int thread, Span<BackendQueryHit> hits) => Answer(query, hits);
+
+    public override int Overlap(in BackendQuery query, int thread, Span<BackendQueryHit> hits) => Answer(query, hits);
+
+    public override void SetReportsContacts(int body, bool reports)
+    {
+        _bodies[body].Description.ReportsContacts = reports;
+        if (Records) Calls.Add($"reports {body} {reports}");
+    }
+
+    public override ReadOnlySpan<BackendContact> Contacts => System.Runtime.InteropServices.CollectionsMarshal.AsSpan(ReportedContacts);
+
+    public override void SetGravity(Vector3 gravity) => Gravity = gravity;
+
+    private int Answer(in BackendQuery query, Span<BackendQueryHit> hits)
+    {
+        Track(query.Origin);
+        lock (Queries)
+        {
+            Queries.Add(query);
+        }
+
+        int count = 0;
+        foreach (BackendQueryHit hit in QueryHits)
+        {
+            if (count < hits.Length && hit.Slot != query.IgnoredSlot && (LayersOf(hit.Slot) & query.Mask) != 0)
+            {
+                hits[count++] = hit;
+            }
+        }
+
+        return count;
+    }
+
+    private uint LayersOf(int slot)
+    {
+        foreach (TestBody body in _bodies)
+        {
+            if (!body.Removed && body.Description.Slot == slot)
+            {
+                return body.Description.Filter.Layers;
+            }
+        }
+
+        return 0;
+    }
 
     protected override void Dispose(bool disposing)
     {

@@ -49,7 +49,7 @@ internal sealed partial class BepuWorld
         nint handle = GCHandle.ToIntPtr(GCHandle.Alloc(cells));
         TypedIndex shape = Simulation.Shapes.Add(new VoxelChunkShape(handle));
         StaticHandle body = Simulation.Statics.Add(new StaticDescription(new RigidPose(chunk.Position, System.Numerics.Quaternion.Normalize(chunk.Rotation)), shape, ContinuousDetection.Passive));
-        _surfaces.Allocate(body) = Surface.Voxels(handle);
+        _surfaces.Allocate(body) = Surface.Voxels(handle, id);
         _chunks[id] = new ChunkEntry { Used = true, Cells = handle, Shape = shape, Static = body, NextFree = -1 };
         ChunkCount++;
         return id;

@@ -99,6 +99,7 @@ internal sealed partial class PhysicsSimulation
             added.Shape = body.Shape;
             added.Material = body.Material;
             added.Filter = body.Filter;
+            added.ReportsContacts = body.ReportsContacts;
             added.BackendId = backend.AddBody(new BackendBody
             {
                 Slot = slot,
@@ -113,6 +114,7 @@ internal sealed partial class PhysicsSimulation
                 Material = body.Material,
                 Filter = body.Filter,
                 CanSleep = true,
+                ReportsContacts = body.ReportsContacts,
             });
             added.NextOfBody = body.FirstGhost;
             body.FirstGhost = index + 1;
@@ -146,6 +148,12 @@ internal sealed partial class PhysicsSimulation
         {
             ghost.Filter = body.Filter;
             backend.SetFilter(ghost.BackendId, body.Filter);
+        }
+
+        if (ghost.ReportsContacts != body.ReportsContacts)
+        {
+            ghost.ReportsContacts = body.ReportsContacts;
+            backend.SetReportsContacts(ghost.BackendId, body.ReportsContacts);
         }
 
         if (moves || turned || body.Dirty)
@@ -285,6 +293,7 @@ internal sealed partial class PhysicsSimulation
         public PhysicsShape Shape;
         public PhysicsMaterial Material;
         public CollisionFilter Filter;
+        public bool ReportsContacts;
 
         /// <summary>The pass on the ghosts that last needed it.</summary>
         public int Stamp;

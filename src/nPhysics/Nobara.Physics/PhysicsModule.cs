@@ -53,7 +53,7 @@ public sealed class PhysicsModule : IModule
             context.Resolve<IWorldSessions>());
         if (context.IsModuleActive(PhysicsDebugWindow.DebugModuleId))
         {
-            _debug = AddDebugWindow(context, _simulation);
+            _debug = AddDebugWindow(context, _simulation, context.IsModuleActive(PhysicsDebugWindow.RendererModuleId));
         }
     }
 
@@ -76,8 +76,14 @@ public sealed class PhysicsModule : IModule
             _debug?.Dispose();
             _debug = null;
         }
+        else if (dependency.Id == PhysicsDebugWindow.RendererModuleId)
+        {
+            DropDrawing(_debug);
+        }
     }
 
-    // A method of its own, so that the types of nDebug load only when it runs.
-    private static IDisposable? AddDebugWindow(ModuleContext context, PhysicsSimulation simulation) => PhysicsDebugWindow.Add(context, simulation);
+    // Methods of their own, so that the types of the optional dependencies load only when they run.
+    private static IDisposable? AddDebugWindow(ModuleContext context, PhysicsSimulation simulation, bool hasRenderer) => PhysicsDebugWindow.Add(context, simulation, hasRenderer);
+
+    private static void DropDrawing(IDisposable? window) => (window as PhysicsDebugWindow)?.DropDrawing();
 }

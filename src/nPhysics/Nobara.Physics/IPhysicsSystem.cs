@@ -83,6 +83,12 @@ public readonly record struct PhysicsStatistics(
 
     /// <summary>Gets the characters that the character controller moves.</summary>
     public int Characters { get; init; }
+
+    /// <summary>Gets the queries asked between the last two steps, each query of a batch counted once.</summary>
+    public int Queries { get; init; }
+
+    /// <summary>Gets the contact events of the last step: contacts begun, contacts ended, and impacts.</summary>
+    public int ContactEvents { get; init; }
 }
 
 /// <summary>
@@ -322,6 +328,90 @@ public interface IPhysicsSystem
     /// <param name="continuous">Whether it is on.</param>
     /// <exception cref="ArgumentException">The body is not alive.</exception>
     void SetContinuous(BodyHandle body, bool continuous);
+
+    /// <summary>Changes how a body reports its contacts, from the next step on.</summary>
+    /// <param name="body">The body.</param>
+    /// <param name="reporting">How it reports them, or <see langword="null"/> for no contact events.</param>
+    /// <exception cref="ArgumentException">The body is not alive, or the impact speed is negative or not finite.</exception>
+    void SetContactReporting(BodyHandle body, ContactReporting? reporting);
+
+    /// <summary>Finds the closest block, body, or chunk that is not loaded along a ray, in every grid and every region of a dimension.</summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="origin">The start of the ray.</param>
+    /// <param name="direction">Its direction; it need not be of length 1.</param>
+    /// <param name="maxDistance">Its length, in blocks.</param>
+    /// <param name="hit">The closest hit.</param>
+    /// <param name="filter">What the ray meets.</param>
+    /// <returns><see langword="true"/> when the ray met something.</returns>
+    /// <exception cref="ArgumentException">The origin or the direction is not finite, the direction is zero, or the length is negative or not finite.</exception>
+    bool RayCast(DimensionId dimension, in WorldPosition origin, Vector3 direction, float maxDistance, out PhysicsHit hit, QueryFilter filter = default);
+
+    /// <summary>Finds the closest blocks and bodies along a ray, closest first, up to the first chunk that is not loaded.</summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="origin">The start of the ray.</param>
+    /// <param name="direction">Its direction; it need not be of length 1.</param>
+    /// <param name="maxDistance">Its length, in blocks.</param>
+    /// <param name="hits">Receives the closest hits, as many as it holds; a chunk that is not loaded is the last one.</param>
+    /// <param name="filter">What the ray meets.</param>
+    /// <returns>The number of hits written.</returns>
+    /// <exception cref="ArgumentException">The origin or the direction is not finite, the direction is zero, or the length is negative or not finite.</exception>
+    int RayCastAll(DimensionId dimension, in WorldPosition origin, Vector3 direction, float maxDistance, Span<PhysicsHit> hits, QueryFilter filter = default);
+
+    /// <summary>Finds the closest block, body, or chunk that is not loaded that a shape meets as it moves along a line, without turning.</summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="shape">The shape.</param>
+    /// <param name="origin">Where its center starts.</param>
+    /// <param name="rotation">Its rotation.</param>
+    /// <param name="direction">The direction it moves along; it need not be of length 1.</param>
+    /// <param name="maxDistance">How far it moves, in blocks.</param>
+    /// <param name="hit">The closest hit; at distance 0 when the shape starts inside it.</param>
+    /// <param name="filter">What the shape meets.</param>
+    /// <returns><see langword="true"/> when the shape met something.</returns>
+    /// <exception cref="ArgumentException">The shape is the default, the origin, the rotation, or the direction is not finite, the direction or the rotation is zero, or the length is negative or not finite.</exception>
+    bool Sweep(DimensionId dimension, in QueryShape shape, in WorldPosition origin, Quaternion rotation, Vector3 direction, float maxDistance, out PhysicsHit hit, QueryFilter filter = default);
+
+    /// <summary>Finds the closest blocks and bodies that a shape meets as it moves along a line, closest first, up to the first chunk that is not loaded.</summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="shape">The shape.</param>
+    /// <param name="origin">Where its center starts.</param>
+    /// <param name="rotation">Its rotation.</param>
+    /// <param name="direction">The direction it moves along; it need not be of length 1.</param>
+    /// <param name="maxDistance">How far it moves, in blocks.</param>
+    /// <param name="hits">Receives the closest hits, as many as it holds; a chunk that is not loaded is the last one.</param>
+    /// <param name="filter">What the shape meets.</param>
+    /// <returns>The number of hits written.</returns>
+    /// <exception cref="ArgumentException">The shape is the default, the origin, the rotation, or the direction is not finite, the direction or the rotation is zero, or the length is negative or not finite.</exception>
+    int SweepAll(DimensionId dimension, in QueryShape shape, in WorldPosition origin, Quaternion rotation, Vector3 direction, float maxDistance, Span<PhysicsHit> hits, QueryFilter filter = default);
+
+    /// <summary>Finds the blocks, the bodies, and the chunks that are not loaded that a shape overlaps.</summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="shape">The shape.</param>
+    /// <param name="position">Where its center is.</param>
+    /// <param name="rotation">Its rotation.</param>
+    /// <param name="hits">Receives the hits, as many as it holds: chunks that are not loaded first, then blocks, then bodies.</param>
+    /// <param name="filter">What the shape meets.</param>
+    /// <returns>The number of hits written.</returns>
+    /// <exception cref="ArgumentException">The shape is the default, or the position or the rotation is not finite, or the rotation is zero.</exception>
+    int Overlap(DimensionId dimension, in QueryShape shape, in WorldPosition position, Quaternion rotation, Span<PhysicsHit> hits, QueryFilter filter = default);
+
+    /// <summary>
+    /// Casts a batch of rays, in parallel on the job system, and gives the
+    /// closest hit of each. Call it on the loop thread, outside a job; it
+    /// returns once every ray is cast, and allocates nothing once its tables
+    /// have grown to the largest batch.
+    /// </summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="queries">The rays.</param>
+    /// <param name="hits">Receives the closest hit of each ray, at its index; <see cref="PhysicsHitKind.None"/> for a ray that met nothing.</param>
+    /// <exception cref="ArgumentException"><paramref name="hits"/> is shorter than <paramref name="queries"/>, or a ray is not valid.</exception>
+    void RayCast(DimensionId dimension, ReadOnlySpan<RayQuery> queries, Span<PhysicsHit> hits);
+
+    /// <summary>Moves a batch of shapes, in parallel on the job system, and gives the closest hit of each, as <see cref="RayCast(DimensionId, ReadOnlySpan{RayQuery}, Span{PhysicsHit})"/> does for rays.</summary>
+    /// <param name="dimension">The dimension.</param>
+    /// <param name="queries">The sweeps.</param>
+    /// <param name="hits">Receives the closest hit of each sweep, at its index; <see cref="PhysicsHitKind.None"/> for a sweep that met nothing.</param>
+    /// <exception cref="ArgumentException"><paramref name="hits"/> is shorter than <paramref name="queries"/>, or a sweep is not valid.</exception>
+    void Sweep(DimensionId dimension, ReadOnlySpan<SweepQuery> queries, Span<PhysicsHit> hits);
 
     /// <summary>Joins two bodies of the same dimension.</summary>
     /// <param name="first">The first body.</param>

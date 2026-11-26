@@ -257,6 +257,13 @@ backend follows the body along its whole path during a step, so that it
 stops at a thin wall instead of going through it. It costs more than the
 default detection, and is turned on body by body.
 
+### Contact event
+
+A contact between a body that reports its contacts and another body or a
+block, as nPhysics lists it at the end of a step: a contact that began, one
+that ended, or an impact, when the parts approached at the impact speed of
+the body or faster. See [the physics of nPhysics](physics.md#contact-events).
+
 ### Command buffer
 
 A list of GPU commands recorded by a module, then submitted to the
@@ -1093,6 +1100,14 @@ An island of active chunks of a dimension that nPhysics simulates in a
 [physics world](#physics-world) of its own, around an origin near its center.
 Regions follow the active area tickets of the terrain, merge when they share
 a chunk, and split again once far enough apart.
+
+### Physics query
+
+A question asked of the physics of a dimension: what a ray meets, what a
+shape meets as it moves (a sweep), or what a shape overlaps. It meets the
+blocks of every grid, which nPhysics tests itself, the bodies of every
+region, and reports a chunk that is not loaded as such. See [the physics of
+nPhysics](physics.md#queries).
 
 ### Physics world
 

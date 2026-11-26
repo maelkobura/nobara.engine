@@ -35,6 +35,15 @@ internal struct Surface
     /// <summary>The number of the body in the world, or -1 for a chunk of voxels.</summary>
     public int Body;
 
+    /// <summary>The slot of the body in nPhysics, or -1 for a chunk of voxels.</summary>
+    public int Slot;
+
+    /// <summary>The number of the chunk of voxels in the world, or -1 for a body.</summary>
+    public int Chunk;
+
+    /// <summary>Whether the contacts of the body are reported to nPhysics.</summary>
+    public bool Reports;
+
     /// <summary>The handle of the cells of a chunk of voxels, from <see cref="System.Runtime.InteropServices.GCHandle.ToIntPtr"/>; 0 for a body.</summary>
     public nint Cells;
 
@@ -43,22 +52,26 @@ internal struct Surface
 
     /// <summary>Gets the surface of a chunk of voxels: the default material, in the layer of the voxels, colliding with every layer.</summary>
     /// <param name="cells">The handle of the cells of the chunk.</param>
+    /// <param name="chunk">The number of the chunk in the world.</param>
     /// <returns>The surface.</returns>
     [HotPath]
-    public static Surface Voxels(nint cells) => new()
+    public static Surface Voxels(nint cells, int chunk) => new()
     {
         Friction = PhysicsMaterial.Default.Friction,
         Restitution = PhysicsMaterial.Default.Restitution,
         Layers = CollisionFilter.VoxelLayer,
         Mask = uint.MaxValue,
         Body = -1,
+        Slot = -1,
+        Chunk = chunk,
         Cells = cells,
     };
 }
 
 /// <summary>
 /// The callbacks of the narrow phase: they filter pairs by collision layers,
-/// give each pair its material, and note the pairs that bounce. Friction
+/// give each pair its material, note the pairs that bounce, and note the
+/// contacts of the bodies that report them (<see cref="ContactReports"/>). Friction
 /// combines as the geometric mean of the two bodies, restitution as the larger
 /// of the two; <see cref="Bounces"/> applies the restitution after the step.
 /// </summary>
@@ -76,7 +89,7 @@ internal struct Surface
 /// too late, and lets it through a thin wall.
 /// </para>
 /// </remarks>
-internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounces bounces) : INarrowPhaseCallbacks
+internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounces bounces, ContactReports reports) : INarrowPhaseCallbacks
 {
     /// <summary>The frequency of the contact springs, in hertz.</summary>
     public const float ContactFrequency = 30f;
@@ -89,6 +102,7 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
     {
         surfaces.Initialize(simulation);
         bounces.Simulation = simulation;
+        reports.Simulation = simulation;
     }
 
     /// <inheritdoc/>
@@ -139,6 +153,11 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
             bounces.Note(workerIndex, pair, manifold.GetNormal(deepest), manifold.GetDepth(deepest), restitution);
         }
 
+        if ((first.Reports || second.Reports) && manifold.Count > 0)
+        {
+            reports.Note(workerIndex, pair, first, second, ref manifold);
+        }
+
         return true;
     }
 
@@ -179,8 +198,8 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
     }
 }
 
-/// <summary>The callbacks of the integration of poses: the gravity of the world, and no damping.</summary>
-internal struct PoseIntegratorCallbacks(Vector3 gravity) : IPoseIntegratorCallbacks
+/// <summary>The callbacks of the integration of poses: the gravity of the world, which it may change between steps, and no damping.</summary>
+internal struct PoseIntegratorCallbacks(StrongBox<Vector3> gravity) : IPoseIntegratorCallbacks
 {
     private Vector3Wide _gravity;
 
@@ -199,7 +218,7 @@ internal struct PoseIntegratorCallbacks(Vector3 gravity) : IPoseIntegratorCallba
     }
 
     /// <inheritdoc/>
-    public void PrepareForIntegration(float dt) => _gravity = Vector3Wide.Broadcast(gravity);
+    public void PrepareForIntegration(float dt) => _gravity = Vector3Wide.Broadcast(gravity.Value);
 
     /// <inheritdoc/>
     public readonly void IntegrateVelocity(Vector<int> bodyIndices, Vector3Wide position, QuaternionWide orientation, BodyInertiaWide localInertia, Vector<int> integrationMask, int workerIndex, Vector<float> dt, ref BodyVelocityWide velocity) =>

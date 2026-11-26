@@ -218,7 +218,7 @@ internal sealed partial class PhysicsSimulation
         state.IsFrozen = false;
         bool wasGrounded = state.IsGrounded;
         Quaternion inverse = Quaternion.Conjugate(frame.Rotation);
-        Vector3 gravity = Vector3.Transform(DefaultGravity * body.GravityScale, inverse);
+        Vector3 gravity = Vector3.Transform(_gravity * body.GravityScale, inverse);
         Vector3 wanted = Wanted(intent.Velocity, inverse);
         bool jumped = false;
         if (wasGrounded)

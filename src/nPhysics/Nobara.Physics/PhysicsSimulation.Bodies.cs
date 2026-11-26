@@ -41,6 +41,10 @@ internal sealed partial class PhysicsSimulation
 
         RequirePositive(description.Mass, nameof(description));
         RequireMaterial(description.Material);
+        if (description.Contacts is { } contacts)
+        {
+            RequireReporting(contacts);
+        }
         if (!IsFinite(description.Center) || !IsFinite(description.LinearVelocity) || !IsFinite(description.AngularVelocity))
         {
             throw new ArgumentException("The center and the velocities of a body are finite.", nameof(description));
@@ -108,6 +112,8 @@ internal sealed partial class PhysicsSimulation
         body.Filter = description.Filter;
         body.Continuous = description.Continuous;
         body.CanSleep = description.CanSleep;
+        body.ReportsContacts = description.Contacts.HasValue;
+        body.ImpactSpeed = description.Contacts?.ImpactSpeed ?? ContactReporting.DefaultImpactSpeed;
         body.Asleep = false;
         body.Dirty = false;
         body.TargetPending = false;
@@ -316,6 +322,20 @@ internal sealed partial class PhysicsSimulation
     {
         RequireBody(body);
         Enqueue(CommandKind.SetContinuous, body).Flag = continuous;
+    }
+
+    [HotPath]
+    public void SetContactReporting(BodyHandle body, ContactReporting? reporting)
+    {
+        RequireBody(body);
+        if (reporting is { } value)
+        {
+            RequireReporting(value);
+        }
+
+        ref PhysicsCommand command = ref Enqueue(CommandKind.SetContactReporting, body);
+        command.Flag = reporting.HasValue;
+        command.Value = reporting?.ImpactSpeed ?? ContactReporting.DefaultImpactSpeed;
     }
 
     public JointHandle CreateJoint(BodyHandle first, BodyHandle second, in JointDescription description)
@@ -627,7 +647,8 @@ internal sealed partial class PhysicsSimulation
         (body.Continuous ? BodyFlags.Continuous : BodyFlags.None)
         | (body.CanSleep ? BodyFlags.CanSleep : BodyFlags.None)
         | (body.Asleep ? BodyFlags.Asleep : BodyFlags.None)
-        | (body.World is null ? BodyFlags.Frozen : BodyFlags.None);
+        | (body.World is null ? BodyFlags.Frozen : BodyFlags.None)
+        | (body.ReportsContacts ? BodyFlags.ReportsContacts : BodyFlags.None);
 
     [HotPath]
     private static BodyMass MassOf(in BodyRecord body) =>
@@ -657,6 +678,15 @@ internal sealed partial class PhysicsSimulation
         if (!float.IsFinite(material.Friction) || material.Friction < 0 || !float.IsFinite(material.Restitution) || material.Restitution is < 0 or > 1)
         {
             throw new ArgumentException($"The friction of a material is finite and not negative, and its restitution goes from 0 to 1; here {material}.", nameof(material));
+        }
+    }
+
+    [HotPath]
+    private static void RequireReporting(ContactReporting reporting)
+    {
+        if (!float.IsFinite(reporting.ImpactSpeed) || reporting.ImpactSpeed < 0)
+        {
+            throw new ArgumentException($"The impact speed of a body is finite and not negative; here {reporting.ImpactSpeed}.", nameof(reporting));
         }
     }
 
@@ -698,6 +728,7 @@ internal sealed partial class PhysicsSimulation
         SetMaterial,
         SetFilter,
         SetContinuous,
+        SetContactReporting,
         SetMotor,
     }
 
@@ -746,6 +777,10 @@ internal sealed partial class PhysicsSimulation
         public CollisionFilter Filter;
         public bool Continuous;
         public bool CanSleep;
+
+        /// <summary>Whether the body reports its contacts, and the slowest approach it reports as an impact.</summary>
+        public bool ReportsContacts;
+        public float ImpactSpeed;
         public bool Asleep;
         public bool Dirty;
         public bool TargetPending;
