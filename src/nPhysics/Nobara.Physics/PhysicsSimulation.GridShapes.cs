@@ -20,6 +20,70 @@ internal sealed partial class PhysicsSimulation
     private readonly Dictionary<Grid, VoxelGridCells> _gridCells = [];
     private readonly List<Chunk> _residentChunks = [];
     private readonly List<(Grid Grid, ChunkCoordinate Chunk)> _gridFollow = [];
+    private readonly Dictionary<Grid, GridVoxelCollision> _voxelCollisions = [];
+    private readonly List<Grid> _destroyedCollisions = [];
+
+    public void SetVoxelCollision(Grid grid, GridVoxelCollision? collision)
+    {
+        ArgumentNullException.ThrowIfNull(grid);
+        if (grid.IsDestroyed)
+        {
+            throw new ArgumentException($"The grid {grid.Identifier} is destroyed.", nameof(grid));
+        }
+
+        if (grid.IsTerrain)
+        {
+            throw new ArgumentException("The terrain never collides as a body.", nameof(grid));
+        }
+
+        if (collision is null)
+        {
+            _voxelCollisions.Remove(grid);
+        }
+        else
+        {
+            _voxelCollisions[grid] = collision;
+        }
+
+        if (_gridCells.TryGetValue(grid, out VoxelGridCells? cells))
+        {
+            cells.Collision = collision;
+        }
+
+        _voxelsRecompute = true;   // the bodies of the grid hold the chunks around them, or let go of them
+        if (TryGetBody(grid.Dimension, grid.Entity, out BodyHandle body))
+        {
+            Wake(body);
+        }
+    }
+
+    /// <summary>Gets whether the body of a grid collides with the voxels of other grids.</summary>
+    [HotPath]
+    private bool CollidesWithVoxels(Grid grid) => _voxelCollisions.ContainsKey(grid);
+
+    /// <summary>Forgets how the grids that were destroyed collided.</summary>
+    private void ForgetDestroyedCollisions()
+    {
+        if (_voxelCollisions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (Grid grid in _voxelCollisions.Keys)
+        {
+            if (grid.IsDestroyed)
+            {
+                _destroyedCollisions.Add(grid);
+            }
+        }
+
+        foreach (Grid grid in _destroyedCollisions)
+        {
+            _voxelCollisions.Remove(grid);
+        }
+
+        _destroyedCollisions.Clear();
+    }
 
     public PhysicsShape CreateVoxels(Grid grid, Vector3 origin)
     {
@@ -53,7 +117,7 @@ internal sealed partial class PhysicsSimulation
             return cells;
         }
 
-        cells = new VoxelGridCells(grid);
+        cells = new VoxelGridCells(grid) { Collision = _voxelCollisions.GetValueOrDefault(grid) };
         _gridCells.Add(grid, cells);
         _residentChunks.Clear();
         grid.Storage.GetResidentChunks(_residentChunks);

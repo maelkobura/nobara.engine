@@ -102,6 +102,31 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     }
 
     /// <inheritdoc/>
+    [HotPath]
+    public readonly void GetLocalBounds(out Vector3 min, out Vector3 max) => (min, max) = (Vector3.Zero, new Vector3(Size));
+
+    /// <inheritdoc/>
+    [HotPath]
+    public readonly bool IsInnerFace(int childIndex, Vector3 normal)
+    {
+        int cell = childIndex / Stride;
+        return CellsOf(Cells).IsInnerFace(cell, childIndex - (cell * Stride), normal);
+    }
+
+    /// <inheritdoc/>
+    [HotPath]
+    public readonly bool IsSolidAt(Vector3 point)
+    {
+        if (point.X < 0 || point.Y < 0 || point.Z < 0 || point.X >= Size || point.Y >= Size || point.Z >= Size)
+        {
+            return false;
+        }
+
+        var corner = new Vector3(MathF.Floor(point.X), MathF.Floor(point.Y), MathF.Floor(point.Z));
+        return VoxelCollisionTasks.Contains(CellsOf(Cells).GetBoxes(IndexOf((int)corner.X, (int)corner.Y, (int)corner.Z)), point - corner);
+    }
+
+    /// <inheritdoc/>
     public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
     {
         min = new Vector3(float.MaxValue);

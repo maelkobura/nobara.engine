@@ -133,8 +133,13 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
             return false;
         }
 
-        return !(first.IsVoxels && second.IsVoxels);
+        // Two shapes of voxels meet only when the voxels of a grid body collide with other voxels.
+        return !(first.IsVoxels && second.IsVoxels) || CollidesWithVoxels(first) || CollidesWithVoxels(second);
     }
+
+    /// <summary>Tells whether the voxels of a grid body collide with other voxels.</summary>
+    [HotPath]
+    private static bool CollidesWithVoxels(in Surface surface) => surface.GridCells != 0 && VoxelGridShape.CellsOf(surface.GridCells).Collision is not null;
 
     /// <inheritdoc/>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -174,24 +179,30 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
     }
 
     /// <inheritdoc/>
-    /// <remarks>Drops the contacts of a cell of voxels that go through an inner face. The normal points from B to A.</remarks>
+    /// <remarks>
+    /// Drops the contacts of a cell of voxels that go through an inner face,
+    /// on either side when two shapes of voxels meet. The normal points from B
+    /// to A. A corner of a grid (a negative child) has no face; the task that
+    /// made its contact already chose a face of the other voxels that is not
+    /// inner.
+    /// </remarks>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public readonly bool ConfigureContactManifold(int workerIndex, CollidablePair pair, int childIndexA, int childIndexB, ref ConvexContactManifold manifold)
     {
-        if (manifold.Count == 0)
+        if (manifold.Count == 0 || childIndexA < 0 || childIndexB < 0)
         {
             return true;
         }
 
         ref Surface first = ref surfaces[pair.A];
-        if (first.Cells != 0)
+        if (first.Cells != 0 && IsInner(first.Cells, childIndexA, -manifold.Normal))
         {
-            return !IsInner(first.Cells, childIndexA, -manifold.Normal);
+            return false;
         }
 
-        if (first.GridCells != 0)
+        if (first.GridCells != 0 && IsInnerOfGrid(first.GridCells, OrientationOf(pair.A), childIndexA, -manifold.Normal))
         {
-            return !IsInnerOfGrid(first.GridCells, OrientationOf(pair.A), childIndexA, -manifold.Normal);
+            return false;
         }
 
         ref Surface second = ref surfaces[pair.B];

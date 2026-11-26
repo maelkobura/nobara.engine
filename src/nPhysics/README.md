@@ -103,9 +103,10 @@ report them, and the boxes of the regions.
 
 | Member | Use |
 | --- | --- |
-| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `CreateVoxels`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `CreateVoxels`, `GetShape`, `DestroyShape`), the voxel collision of grid bodies (`SetVoxelCollision`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
 | `QueryShape`, `QueryFilter`, `PhysicsHit`, `PhysicsHitKind`, `RayQuery`, `SweepQuery` | The shapes, filters, and results of the queries. |
 | `ContactReporting`, `ContactEvent`, `ContactEvents` | How a body reports its contacts, the events, and their fixed rules. |
+| `GridVoxelCollision`, `VoxelContactMode`, `VoxelContactCounts` | How the body of a grid collides with the voxels of other grids: its surface cells, what they test, the budget of a pair, and the work done. |
 | `BodyDescription`, `BodyKind`, `BodyHandle`, `PhysicsMaterial`, `CollisionFilter`, `BodyInertia`, `BodyState` | What a body is made of, its handle, and its state. |
 | `PhysicsBody`, `BodyShape`, `BodyMaterial`, `BodyMass`, `BodyVelocity`, `BodyFlags` | The components of a body, written by nPhysics only. |
 | `PhysicsShape`, `ShapeKind`, `ShapeDescription`, `CompoundChild` | Shapes, shared by the bodies that use them. |
@@ -207,11 +208,55 @@ BodyHandle ship = physics.AddBody(DimensionId.Default, grid.Entity, new BodyDesc
 - Only the body of its own grid takes it. nPhysics keeps one table of cells
   per grid, shared by its shapes, and follows the chunks of the grid in
   memory; the table is forgotten with the last shape of the grid.
-- It collides with bodies, except those whose shape is a mesh, and not with
-  the voxels of the terrain nor of another grid. Characters meet the blocks
-  of the grid as they meet those of any grid.
+- It collides with bodies, except those whose shape is a mesh. It collides
+  with the voxels of the terrain and of other grids only once the grid has a
+  voxel collision (below). Characters meet the blocks of the grid as they
+  meet those of any grid.
 - Without an inertia, a dynamic body gets the one of the box of the blocks at
   a uniform density.
+
+#### Voxel collision of grid bodies
+
+The body of a grid collides with the voxels of other grids, the terrain, the
+grids that are not bodies, and the other grid bodies, once a module gives it
+a `GridVoxelCollision`:
+
+```csharp
+var collision = new GridVoxelCollision { Mode = VoxelContactMode.Blocks, PairBudget = 256 };
+collision.SetSurface(new BlockCoordinate(0, 0, 0), true);   // a block with an open side
+physics.SetVoxelCollision(grid, collision);
+VoxelContactCounts counts = collision.TakeCounts();          // pairs, tests, deferred cells
+```
+
+- **Surface cells.** Only the cells marked by `SetSurface` are tested: the
+  module that keeps the collision chooses them, and follows the blocks of the
+  grid. A cell without collision box is never tested.
+- **Pairs.** A dynamic grid body is a pair with each chunk of the terrain or
+  of a grid that is not a body around it, which nPhysics holds in its world
+  as it does for any dynamic body, and with each grid body it may touch.
+  Between two grid bodies, the grid with the fewer surface cells is tested
+  against the voxels of the other.
+- **Blocks or corners.** In `VoxelContactMode.Blocks`, each collision box of a
+  surface cell is tested against each box of the other voxels it may touch:
+  exact to the block. In `VoxelContactMode.Corners`, each corner of the box of
+  a surface cell is: cheaper, but an edge can go into the voxels between two
+  corners. Between two grid bodies, `Corners` wins when either asks for it.
+- **Budget.** A pair makes at most about `PairBudget` tests in a step (0, the
+  default, for no limit; between two grid bodies, the smaller budget); the
+  last cell tested may pass it by its own tests. The cells that go into the
+  other voxels by the most corners go first; the cells left wait for a later
+  step, spread over the area, and go first then. `TakeCounts` gives the
+  pairs, the tests, and the deferred cells since the last read.
+- **Contacts.** The contacts go to the solver like any other: a grid falls on
+  the terrain and rests, and pushes another grid. A body that reports its
+  contacts reports those with the voxels of other grids as contacts with a
+  block.
+- Set it, change its surface, its mode, or its budget on the loop thread,
+  outside the step: from a tick system that runs before
+  `nobara.physics.step`. It holds for every shape of the grid until the grid
+  is destroyed or the world session ends. A small grid whose shape is a
+  compound collides with the other voxels through the voxel layer once it has
+  one.
 
 ### Commands
 
@@ -380,7 +425,8 @@ them, while the world steps.
   wake nobody.
 - **Grids that are bodies.** The voxels of a grid that is a body are left out
   of the voxel layer: the body carries them, when its shape is the
-  [voxel shape](#shapes) of the grid.
+  [voxel shape](#shapes) of the grid. A grid body holds the chunks around it
+  once it has a [voxel collision](#voxel-collision-of-grid-bodies).
 - **Freezing.** A dynamic or kinematic body that reaches a chunk of the
   terrain that is not loaded or not active, within its bounds, its velocity
   over a step, and 1 block, is frozen as a body that no region holds is
@@ -535,6 +581,8 @@ BodyHandle crate = physics.AddBody(DimensionId.Default, entity, new BodyDescript
   body and a grid. A body touches a grid once, however many of its blocks
   it touches; the event gives the block under the deepest contact. Two
   bodies that both report give one event, whose `Body` has the lower slot.
+  The body of a grid is both: a contact with it names the body in `Other` and
+  the block under the deepest contact in `Grid`, `Block`, and `State`.
 - **Begun.** A pair begins when its parts come within
   `ContactEvents.BeginReach` (0.01 block) of each other, their approach over
   the step counted, and is listed in `PhysicsStepEnd.ContactsBegun`.
@@ -620,9 +668,13 @@ public void Initialize(ModuleContext context) =>
   `VoxelChunkCells.IsInnerContact` sets apart.
 - A body whose shape is of kind `Voxels` collides through the collision
   boxes of the cells of `ShapeDescription.Cells`, a `VoxelGridCells`, read
-  while the world steps, from `ShapeDescription.Origin`. It never collides
-  with a chunk of voxels nor with another shape of voxels, and drops the
-  contacts that `VoxelChunkCells.IsInnerFace` sets apart. A backend that keeps
+  while the world steps, from `ShapeDescription.Origin`, and drops the
+  contacts that `VoxelChunkCells.IsInnerFace` sets apart. It collides with a
+  chunk of voxels and with another shape of voxels only when
+  `VoxelGridCells.Collision` is set for one of the two: the backend then tests
+  the surface cells of that `GridVoxelCollision`, in its mode and within its
+  budget, writes its counts with `Count`, and moves its `Cursor` past the
+  cells it tested when the budget runs out. A backend that keeps
   bounds computed from the box of the cells reads them again when
   `VoxelGridCells.BoundsVersion` changes.
 - `RayCast`, `Sweep`, and `Overlap` meet the bodies of the world only, never
@@ -695,8 +747,20 @@ the world; two worlds share nothing and can step at the same time.
   whose children are the collision boxes of the cells of every chunk of the
   grid in memory, numbered by the slot of the chunk, the cell, and the box,
   and found from the coordinates of the cells a query covers, with no tree.
-  It has the collision and sweep tasks of a chunk, and none against a chunk
-  or another grid. A static body of voxels reads its bounds again before a
+  It has the collision and sweep tasks of a chunk.
+- **Voxels against voxels.** A task of its own collides the voxel shape of a
+  grid body with a chunk or with another voxel shape, when the grid has a
+  voxel collision. It lists the surface cells of the tested grid where the
+  other voxels are, widened by the speculative margin of the pair; in
+  `Blocks`, each box of a cell against each box of the other voxels is a
+  pair of boxes for the box tests of BEPUphysics; in `Corners`, the contact
+  of each corner with each box is computed by the task, out of the nearest
+  face that the neighbor cell does not cover. The non-convex reduction of
+  BEPUphysics merges the contacts of the pair; the callback drops those that
+  go through an inner face on either side. Under a budget, cells are ranked
+  by how many of their corners, pushed out by the margin, lie in the other
+  voxels, and taken within a rank by a step prime with their number from the
+  cursor of the grid. A static body of voxels reads its bounds again before a
   step once the box of the blocks of its grid changed; a moving body computes
   them at each step. Rays do not hit it.
 - **Queries.** Rays, sweeps, and overlaps are the queries of BEPUphysics,
@@ -827,13 +891,18 @@ None.
 - The debug drawing shows a cylinder, a convex hull, a mesh, and a voxel
   shape by the box that holds them, at most 2,000 bodies, and the contacts of the bodies that
   report them only.
-- Static and kinematic bodies do not collide with the voxel layer, and the
-  voxels of a grid never collide with the voxels of another: a grid whose
-  body has its voxel shape collides with bodies and characters only, and goes
-  through the terrain. The voxels of a scaled grid are left out of the voxel
-  layer, and a voxel shape ignores the scale of its grid.
-- A contact with a voxel shape is a contact with the body of the grid: the
-  event names no block.
+- Static and kinematic bodies do not collide with the voxel layer. A grid
+  whose body has its voxel shape and no voxel collision collides with bodies
+  and characters only, and goes through the terrain. The voxels of a scaled
+  grid are left out of the voxel layer, and a voxel shape ignores the scale
+  of its grid.
+- A kinematic grid body does not collide with the terrain nor with a grid
+  that is not a body; it pushes dynamic grid bodies.
+- A pair that runs out of budget while its grid rests tests other cells at
+  each step: its contacts change, and the grid may not sleep.
+- The block of a contact with a grid body is found from where the parts
+  touched at the start of the step, carried along with the grid over the
+  step.
 - A voxel shape goes through meshes: a grid falls through a static body whose
   shape is a mesh.
 - A voxel shape holds at most 4,095 chunks with blocks; a grid that has more

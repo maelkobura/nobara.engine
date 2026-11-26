@@ -107,6 +107,34 @@ internal unsafe struct VoxelGridShape : IHomogeneousCompoundShape<Box, BoxWide>,
     }
 
     /// <inheritdoc/>
+    [HotPath]
+    public readonly void GetLocalBounds(out Vector3 min, out Vector3 max)
+    {
+        VoxelGridCells grid = CellsOf(Cells);
+        (min, max) = grid.IsEmpty ? (Vector3.Zero, Vector3.Zero) : (grid.Minimum - Origin, grid.Maximum - Origin);
+    }
+
+    /// <inheritdoc/>
+    [HotPath]
+    public readonly bool IsInnerFace(int childIndex, Vector3 normal)
+    {
+        Split(childIndex, out int slot, out int cell, out int box);
+        return CellsOf(Cells).GetChunk(slot) is { } chunk && chunk.IsInnerFace(cell, box, normal);
+    }
+
+    /// <inheritdoc/>
+    [HotPath]
+    public readonly bool IsSolidAt(Vector3 point)
+    {
+        VoxelGridCells grid = CellsOf(Cells);
+        Vector3 local = point + Origin;
+        var cell = new BlockCoordinate((int)MathF.Floor(local.X), (int)MathF.Floor(local.Y), (int)MathF.Floor(local.Z));
+        int slot = grid.SlotOf(VoxelCoordinates.ToChunk(cell));
+        return slot >= 0 && grid.GetChunk(slot) is { } chunk
+            && VoxelCollisionTasks.Contains(chunk.GetBoxes(VoxelCoordinates.ToIndex(cell)), local - new Vector3(cell.X, cell.Y, cell.Z));
+    }
+
+    /// <inheritdoc/>
     public readonly void ComputeBounds(Quaternion orientation, out Vector3 min, out Vector3 max)
     {
         VoxelGridCells grid = CellsOf(Cells);

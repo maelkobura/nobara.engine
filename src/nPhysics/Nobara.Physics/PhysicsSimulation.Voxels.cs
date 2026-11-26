@@ -79,6 +79,7 @@ internal sealed partial class PhysicsSimulation
         _voxelStep++;
         RemoveChunksOfDestroyedGrids();
         ForgetDestroyedGridCells();
+        ForgetDestroyedCollisions();
         WakeAroundChangedBlocks();
         if (_voxelsReset)
         {
@@ -96,7 +97,7 @@ internal sealed partial class PhysicsSimulation
                 continue;
             }
 
-            if (body.World is null || body.Kind != BodyKind.Dynamic || body.Grid is not null)
+            if (body.World is null || body.Kind != BodyKind.Dynamic || (body.Grid is not null && !CollidesWithVoxels(body.Grid)))
             {
                 Release(ref body.Voxels);
                 continue;
@@ -117,7 +118,7 @@ internal sealed partial class PhysicsSimulation
             }
 
             ref BodyRecord body = ref _bodies[ghost.Source];
-            if (ghost.Kind != BodyKind.Dynamic || body.Grid is not null)
+            if (ghost.Kind != BodyKind.Dynamic || (body.Grid is not null && !CollidesWithVoxels(body.Grid)))
             {
                 Release(ref ghost.Voxels);
                 continue;

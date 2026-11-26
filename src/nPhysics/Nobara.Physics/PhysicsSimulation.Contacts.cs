@@ -169,6 +169,11 @@ internal sealed partial class PhysicsSimulation
             record.OtherEntity = other.Entity;
             record.Normal = swap ? -contact.Normal : contact.Normal;
             record.ImpactSpeed = other.ReportsContacts ? MathF.Min(body.ImpactSpeed, other.ImpactSpeed) : body.ImpactSpeed;
+            if (other.Grid is not null)
+            {
+                ResolveGridBodyBlock(other, record.Point, -record.Normal, contact.Depth, ref record);   // a block of a grid body
+            }
+
             float inverse = ReducedInverse(body, other, other: true);
             record.Impulse = inverse > 0 ? Impulse(contact.Speed, 1f / inverse, MathF.Max(body.Material.Restitution, other.Material.Restitution)) : 0;
             key = contact.SlotA < contact.SlotB
@@ -241,6 +246,37 @@ internal sealed partial class PhysicsSimulation
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Finds the block of a contact with the body of a grid: the first block
+    /// met from the contact into the grid. The contact is where the parts
+    /// touched at the start of the step, and the grid has moved since: the
+    /// point is carried along with the grid over the step.
+    /// </summary>
+    [HotPath]
+    private void ResolveGridBodyBlock(in BodyRecord body, in WorldPosition point, Vector3 into, float depth, ref ContactRecord record)
+    {
+        Grid grid = body.Grid!;
+        WorldTransform transform = grid.Transform;
+        Vector3 center = Vector3.Transform(body.Center, transform.Rotation);
+        Vector3 arm = point.RelativeTo(transform.Position) - center;
+        WorldPosition carried = point.Offset((body.Linear + Vector3.Cross(body.Angular, arm)) * _contactDelta);
+        Vector3 local = transform.InverseTransformPoint(carried);
+        Vector3 inward = Vector3.Transform(into, Quaternion.Conjugate(transform.Rotation));
+        record.Grid = grid;
+        for (int i = 0; i < BlockProbes.Length; i++)
+        {
+            Vector3 cell = local + (inward * (BlockProbes[i] + MathF.Max(-depth, 0)));
+            var block = new BlockCoordinate((int)MathF.Floor(cell.X), (int)MathF.Floor(cell.Y), (int)MathF.Floor(cell.Z));
+            uint state = StateAt(grid, block);
+            if (state != 0 || i == BlockProbes.Length - 1)
+            {
+                record.Block = block;
+                record.State = state;
+                return;
+            }
+        }
     }
 
     [HotPath]
