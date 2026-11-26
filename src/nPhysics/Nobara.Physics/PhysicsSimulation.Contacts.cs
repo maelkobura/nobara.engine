@@ -147,7 +147,7 @@ internal sealed partial class PhysicsSimulation
             record.Body = new BodyHandle(contact.SlotA, first.Generation);
             record.Entity = first.Entity;
             record.ImpactSpeed = first.ImpactSpeed;
-            record.Impulse = Impulse(contact.Speed, 1f / ReducedInverse(first, default, other: false), first.Material.Restitution);
+            record.Impulse = Impulse(contact.Speed, 1f / ReducedInverse(first, default, other: false), MathF.Max(first.Material.Restitution, PhysicsMaterial.Default.Restitution));   // the voxels have the default material
             key = new ContactKey(record.Body, default, record.Grid);
         }
         else

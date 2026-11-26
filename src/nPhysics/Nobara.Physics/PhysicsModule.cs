@@ -76,7 +76,7 @@ public sealed class PhysicsModule : IModule
             _debug?.Dispose();
             _debug = null;
         }
-        else if (dependency.Id == PhysicsDebugWindow.RendererModuleId)
+        else if (dependency.Id == PhysicsDebugWindow.RendererModuleId && _debug is not null)
         {
             DropDrawing(_debug);
         }

@@ -753,6 +753,13 @@ None.
 - Queries meet neither characters nor frozen bodies, nor the voxels of a
   scaled grid.
 - A query goes through one body at most (`QueryFilter.Ignored`).
+- A hit on a part of a multi-block gives its cell, not the origin of the
+  multi-block: ask nVoxel for it from `Grid` and `Block`.
+- A query meets the bodies of the regions whose box, grown by one chunk and
+  the reach of the query, it comes near: a body larger than a chunk can be
+  missed by a query from outside that margin.
+- Call the queries on the loop thread: the queries that are not batches
+  share one scratch.
 - A batch takes a block whose shape depends on its instance, in a chunk
   that no physics world holds, as a whole cell: it does not call the shapes
   of other modules from its jobs.

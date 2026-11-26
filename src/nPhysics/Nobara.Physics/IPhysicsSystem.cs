@@ -335,7 +335,7 @@ public interface IPhysicsSystem
     /// <exception cref="ArgumentException">The body is not alive, or the impact speed is negative or not finite.</exception>
     void SetContactReporting(BodyHandle body, ContactReporting? reporting);
 
-    /// <summary>Finds the closest block, body, or chunk that is not loaded along a ray, in every grid and every region of a dimension.</summary>
+    /// <summary>Finds the closest block, body, or chunk that is not loaded along a ray, in every grid and every region of a dimension. Call the queries on the loop thread; batches spread over the workers.</summary>
     /// <param name="dimension">The dimension.</param>
     /// <param name="origin">The start of the ray.</param>
     /// <param name="direction">Its direction; it need not be of length 1.</param>
@@ -388,7 +388,7 @@ public interface IPhysicsSystem
     /// <param name="shape">The shape.</param>
     /// <param name="position">Where its center is.</param>
     /// <param name="rotation">Its rotation.</param>
-    /// <param name="hits">Receives the hits, as many as it holds: chunks that are not loaded first, then blocks, then bodies.</param>
+    /// <param name="hits">Receives the hits, as many as it holds, in no particular order.</param>
     /// <param name="filter">What the shape meets.</param>
     /// <returns>The number of hits written.</returns>
     /// <exception cref="ArgumentException">The shape is the default, or the position or the rotation is not finite, or the rotation is zero.</exception>
