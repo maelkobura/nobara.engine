@@ -117,6 +117,33 @@ public sealed class GridVoxelContactTests
     }
 
     [Fact]
+    public void AFewCellsWithManyTestsEachShareTheBudgetAndTheGridRestsFlat()
+    {
+        // 25 cells under the slab make about 9 tests each: a budget of 120 leaves some at each step without ranking them.
+        using var scene = new VoxelScene(Small);
+        Grid grid = Slab(scene, scene.At(16, 0.5, 16));
+        var collision = new GridVoxelCollision { PairBudget = 120 };
+        BodyHandle body = Body(scene, grid, collision);
+        for (int y = 0; y <= 1; y++)
+        {
+            for (int z = -2; z <= 2; z++)
+            {
+                for (int x = -2; x <= 2; x++)
+                {
+                    collision.SetSurface(new BlockCoordinate(x, y, z), y == 0);   // the bottom only
+                }
+            }
+        }
+
+        scene.Tick(30);
+        Assert.True(collision.TakeCounts().Deferred > 0, "Nothing was deferred.");
+        scene.Tick(90);
+
+        Assert.InRange(Bottom(scene, body), -0.06, 0.02);
+        Assert.True(Vector3.Transform(Vector3.UnitY, scene.State(body).Transform.Rotation).Y > 0.999f, "A side of the slab is never held.");
+    }
+
+    [Fact]
     public void AGridWithoutSurfaceGoesThroughTheTerrain()
     {
         using var scene = new VoxelScene(Small);

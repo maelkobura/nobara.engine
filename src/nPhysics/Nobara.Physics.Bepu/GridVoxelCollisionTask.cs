@@ -132,14 +132,15 @@ internal sealed unsafe class GridVoxelCollisionTask<TOther> : CollisionTask
         var keys = new QuickList<int>(16, pool);
         var ranks = new QuickList<int>(16, pool);
         FindCells(collision, cells, low, high, ref keys, pool);
-        if (budget > 0 && keys.Count * RankedShare > budget)
+        if (budget > 0)
         {
-            // Enough cells to run out of budget: the deepest go first.
+            // Many cells: the deepest go first. Few: one rank. Either way spread from the cursor, so that the cells a budget left come first.
+            bool rank = keys.Count * RankedShare > budget;
             for (int i = 0; i < keys.Count; i++)
             {
                 int slot = keys[i] / Chunk.Volume;
                 Vector3 corner = cells.CornerOf(slot) + VoxelChunkShape.CornerOf(keys[i] - (slot * Chunk.Volume)) - tested.Origin;
-                ranks.Allocate(pool) = Rank(ref other, frame, corner, margin);
+                ranks.Allocate(pool) = rank ? Rank(ref other, frame, corner, margin) : 0;
             }
 
             Order(ref keys, ref ranks, collision.Cursor, pool);

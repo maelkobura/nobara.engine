@@ -758,10 +758,11 @@ the world; two worlds share nothing and can step at the same time.
   of each corner with each box is computed by the task, out of the nearest
   face that the neighbor cell does not cover. The non-convex reduction of
   BEPUphysics merges the contacts of the pair; the callback drops those that
-  go through an inner face on either side. A pair whose cells number more
-  than a quarter of its budget ranks them by how many of their corners,
-  pushed out by the margin, lie in the other voxels, and takes them within a
-  rank by a step prime with their number from the cursor of the grid. A static body of voxels reads its bounds again before a
+  go through an inner face on either side. Under a budget, a pair takes its
+  cells by a step prime with their number from the cursor of the grid; one
+  whose cells number more than a quarter of its budget first ranks them by
+  how many of their corners, pushed out by the margin, lie in the other
+  voxels. A static body of voxels reads its bounds again before a
   step once the box of the blocks of its grid changed; a moving body computes
   them at each step. Rays do not hit it.
 - **Queries.** Rays, sweeps, and overlaps are the queries of BEPUphysics,
