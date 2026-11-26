@@ -105,6 +105,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
     {
         SmallGridBlocks = _context.Settings.GetInt(MotionSettings.SmallGridBlocks);
         _masses = BlockMasses.Build(_blocks!, _shapes!, _multiBlocks!, _blocks!.ResolveProperty(_context, _weight), message => _context.Logger.Warning(message));
+        StartCollision();
     }
 
     public BodyHandle Add(Grid grid, GridMotionMode mode = GridMotionMode.Dynamic)
@@ -143,6 +144,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
             Center = center,
             Mass = mass,
             Inertia = inertia,
+            Contacts = ImpactSpeed > 0 ? new ContactReporting(ImpactSpeed) : null,
         });
         record.Shape = shape;
         record.Center = center;
@@ -150,6 +152,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         record.AppliedInertia = inertia;
         _records.Add(grid, record);
         _list.Add(record);
+        AddCollision(record);
         return record.Body;
     }
 
@@ -161,6 +164,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
             _physics.RemoveBody(record.Body);
         }
 
+        RemoveCollision(record);
         Forget(record);
     }
 
@@ -326,6 +330,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
     [HotPath]
     public void Run(in TickTime time)
     {
+        StartTick(time);
         DestroyRetired();
         Vector3 gravity = _physics!.Gravity;
         for (int i = _list.Count - 1; i >= 0; i--)
@@ -343,6 +348,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
                 record.Mass.Clear();
                 record.Instances.Clear();
                 Count(record);
+                RefreshSurface(record);
                 record.Dirty = true;
             }
 
@@ -350,6 +356,8 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
             {
                 Apply(record);
             }
+
+            UpdateCollision(record);
 
             if (record.Mode == GridMotionMode.Dynamic && !record.Frozen && record.GravityScale != 1f && !_physics.GetState(record.Body).IsAsleep)
             {
@@ -365,6 +373,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         _notifications?.Dispose();
         _residency?.Dispose();
         _sessionEnded?.Dispose();
+        _stepEnd?.Dispose();
     }
 
     /// <summary>Gets the sums of a grid, as the notifications left them.</summary>
@@ -447,6 +456,10 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
             Vector3 corner = Corner(notification.Chunk, change.LocalIndex);
             record.Mass.Add(MassOf(record, notification.Chunk, change.LocalIndex, change.OldState, null, remove: true), corner, -1, change.OldState != 0);
             record.Mass.Add(MassOf(record, notification.Chunk, change.LocalIndex, change.NewState, chunk, remove: false), corner, 1, change.NewState != 0);
+            if (change.OldState != change.NewState)
+            {
+                UpdateSurface(record, CellOf(notification.Chunk, change.LocalIndex));
+            }
         }
 
         record.Dirty = true;
@@ -611,6 +624,13 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         _list.Clear();
     }
 
+    /// <summary>Gets the coordinates of a cell in its grid.</summary>
+    [HotPath]
+    private static BlockCoordinate CellOf(ChunkCoordinate chunk, int cell) => new(
+        (chunk.X * ChunkSize) + (cell % ChunkSize),
+        (chunk.Y * ChunkSize) + (cell / (ChunkSize * ChunkSize)),
+        (chunk.Z * ChunkSize) + (cell / ChunkSize % ChunkSize));
+
     /// <summary>Tells whether a grid that Motion takes starts as a small grid.</summary>
     [HotPath]
     private bool IsSmallAtStart(int blocks) => blocks > 0 && blocks <= SmallGridBlocks;
@@ -685,5 +705,8 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         public Vector3 InheritLinear;
         public Vector3 InheritAngular;
         public WorldPosition InheritCenter;
+        public GridVoxelCollision? Collision;
+        public bool Heavy;
+        public VoxelContactCounts Counts;
     }
 }

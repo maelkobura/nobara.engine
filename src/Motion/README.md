@@ -49,7 +49,9 @@ no assumption about its side and keeps no global state. The optional
 dependency on nDebug is used by one isolation class, `MotionDebugWindow`: the
 "Motion" tool window, which lists the grids that Motion moves with their
 mode, mass, center of mass, blocks, whether they are small grids, and whether
-they sleep or are frozen.
+they sleep or are frozen; and, for their collision with other voxels, the
+mode of their surface cells, the pairs, tests, and deferred cells of the last
+step, the load of the tick, and the switches of mode.
 
 ## Entry points
 
@@ -94,8 +96,8 @@ GridMotionState state = motion.GetState(airship);            // mass, center of 
   [voxel shape](../../docs/explanation/glossary.md#voxel-shape) of nPhysics.
 - Bodies collide with a grid body, and characters stand on it, through the
   voxels of the grid, as with any grid: nothing is particular to Motion. A
-  grid body does not collide with the terrain nor with the voxels of another
-  grid yet.
+  grid body collides with the terrain and with other grids through its
+  surface cells (see [Collision with voxels](#collision-with-voxels)).
 - A grid body sleeps at rest, and wakes on a contact, on a command, or when
   its blocks change.
 - A grid destroyed, or absorbed by a merge, stops being a body; Motion
@@ -134,6 +136,38 @@ Motion starts:
   costs the block alone. A chunk of the grid that enters or leaves memory
   counts the grid again. A grid whose blocks weigh nothing has a mass of
   1 kilogram.
+
+### Collision with voxels
+
+A dynamic grid body collides with the terrain, with the grids that are not
+bodies, and with the other grid bodies; a kinematic one pushes the dynamic
+grids it meets. How it works is explained in
+[Grids that move](../../docs/explanation/moving-grids.md#grids-against-voxels).
+
+- **Surface cells.** Motion keeps the
+  [surface cells](../../docs/explanation/glossary.md#surface-cell) of each
+  grid: the blocks that collide and have a neighbor that does not fill its
+  cell (air, a block without collision, a slab, or a chunk not in memory). A
+  placed or broken block updates its cell and its six neighbors; a chunk that
+  enters or leaves memory, or is generated, has the grid counted again.
+  Motion gives them to nPhysics as a `GridVoxelCollision`.
+- **Blocks or corners.** A grid tests the collision boxes of its surface
+  cells (`VoxelContactMode.Blocks`), or only their corners
+  (`VoxelContactMode.Corners`) once its mass reaches `CornerMass`, or while
+  the tick is over its `LoadShare`. It tests blocks again under 80 % of
+  `CornerMass`, and when the load has stayed under 70 % of `LoadShare` for 30
+  ticks in a row; the load goes over after 3 ticks in a row. The load is the
+  time from the start of the tick system of Motion to the end of the step of
+  nPhysics, as a share of the tick.
+- **Budget.** A pair of a grid and a chunk of the terrain, or of two grids,
+  makes about `PairBudget` tests in a step; the cells left wait for the next
+  step.
+- **Impacts.** A grid body reports its contacts with an impact speed of
+  `ImpactSpeed`: the impacts of the grid are in `PhysicsStepEnd.Impacts` of
+  nPhysics, with the block hit and the speed.
+- A [small grid](../../docs/explanation/glossary.md#small-grid) collides with
+  the voxels as a compound, through the voxel layer of nPhysics: neither
+  mode, nor budget.
 
 ### Commands
 
@@ -181,12 +215,20 @@ None.
 <!-- nobara:generated:begin configuration -->
 | Key | Scope | Type | Default | Values | Side |
 | --- | --- | --- | --- | --- | --- |
+| `motion.cornerMass` | distribution | float | `500000` | 0 to 1000000000000 | both |
+| `motion.impactSpeed` | distribution | float | `2` | 0 to 1000 | both |
+| `motion.loadShare` | distribution | float | `0.5` | 0 to 1 | both |
+| `motion.pairBudget` | distribution | int | `1024` | 0 to 1000000 | both |
 | `motion.smallGridBlocks` | distribution | int | `8` | 0 to 4096 | both |
 <!-- nobara:generated:end -->
 
 | Key | Effect |
 | --- | --- |
 | `motion.smallGridBlocks` | The number of blocks of a grid at or under which it is a small grid; 0 for none. Read at start. |
+| `motion.cornerMass` | The mass, in kilograms, from which a grid tests the corners of its surface cells instead of their boxes; 0 for never. Read at start. |
+| `motion.loadShare` | The share of the tick that Motion and the step of nPhysics may take before every grid tests corners; 0 for never. Read at start. |
+| `motion.pairBudget` | The most tests that a pair of a grid and other voxels makes in a step; 0 for no limit. Read at start. |
+| `motion.impactSpeed` | The slowest approach, in blocks per second, that a grid reports as an impact; 0 for none. Read at start. |
 
 ## Resources
 
@@ -201,17 +243,24 @@ Motion reads the free property `Weight` of the blocks, and its qualified form
 - Motion never writes the transform of a grid: nPhysics does, after each
   step, and updates the spatial index of the grids of nVoxel.
 - Once the grids rest, a tick of Motion allocates no managed memory (checked
-  by a test with 500 small grids). A change of blocks allocates when it
-  builds a new shape.
+  by tests with 500 small grids, and with 500 grids of mixed sizes on the
+  terrain and on each other). A change of blocks allocates when it builds a
+  new shape, and the first surface cell of a chunk allocates its words.
 - Grid bodies belong to the world session: Motion forgets them when it ends.
 - Motion keeps no static state.
 
 ## Known limitations
 
-- A grid body does not collide with the terrain nor with the voxels of
-  another grid, and goes through meshes.
-- A contact with a grid body is a contact with its body: the event names no
-  block.
+- A grid body goes through meshes.
+- A kinematic grid does not collide with the terrain nor with a grid that is
+  not a body.
+- In `Corners`, an edge of a block can sink into the voxels between two
+  corners, and a block that does not fill its cell collides by the box of its
+  cell.
+- A grid whose pair runs out of budget while it rests changes its contacts
+  at each step, and may not sleep.
+- The load counts Motion and the step of nPhysics only, not the rest of the
+  tick.
 - A dynamic grid whose gravity scale is not 1 never sleeps: the backend sees
   the force that makes up for the gravity as a speed at the start of each
   step.

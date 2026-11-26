@@ -6,6 +6,7 @@ using System.Globalization;
 using ImGuiNET;
 using Nobara.Core;
 using Nobara.Debug;
+using Nobara.Physics;
 using Nobara.Voxel;
 
 namespace Nobara.Motion;
@@ -14,7 +15,9 @@ namespace Nobara.Motion;
 /// The only place where Motion uses nDebug, its optional dependency: the
 /// "Motion" tool window, which lists the grids that Motion moves, with their
 /// mode, mass, center of mass, blocks, whether they are small grids, and
-/// whether they sleep or are frozen.
+/// whether they sleep or are frozen; and their collision with other voxels:
+/// the mode of their surface cells, the pairs, tests, and deferred cells of
+/// the last step, the load of the tick, and the switches.
 /// </summary>
 [UsesOptionalDependency(DebugModuleId)]
 internal sealed class MotionDebugWindow : IDisposable
@@ -55,6 +58,8 @@ internal sealed class MotionDebugWindow : IDisposable
     {
         IReadOnlyCollection<Grid> grids = _system.Grids;
         Text($"Grids: {grids.Count}; small grids up to {_system.SmallGridBlocks} blocks");
+        Text($"Load: {_system.Load:P0} of the tick ({(_system.LoadShare > 0 ? $"corners past {_system.LoadShare:P0}" : "never switches")}){(_system.Overloaded ? ", over: every grid tests corners" : string.Empty)}");
+        Text($"Corners from {_system.CornerMass:0.#} kg; {_system.PairBudget} tests per pair; {_system.Switches} switches");
         int listed = 0;
         foreach (Grid grid in grids)
         {
@@ -67,6 +72,8 @@ internal sealed class MotionDebugWindow : IDisposable
             GridMotionState state = _system.GetState(grid);
             string status = state.IsFrozen ? "frozen" : state.IsAsleep ? "asleep" : "awake";
             Text($"#{grid.Identifier}: {state.Mode}, {state.Mass:0.#} kg, center {state.CenterOfMass}, {state.Blocks} blocks{(state.IsSmall ? ", small" : string.Empty)}, {status}");
+            (VoxelContactMode mode, VoxelContactCounts counts, int surface) = _system.CollisionOf(grid);
+            Text($"    {mode}, {surface} surface cells; last step: {counts.Pairs} pairs, {counts.Tests} tests, {counts.Deferred} deferred");
         }
     }
 

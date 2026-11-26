@@ -72,9 +72,50 @@ A character that stands on a grid becomes a child of the grid entity, and the
 character controller of nPhysics moves it in the frame of the grid: it turns
 and moves with the grid, kinematic or dynamic, with no drift.
 
-## What is not there yet
+## Grids against voxels
 
-A grid body collides with bodies and characters, but not with the terrain nor
-with another grid: two sets of voxels never meet in the backend, and the
-collision of a grid with voxels needs its own means, with a budget. Until
-then, a grid that falls goes through the ground.
+A crate against the terrain is one body against many cells; a grid against
+the terrain, or against another grid, is many cells against many cells. A
+grid of a thousand blocks resting on the ground already makes thousands of
+pairs of boxes: testing them all at each step would spend the tick on a few
+large grids. Motion keeps the cost of a grid to its surface, and lets the
+cost fall further when the grid is heavy or the tick is late.
+
+- **Surface cells.** Only a block with an open side, a neighbor that does not
+  fill its own cell, can touch other voxels. Motion keeps these cells for
+  each grid, and follows each placed or broken block: a block broken in the
+  middle of a grid opens the cells around it, which become surface cells at
+  the next step. nPhysics tests only the surface cells that lie where the
+  other voxels are.
+- **Blocks or corners.** In the normal mode, each collision box of a surface
+  cell is tested against the boxes of the other voxels: a slab rests on a
+  slab, a stair on a step. In the cheap mode, only the corners of the box of
+  each surface cell are: far fewer and simpler tests, but an edge of a block
+  can sink into the voxels between two corners, and a slab behaves as a full
+  cube.
+
+| Mode | Tested | Precision | Cost |
+| --- | --- | --- | --- |
+| Blocks | each collision box of each surface cell | exact to the block | the boxes of the surface where the voxels meet |
+| Corners | the eight corners of each surface cell | edges can sink in | a fraction of it |
+
+- **When.** A grid tests corners once its mass reaches a threshold: a large
+  ship is heavy, and the eye forgives a rough edge on it more than on a
+  crate. Every grid tests corners while the tick is over its share of time:
+  Motion measures how long it and the step of nPhysics take in each tick.
+  Each switch has a margin: a grid goes back to blocks under four fifths of
+  the threshold, and the grids go back when the tick has spent thirty ticks
+  in a row well under its share. A grid on the threshold does not switch at
+  each tick, and nothing outside Motion sees the mode.
+- **Budget.** A pair of a grid and other voxels makes a bounded number of
+  tests in a step. The cells that go deepest into the other voxels come first;
+  the others, spread over the area, wait for the next step, and come first
+  then. A budget too small for the cells a grid rests on keeps changing its
+  contacts: the grid stays in place but does not sleep.
+- **Impacts.** The body of a grid reports its contacts: an impact faster than
+  a threshold is an event of nPhysics, with the grid, the other grid, the
+  block hit, the point, and the speed, for the sounds of a crash and, later,
+  its damage.
+
+A small grid takes none of this: its compound of boxes meets the voxels as
+any body does.

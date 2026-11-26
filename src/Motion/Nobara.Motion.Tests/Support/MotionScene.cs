@@ -40,7 +40,7 @@ internal sealed class MotionScene : IDisposable
 
     private static byte[]? _bundle;
 
-    public MotionScene(ChunkArea? area = null, WorldPosition? center = null, int smallGridBlocks = 8, Action<MotionProbe>? configure = null)
+    public MotionScene(ChunkArea? area = null, WorldPosition? center = null, int smallGridBlocks = 8, Action<MotionProbe>? configure = null, IReadOnlyDictionary<string, string>? settings = null)
     {
         Carved = new CarvedShape();
         Center = center ?? WorldPosition.FromBlocks(16, 16, 16);
@@ -48,6 +48,11 @@ internal sealed class MotionScene : IDisposable
         Harness.ActiveCenter = Center;
         Harness.Resources = Bundle();
         Harness.Settings[MotionSettings.SmallGridBlocks] = smallGridBlocks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach ((string key, string value) in settings ?? new Dictionary<string, string>())
+        {
+            Harness.Settings[key] = value;
+        }
+
         Harness.Configure = probe =>
         {
             probe.Shapes.Register(probe.Context, Carved);
@@ -67,6 +72,8 @@ internal sealed class MotionScene : IDisposable
     public WorldPosition Center { get; }
 
     public MotionProbe Probe => Harness.Probe;
+
+    public Grid Terrain => Probe.Voxels.TryGetTerrain(DimensionId.Default, out Grid? terrain) ? terrain! : throw new InvalidOperationException("No terrain.");
 
     public IPhysicsSystem Physics => Probe.Physics;
 
