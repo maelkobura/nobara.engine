@@ -836,7 +836,7 @@ None.
   event names no block.
 - A voxel shape goes through meshes: a grid falls through a static body whose
   shape is a mesh.
-- A voxel shape holds at most 32,767 chunks with blocks; a grid that has more
+- A voxel shape holds at most 4,095 chunks with blocks; a grid that has more
   stops the step with an `InvalidOperationException`.
 - A grid body that sleeps keeps the bounds it fell asleep with: a block placed
   far outside them is met once the body wakes.
