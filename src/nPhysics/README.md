@@ -207,8 +207,9 @@ BodyHandle ship = physics.AddBody(DimensionId.Default, grid.Entity, new BodyDesc
 - Only the body of its own grid takes it. nPhysics keeps one table of cells
   per grid, shared by its shapes, and follows the chunks of the grid in
   memory; the table is forgotten with the last shape of the grid.
-- It collides with bodies, not with the voxels of the terrain nor of another
-  grid. Characters meet the blocks of the grid as they meet those of any grid.
+- It collides with bodies, except those whose shape is a mesh, and not with
+  the voxels of the terrain nor of another grid. Characters meet the blocks
+  of the grid as they meet those of any grid.
 - Without an inertia, a dynamic body gets the one of the box of the blocks at
   a uniform density.
 
@@ -833,6 +834,12 @@ None.
   layer, and a voxel shape ignores the scale of its grid.
 - A contact with a voxel shape is a contact with the body of the grid: the
   event names no block.
+- A voxel shape goes through meshes: a grid falls through a static body whose
+  shape is a mesh.
+- A voxel shape holds at most 32,767 chunks with blocks; a grid that has more
+  stops the step with an `InvalidOperationException`.
+- A grid body that sleeps keeps the bounds it fell asleep with: a block placed
+  far outside them is met once the body wakes.
 - The voxels have the default material, whatever the block.
 - A cell keeps at most 16 collision boxes: the boxes of a shape past the 16th
   are merged into their bounds.

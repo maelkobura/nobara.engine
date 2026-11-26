@@ -175,7 +175,8 @@ public interface IPhysicsSystem
     /// Creates the shape of the voxels of a grid, for the body of that grid:
     /// the collision boxes of its blocks, read where nVoxel keeps them, as the
     /// voxel layer reads them, with no geometry to rebuild when a block
-    /// changes. It collides with bodies, not with the voxels of other grids.
+    /// changes. It collides with bodies, except meshes, not with the voxels of
+    /// other grids.
     /// </summary>
     /// <param name="grid">The grid, not destroyed.</param>
     /// <param name="origin">Where the origin of the shape lies in the frame of the grid, in blocks: the center of the body, its center of mass.</param>

@@ -106,6 +106,67 @@ public sealed class GridVoxelTests
     }
 
     [Fact]
+    public void TheCellsOfAGridFollowItsChunksAsTheyEnterAndLeaveMemory()
+    {
+        using var scene = new VoxelScene(Small);
+        VoxelGridCells cells = scene.Physics.GetShape(scene.Physics.CreateVoxels(scene.Ground, Vector3.Zero)).Cells!;
+        int before = cells.ChunkCount;
+        Assert.True(before > 0);
+
+        AreaTicket ticket = scene.Probe.Activate(scene.At(16 + 320, 16, 16), Small);   // stone below y = 0, ten chunks away
+        for (int i = 0; i < 200 && cells.ChunkCount == before; i++)
+        {
+            scene.Tick();
+        }
+
+        int loaded = cells.ChunkCount;
+        Assert.True(loaded > before, "The chunks that entered memory were not followed.");
+        Assert.True(cells.Maximum.X > 320);
+
+        scene.Probe.Tickets.Remove(ticket);
+        ticket.Dispose();
+        for (int i = 0; i < 400 && cells.ChunkCount != before; i++)   // nVoxel keeps a chunk 300 ticks after its last ticket
+        {
+            scene.Tick();
+        }
+
+        Assert.Equal(before, cells.ChunkCount);   // taken out before they left memory
+        Assert.True(cells.Maximum.X < 320);
+    }
+
+    [Fact]
+    public void TheCellsOfADestroyedGridAreEmptied()
+    {
+        using var scene = new VoxelScene(Small);
+        Grid grid = Platform(scene, scene.At(16, 10, 16));
+        VoxelGridCells cells = scene.Physics.GetShape(scene.Physics.CreateVoxels(grid, Vector3.Zero)).Cells!;
+        Assert.Equal(4, cells.ChunkCount);
+
+        scene.Probe.Voxels.Destroy(scene.Probe.Context, grid);
+        scene.Tick();
+
+        Assert.Equal(0, cells.ChunkCount);
+        Assert.True(cells.IsEmpty);
+    }
+
+    [Fact]
+    public void ABoxThrownAtADynamicGridPushesIt()
+    {
+        using var scene = new VoxelScene(Small);
+        scene.Scene.Add(scene.At(16, 5, 16), scene.Physics.CreateBox(new Vector3(30, 1, 30)), BodyKind.Static, material: new PhysicsMaterial(0, 0));
+        Grid grid = Platform(scene, scene.At(16, 5.5, 16));
+        BodyHandle body = Body(scene, grid, BodyKind.Dynamic, new Vector3(0.5f, 0.5f, 0.5f), mass: 49);
+        scene.Tick(10);   // resting on the floor, without friction
+        BodyHandle box = scene.Add(scene.At(10, 6, 16.5), scene.Physics.CreateBox(new Vector3(0.8f, 0.8f, 0.8f)), mass: 49);
+        scene.Physics.SetVelocity(box, new Vector3(6, 0, 0), Vector3.Zero);
+
+        scene.Tick(20);
+
+        Assert.True(scene.State(body).LinearVelocity.X > 1, $"The grid moves at {scene.State(body).LinearVelocity}.");
+        Assert.True(scene.Offset(box).X < scene.State(body).Transform.Position.RelativeTo(scene.At(0, 0, 0)).X - 3, "The box went into the grid.");
+    }
+
+    [Fact]
     public void TheVoxelsOfAGridBodyDoNotCollideWithTheVoxelsOfOtherGrids()
     {
         using var scene = new VoxelScene(Small);
@@ -149,10 +210,10 @@ public sealed class GridVoxelTests
         }
 
         scene.Tick(60);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = GC.GetTotalAllocatedBytes(precise: true);
         scene.Tick(30);
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, GC.GetTotalAllocatedBytes(precise: true) - before);
     }
 
     /// <summary>Creates a grid with a platform of stone, 7 by 7 cells around its origin, at y = 0 in the grid: its top is 1 block above the origin.</summary>
