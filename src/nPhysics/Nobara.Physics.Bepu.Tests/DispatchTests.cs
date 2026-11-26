@@ -98,18 +98,27 @@ public sealed class DispatchTests
             world.Step(settings);
         }
 
-        // Spread, the step runs on other threads too; alone, only on this one, and other threads of the test process may allocate.
-        long before = spread ? GC.GetTotalAllocatedBytes(precise: true) : GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 60; i++)
+        // Spread, the step runs on other threads too, so the count is the whole process's, where the threads of the test
+        // runner may still allocate for earlier tests. A step that allocates does so in every window: the quietest one counts.
+        // Alone, the step runs on this thread only, and its count is exact.
+        long allocated = long.MaxValue;
+        int windows = 0;
+        while (windows < (spread ? 3 : 1) && allocated != 0)
         {
-            world.ApplyImpulse(first, new Vector3(0.01f, 0, 0), Vector3.Zero);
-            world.Step(settings);
-            world.ReadBody(first, out _);
+            long before = spread ? GC.GetTotalAllocatedBytes(precise: true) : GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 60; i++)
+            {
+                world.ApplyImpulse(first, new Vector3(0.01f, 0, 0), Vector3.Zero);
+                world.Step(settings);
+                world.ReadBody(first, out _);
+            }
+
+            allocated = Math.Min(allocated, (spread ? GC.GetTotalAllocatedBytes(precise: true) : GC.GetAllocatedBytesForCurrentThread()) - before);
+            windows++;
         }
 
-        long allocated = (spread ? GC.GetTotalAllocatedBytes(precise: true) : GC.GetAllocatedBytesForCurrentThread()) - before;
         Assert.Equal(0, allocated);
-        Assert.Equal(spread ? 180 : 0, world.SpreadSteps);
+        Assert.Equal(spread ? 120 + (60 * windows) : 0, world.SpreadSteps);
     }
 
     [Fact]
