@@ -351,8 +351,9 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
                 Apply(record);
             }
 
-            if (record.Mode == GridMotionMode.Dynamic && !record.Frozen && record.GravityScale != 1f)
+            if (record.Mode == GridMotionMode.Dynamic && !record.Frozen && record.GravityScale != 1f && !_physics.GetState(record.Body).IsAsleep)
             {
+                // A sleeping body is not pulled by gravity either: a force would only wake it.
                 _physics.ApplyForce(record.Body, (record.GravityScale - 1f) * record.AppliedMass * gravity);
             }
         }

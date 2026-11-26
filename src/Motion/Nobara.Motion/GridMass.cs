@@ -42,9 +42,10 @@ internal sealed class BlockMasses
 
     private readonly BlockMass[] _states;
     private readonly bool[] _instance;
+    private readonly bool[] _part;
     private readonly IShapeRegistry _shapes;
 
-    private BlockMasses(BlockMass[] states, bool[] instance, IShapeRegistry shapes) => (_states, _instance, _shapes) = (states, instance, shapes);
+    private BlockMasses(BlockMass[] states, bool[] instance, bool[] part, IShapeRegistry shapes) => (_states, _instance, _part, _shapes) = (states, instance, part, shapes);
 
     /// <summary>Builds the table from the weights that nBlocks resolved for each state.</summary>
     public static BlockMasses Build(IBlockRegistry blocks, IShapeRegistry shapes, IMultiBlockRegistry multiBlocks, GenericElement?[] weights, Action<string> warn)
@@ -52,6 +53,7 @@ internal sealed class BlockMasses
         int count = blocks.StateCount;
         var states = new BlockMass[count];
         bool[] instance = new bool[count];
+        bool[] part = new bool[count];
         for (uint state = 1; state < (uint)count; state++)
         {
             BlockType type = blocks.TypeOf(state);
@@ -74,6 +76,7 @@ internal sealed class BlockMasses
             }
 
             instance[state] = shapes.TryGet(type.Shape, out IBlockShape? shape) && shape!.IsInstanceDependent;
+            part[state] = multiBlocks.IsMultiBlock(state) && !multiBlocks.IsOrigin(state);
             if (!multiBlocks.IsMultiBlock(state))
             {
                 states[state] = new BlockMass(weight, Middle);
@@ -91,7 +94,7 @@ internal sealed class BlockMasses
             }
         }
 
-        return new BlockMasses(states, instance, shapes);
+        return new BlockMasses(states, instance, part, shapes);
     }
 
     /// <summary>Gets whether the mass of a state depends on the block data of its cell.</summary>
@@ -110,6 +113,11 @@ internal sealed class BlockMasses
     [HotPath]
     public BlockMass OfInstance(uint state, in BlockDataView data)
     {
+        if (state < (uint)_part.Length && _part[state])
+        {
+            return default;   // a part of a multi-block: counted at its origin
+        }
+
         ShapeEvaluation evaluation = _shapes.Get(state, data);
         float mass = evaluation.Mass is { } given && float.IsFinite(given) && given >= 0 ? given : Of(state).Mass;
         double volume = 0;

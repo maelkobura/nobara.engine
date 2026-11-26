@@ -154,7 +154,7 @@ Motion starts:
   Forces and impulses given to a kinematic or a frozen grid are ignored, and
   so are velocities and targets given to a frozen grid.
 - The gravity scale is a force that Motion applies before each step, in its
-  tick system.
+  tick system, to the grids that do not sleep.
 
 ### Split
 
@@ -212,6 +212,9 @@ Motion reads the free property `Weight` of the blocks, and its qualified form
   another grid, and goes through meshes.
 - A contact with a grid body is a contact with its body: the event names no
   block.
+- A dynamic grid whose gravity scale is not 1 never sleeps: the backend sees
+  the force that makes up for the gravity as a speed at the start of each
+  step.
 - Each block is a cube for the inertia, a multi-block or a block whose shape
   depends on its instance included.
 - The center of mass of a block whose shape depends on its instance is the
