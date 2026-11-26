@@ -61,7 +61,15 @@ public interface IPhysicsShapeSource
 /// <param name="Gravity">The gravity, in blocks per square second.</param>
 /// <param name="Shapes">The descriptions of the shapes.</param>
 /// <param name="Logger">The logger of nPhysics.</param>
-public readonly record struct PhysicsWorldOptions(ChunkCoordinate Origin, Vector3 Gravity, IPhysicsShapeSource Shapes, Logger Logger);
+public readonly record struct PhysicsWorldOptions(ChunkCoordinate Origin, Vector3 Gravity, IPhysicsShapeSource Shapes, Logger Logger)
+{
+    /// <summary>
+    /// Gets the number of threads that may query the world at once, from 1:
+    /// the queries give each its index, from 0, so that a backend can keep
+    /// what a query needs per thread.
+    /// </summary>
+    public int QueryThreads { get; init; } = 1;
+}
 
 /// <summary>How far one step of a world goes.</summary>
 /// <param name="Delta">The duration of the step, in seconds.</param>
@@ -121,6 +129,9 @@ public struct BackendBody
 
     /// <summary>Whether the body may fall asleep.</summary>
     public bool CanSleep;
+
+    /// <summary>Whether the backend reports the contacts of the body in <see cref="PhysicsBackendWorld.Contacts"/>.</summary>
+    public bool ReportsContacts;
 }
 
 /// <summary>A body as a backend reports it after a step.</summary>
@@ -189,11 +200,68 @@ public readonly record struct VoxelChunkCollider(Grid Grid, Chunk Chunk, Vector3
     public VoxelChunkCells? Cells { get; init; }
 }
 
-/// <summary>The closest hit of a ray in a world.</summary>
-/// <param name="Distance">The distance along the ray, in blocks.</param>
-/// <param name="Normal">The normal of the surface hit.</param>
-/// <param name="Body">The body hit, as the backend numbered it, or -1 for a voxel.</param>
-public readonly record struct BackendRayHit(float Distance, Vector3 Normal, int Body);
+/// <summary>A query that nPhysics asks a world: a ray, a sweep, or an overlap, among the bodies of the world.</summary>
+[HotPath]
+public struct BackendQuery
+{
+    /// <summary>The start of a ray, or the center of the shape of a sweep or an overlap, relative to the origin of the world.</summary>
+    public Vector3 Origin;
+
+    /// <summary>The rotation of the shape.</summary>
+    public Quaternion Rotation;
+
+    /// <summary>The direction of a ray or a sweep, of length 1.</summary>
+    public Vector3 Direction;
+
+    /// <summary>How far a ray or a sweep goes, in blocks.</summary>
+    public float MaxDistance;
+
+    /// <summary>The shape of a sweep or an overlap.</summary>
+    public QueryShape Shape;
+
+    /// <summary>The layers the query meets: a body is met when it belongs to one of them.</summary>
+    public uint Mask;
+
+    /// <summary>The slot of a body the query goes through (<see cref="BackendBody.Slot"/>), or -1 for none.</summary>
+    public int IgnoredSlot;
+}
+
+/// <summary>A body that a query of a world met.</summary>
+/// <param name="Slot">The slot of the body (<see cref="BackendBody.Slot"/>), which its ghost shares.</param>
+/// <param name="Distance">How far along the direction the query went before it met the body; 0 for an overlap, or when the shape starts inside.</param>
+/// <param name="Point">Where the hit is, relative to the origin of the world.</param>
+/// <param name="Normal">The normal of the surface of the body, toward the query; zero when unknown.</param>
+[HotPath]
+public readonly record struct BackendQueryHit(int Slot, float Distance, Vector3 Point, Vector3 Normal);
+
+/// <summary>
+/// A pair that touches, or will touch during the step, as a world reports it
+/// after a step for the bodies that report their contacts.
+/// </summary>
+/// <param name="SlotA">The slot of a body of the pair that reports its contacts (<see cref="BackendBody.Slot"/>).</param>
+/// <param name="SlotB">The slot of the other body, or -1 for a chunk of voxels.</param>
+/// <param name="VoxelChunk">The number of the chunk of voxels, from <see cref="PhysicsBackendWorld.AddVoxelChunk"/>; -1 for a body.</param>
+/// <param name="Point">The deepest contact, relative to the origin of the world.</param>
+/// <param name="Normal">The normal of that contact, from the second part toward the first.</param>
+/// <param name="Depth">Its depth; negative while the parts are apart.</param>
+/// <param name="Speed">The speed at which the parts approach along the normal before the step, in blocks per second.</param>
+[HotPath]
+public readonly record struct BackendContact(int SlotA, int SlotB, int VoxelChunk, Vector3 Point, Vector3 Normal, float Depth, float Speed)
+{
+    /// <summary>
+    /// How far apart, in blocks, two parts may be once their approach over the
+    /// step is counted, and still be reported: a pair is reported when its
+    /// depth plus its speed of approach times the duration of the step is at
+    /// least the opposite of this. nPhysics begins a contact closer than
+    /// <see cref="BeginReach"/>, and ends it once the pair is no longer
+    /// reported: a body that settles with small hops does not begin and end
+    /// its contact again and again.
+    /// </summary>
+    public const float Reach = 0.05f;
+
+    /// <summary>How far apart, in blocks, two parts may be, their approach over the step counted, for a contact to begin.</summary>
+    public const float BeginReach = 0.01f;
+}
 
 /// <summary>
 /// One world of a backend: bodies, joints, and their simulation, around an
@@ -321,14 +389,53 @@ public abstract class PhysicsBackendWorld : IDisposable
     /// <param name="chunk">The number of the chunk.</param>
     public abstract void RemoveVoxelChunk(int chunk);
 
-    /// <summary>Finds the closest body or voxel along a ray. Part of the interface; nPhysics does not call it in this version.</summary>
-    /// <param name="origin">The start, relative to the origin of the world.</param>
-    /// <param name="direction">The direction, of length 1.</param>
-    /// <param name="maxDistance">The length of the ray.</param>
-    /// <param name="filter">The layers the ray collides with.</param>
-    /// <param name="hit">The hit.</param>
-    /// <returns><see langword="true"/> when the ray hits something.</returns>
-    public abstract bool RayCast(Vector3 origin, Vector3 direction, float maxDistance, CollisionFilter filter, out BackendRayHit hit);
+    /// <summary>
+    /// Finds the closest bodies along a ray. The chunks of voxels are not
+    /// part of the queries: nPhysics tests the voxels of every grid itself.
+    /// </summary>
+    /// <remarks>
+    /// The query members may run on several threads at once, each with its
+    /// own <paramref name="thread"/>, while no other member of the world runs.
+    /// </remarks>
+    /// <param name="query">The ray.</param>
+    /// <param name="thread">The index of the calling thread among those that query at once, below <see cref="PhysicsWorldOptions.QueryThreads"/>.</param>
+    /// <param name="hits">Receives the closest bodies met, as many as it holds, in any order; a body is met once.</param>
+    /// <returns>The number of hits written.</returns>
+    public abstract int RayCast(in BackendQuery query, int thread, Span<BackendQueryHit> hits);
+
+    /// <summary>Finds the closest bodies that a shape meets as it moves along a line, without turning; a body it starts inside is met at distance 0.</summary>
+    /// <remarks>Like <see cref="RayCast"/>, it may run on several threads at once.</remarks>
+    /// <param name="query">The sweep.</param>
+    /// <param name="thread">The index of the calling thread, below <see cref="PhysicsWorldOptions.QueryThreads"/>.</param>
+    /// <param name="hits">Receives the closest bodies met, as many as it holds, in any order; a body is met once.</param>
+    /// <returns>The number of hits written.</returns>
+    public abstract int Sweep(in BackendQuery query, int thread, Span<BackendQueryHit> hits);
+
+    /// <summary>Finds the bodies that overlap a shape.</summary>
+    /// <remarks>Like <see cref="RayCast"/>, it may run on several threads at once.</remarks>
+    /// <param name="query">The overlap; its direction and distance are not used.</param>
+    /// <param name="thread">The index of the calling thread, below <see cref="PhysicsWorldOptions.QueryThreads"/>.</param>
+    /// <param name="hits">Receives the bodies met, as many as it holds; a body is met once.</param>
+    /// <returns>The number of hits written.</returns>
+    public abstract int Overlap(in BackendQuery query, int thread, Span<BackendQueryHit> hits);
+
+    /// <summary>Turns the report of the contacts of a body on or off.</summary>
+    /// <param name="body">The number of the body.</param>
+    /// <param name="reports">Whether its contacts are reported.</param>
+    public abstract void SetReportsContacts(int body, bool reports);
+
+    /// <summary>
+    /// Gets the pairs of the last step that hold a body that reports its
+    /// contacts and touch, or will touch during the step (see
+    /// <see cref="BackendContact.Reach"/>): one entry per pair of a body and a
+    /// body or a chunk of voxels, at its deepest contact. Valid until the next
+    /// step; read on the thread that stepped the world, or after.
+    /// </summary>
+    public abstract ReadOnlySpan<BackendContact> Contacts { get; }
+
+    /// <summary>Changes the gravity of the world, from the next step on.</summary>
+    /// <param name="gravity">The gravity, in blocks per square second.</param>
+    public abstract void SetGravity(Vector3 gravity);
 
     /// <summary>Releases the world and everything in it.</summary>
     public void Dispose()

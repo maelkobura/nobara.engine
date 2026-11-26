@@ -51,6 +51,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
     private ComponentType<BodyMaterial> _materialComponent;
     private ComponentType<BodyMass> _massComponent;
     private ComponentType<BodyVelocity> _velocityComponent;
+    private Vector3 _gravity = DefaultGravity;
     private bool _started;
     private bool _disposed;
 
@@ -62,12 +63,12 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
 
     public string BackendName => _backend?.Name ?? string.Empty;
 
-    public int Substeps { get; private set; } = 8;
+    public int Substeps { get; internal set; } = 8;
 
     /// <summary>Gets the number of velocity iterations of each substep.</summary>
     public int VelocityIterations { get; private set; } = 1;
 
-    public Vector3 Gravity => DefaultGravity;
+    public Vector3 Gravity => _gravity;
 
     public IReadOnlyList<PhysicsWorldInfo> Worlds
     {
@@ -97,6 +98,8 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         VoxelChunks = _voxelChunkCount,
         VoxelWakes = _wakes,
         Characters = _characterCount,
+        Queries = _lastQueries,
+        ContactEvents = _begunCount + _endedCount + _impactCount,
     };
 
     /// <summary>Resolves the services of the dependencies, registers the components, the tick system, and the counters of world state, and follows the chunks and their blocks.</summary>
@@ -151,6 +154,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         VelocityIterations = _context.Settings.GetInt(PhysicsSettings.VelocityIterations);
         _backend = ChooseBackend();
         BuildVoxelShapes();
+        PrepareQueries();
         _started = true;
         _context.Logger.Info($"Physics backend '{_backend.Name}' chosen; {Substeps} substeps and {VelocityIterations} velocity iterations per step.");
     }
@@ -233,6 +237,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
     private void Reset()
     {
         ResetCharacters();
+        ResetContacts();
         for (int i = 0; i < _ghostHigh; i++)
         {
             if (_ghosts[i].Alive)
@@ -299,6 +304,21 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
 
         _commandCount = 0;
         _staticBodies = _kinematicBodies = _dynamicBodies = _sleepingBodies = _frozenBodies = 0;
+    }
+
+    /// <summary>Changes the gravity of every world, from the next step on: a setting of development, from the debug window.</summary>
+    internal void SetGravity(Vector3 gravity)
+    {
+        _gravity = gravity;
+        foreach (WorldEntry world in _worlds)
+        {
+            world.Backend.SetGravity(gravity);
+        }
+
+        foreach (WorldEntry world in _retiring)
+        {
+            world.Backend.SetGravity(gravity);
+        }
     }
 
     private int AwakeCount()

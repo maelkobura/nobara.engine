@@ -299,6 +299,7 @@ internal sealed partial class PhysicsSimulation
         int slot = table.Allocate();
         table.Slots[slot] = new VoxelSlot { Used = true, Key = key, Cells = cells, BackendId = id, ZeroStep = _voxelStep, NextFree = -1 };
         table.Map.Add(key, slot);
+        table.MapBackend(id, slot);
         cells.Users++;
         _voxelChunkCount++;
         return slot;
@@ -325,6 +326,7 @@ internal sealed partial class PhysicsSimulation
         ref VoxelSlot entry = ref table.Slots[slot];
         world.Backend.RemoveVoxelChunk(entry.BackendId);
         table.Map.Remove(entry.Key);
+        table.MapBackend(entry.BackendId, -1);
         ReleaseCells(entry.Key, entry.Cells!);
         entry = new VoxelSlot { NextFree = table.Free };
         table.Free = slot;
@@ -726,6 +728,27 @@ internal sealed partial class PhysicsSimulation
         public int Free { get; set; } = -1;
 
         public int Count { get; set; }
+
+        /// <summary>Gets the slot of each chunk by the number the backend gave it, -1 for none: the contacts name chunks by that number.</summary>
+        public int[] ByBackend { get; private set; } = [];
+
+        public void MapBackend(int backendId, int slot)
+        {
+            if (backendId >= ByBackend.Length)
+            {
+                int[] map = ByBackend;
+                int length = map.Length;
+                Array.Resize(ref map, Math.Max(backendId + 1, length * 2));
+                map.AsSpan(length).Fill(-1);
+                ByBackend = map;
+            }
+
+            ByBackend[backendId] = slot;
+        }
+
+        /// <summary>Gets the slot of a chunk by the number the backend gave it, or -1.</summary>
+        [HotPath]
+        public int SlotOf(int backendId) => (uint)backendId < (uint)ByBackend.Length ? ByBackend[backendId] : -1;
 
         public int Allocate()
         {

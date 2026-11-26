@@ -1,8 +1,9 @@
 # The physics of nPhysics
 
 This page explains how nPhysics is layered, why it is the only module that
-moves simulated things, how a step turns commands into transforms, and how
-bodies collide with voxels without any geometry built from them. Terms
+moves simulated things, how a step turns commands into transforms, how
+bodies collide with voxels without any geometry built from them, and how
+queries and contact events see the voxels and the bodies as one. Terms
 are defined in [the glossary](glossary.md). The API is described in [the
 module sheet](../../src/nPhysics/README.md).
 
@@ -244,6 +245,69 @@ flowchart LR
     C -->|steps and landings| O[Observers: sounds, damage]
 ```
 
+## Queries
+
+A game asks the physics what lies along a ray, what a moving shape meets,
+and what a shape overlaps: what the player looks at, whether a mob can see
+its target, where a projectile lands. The answer mixes two worlds that
+nPhysics keeps apart, the voxels and the bodies, and the bodies themselves
+live in one physics world per region.
+
+- **The voxels in nPhysics.** A query does not ask the backend for the
+  voxels: a world of the backend holds only the chunks around its dynamic
+  bodies, and a ray can go where no body is. nPhysics tests the voxels
+  itself, in every grid the spatial index of nVoxel finds on the way, with
+  the collision boxes of the voxel layer: a slab is met at its half, grass
+  without collision is not met at all.
+- **Each grid in its own frame.** The start of the query is taken into the
+  frame of each grid in double precision, from a whole cell near it, so the
+  rest of the work stays small numbers in single precision, a billion blocks
+  away as at the origin. A ray walks the cells it crosses, nearest first. A
+  sweep tests the cells along its way piece by piece, and stops at the first
+  piece that holds a hit; a sphere or a capsule moves by conservative
+  advancement (it moves by its distance to a box, which it cannot cross in
+  less), a box by the separating axes of two boxes over the motion.
+- **The bodies in their worlds.** The bodies are queried in each world of
+  the dimension whose region the query may reach, in the frame of that
+  world. A body seen through a ghost is the same body: it is met once.
+- **What is not known.** A chunk of the terrain that is not loaded is not
+  air: a ray that reaches it reports it, and nothing past it, since a block
+  could hide what lies behind.
+- **Batches.** A hot path that casts many rays at once, such as the sight of
+  a crowd of mobs, gives them in one batch: nPhysics splits it among the
+  workers of the job system, each with its own scratch and its own index in
+  the backend, and returns once every ray is cast, without allocating.
+
+## Contact events
+
+Gameplay wants to know when something touches: a crate that lands, an arrow
+that hits, a player on a pressure plate. The backend knows contacts, but only
+during the step, on the threads of its solver, and for every pair. nPhysics
+turns them into events that are cheap and safe to read:
+
+- **Only the bodies that ask.** A body reports its contacts when its
+  description says so. The backend notes, during the step, the pairs that
+  hold such a body and touch, or will during the step, at their deepest
+  contact; thousands of other bodies cost nothing.
+- **On the loop thread, once per step.** After the step, nPhysics merges the
+  pairs of every world, so that a pair seen through a ghost counts once,
+  compares them with those of the step before, and lists the contacts that
+  began, those that ended, and the impacts in the end of the step.
+- **A pair, not a contact point.** A body touches a grid once, however many
+  of its blocks it rests on; the event names the block under the deepest
+  contact. A crate sliding over a floor does not begin and end a contact at
+  each block.
+- **Stable at rest.** A body that sleeps, or is frozen, is no longer looked
+  at by the backend; its contacts go on as they were. A body that hops a few
+  millimeters as it settles is apart from the ground for a step or two; its
+  contact ends only after three steps apart.
+- **Impacts.** The speed at which two parts approach is read before the
+  solver stops them, since a contact found early stops a body before it
+  touches. A contact whose speed reaches the impact speed of its body is an
+  impact, with an estimate of its impulse, the speed times the reduced mass
+  of the pair: the start of a sound, of fall damage, or of a block that
+  breaks.
+
 ## Backends
 
 A backend extension implements `IPhysicsBackend` and `PhysicsBackendWorld`
@@ -257,8 +321,9 @@ nPhysics identifies a shape once; a world of the backend builds its own
 shape the first time a body uses it, from the neutral description. Bodies
 and joints keep a stable handle in nPhysics, while the backend numbers them
 in each world. Only nPhysics calls a world of the backend, never from two threads at
-once on the same world, and its members are hot path code: a step allocates no managed memory once its
-tables have grown.
+once on the same world, except for its queries, which the threads of a batch
+call at once while nothing else runs on the world; its members are hot path
+code: a step allocates no managed memory once its tables have grown.
 
 The engine ships one backend, nPhysics.Bepu, on BEPUphysics v2: a library in
 pure C# that keeps its memory in unmanaged pools, lets the engine run its
@@ -269,5 +334,7 @@ placed or broken costs nothing to the physics. A world steps on the thread
 that calls it, and spreads over the workers of the job system only when it
 has many awake bodies; nPhysics tells it, with `PhysicsStepSettings.MaySpread`,
 whether waiting for other jobs is allowed. What BEPUphysics lacks, a
-coefficient of restitution, the backend adds after each step. See [the
+coefficient of restitution, the backend adds after each step. Its queries
+are those of BEPUphysics, with a pool of memory per thread that queries; an
+overlap is a sweep that keeps only what the shape starts inside. See [the
 module sheet](../../src/nPhysics/README.md#nphysicsbepu).

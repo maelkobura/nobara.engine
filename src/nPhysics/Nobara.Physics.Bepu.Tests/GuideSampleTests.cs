@@ -12,7 +12,7 @@ using Nobara.Voxel;
 
 namespace Nobara.Physics.Bepu.Tests;
 
-/// <summary>The sample of the guide "Make a character walk" does what the guide says.</summary>
+/// <summary>The samples of the guides "Make a character walk" and "Query the physics" do what the guides say.</summary>
 [Collection(Serial.Name)]
 public sealed class GuideSampleTests
 {
@@ -56,6 +56,44 @@ public sealed class GuideSampleTests
         scene.Tick(40);
         Assert.True(movement.IsOnGround(farmer));
         Assert.Equal(0, damage.Damage);
+    }
+
+    [Fact]
+    public void FarmersPickCratesScarecrowsScareCrowsAndCratesBreakWhenTheyFall()
+    {
+        CratePhysics? crates = null;
+        using var scene = new VoxelScene(new ChunkArea(1, 1), configure: harness =>
+        {
+            Action<BepuProbe>? terrain = harness.Configure;
+            harness.Configure = probe =>
+            {
+                terrain?.Invoke(probe);
+                crates = new CratePhysics(probe.Context);
+            };
+        });
+        scene.Tick();
+        BodyHandle low = crates!.AddCrate(scene.Probe.CreateEntity(WorldTransform.At(scene.At(10.5, 1.5, 10.5))));
+        BodyHandle high = crates.AddCrate(scene.Probe.CreateEntity(WorldTransform.At(scene.At(14.5, 6, 10.5))));
+        EntityId crowEntity = scene.Probe.CreateEntity(WorldTransform.At(scene.At(20.5, 1, 20.5)));
+        BodyHandle crow = scene.Physics.AddBody(DimensionId.Default, crowEntity, new BodyDescription { Shape = scene.Physics.CreateSphere(0.2f), Filter = new CollisionFilter(CratePhysics.CrowLayer, uint.MaxValue) });
+        scene.Tick(60);
+
+        Assert.Equal([high], crates.Broken);   // a fall of 1.1 blocks does not break a crate; one of 5.6 does
+
+        Assert.True(crates.TryPick(scene.At(10.5, 0.5, 14), -Vector3.UnitZ, out PhysicsHit picked));   // a farmer who kneels
+        Assert.Equal(low, picked.Body);
+        Assert.True(crates.TryPick(scene.At(4.5, 1.6, 4.5), -Vector3.UnitY, out picked));
+        Assert.Equal(PhysicsHitKind.Block, picked.Kind);
+
+        Assert.Equal(1, crates.Scare(scene.At(21, 1, 21)));
+        Assert.Equal(0, crates.Scare(scene.At(2, 1, 2)));
+        scene.Tick();
+        Assert.True(scene.State(crow).LinearVelocity.Y > 0);
+
+        ReadOnlySpan<PhysicsHit> wetted = crates.Water([scene.At(8, 3, 8), scene.At(12, 3, 12)]);
+        Assert.Equal(2, wetted.Length);
+        Assert.Equal(3f, wetted[0].Distance, 1e-3f);
+        Assert.Equal(-1, wetted[1].Block.Y);
     }
 
     private static Vector3 Feet(VoxelScene scene, EntityWorld world, EntityId farmer) =>
