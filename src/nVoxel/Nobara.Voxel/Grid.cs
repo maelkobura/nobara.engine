@@ -231,6 +231,19 @@ public sealed class GridStorage : IDisposable
         return _chunks.TryGetValue(coordinate, out Chunk? chunk) ? chunk : AddChunk(coordinate);
     }
 
+    /// <summary>Adds every resident chunk to a list, in no particular order, without allocating once the list holds them.</summary>
+    /// <param name="chunks">The list to fill; it is not cleared first.</param>
+    [HotPath]
+    public void GetResidentChunks(List<Chunk> chunks)
+    {
+        ArgumentNullException.ThrowIfNull(chunks);
+        RequireAlive();
+        foreach (Chunk chunk in _chunks.Values)
+        {
+            chunks.Add(chunk);
+        }
+    }
+
     internal IEnumerable<KeyValuePair<ChunkCoordinate, Chunk>> ResidentChunks
     {
         get
@@ -330,6 +343,7 @@ public sealed class GridStorage : IDisposable
         if (_bounds is { } bounds && !bounds.Contains(coordinate)) throw new ArgumentOutOfRangeException(nameof(coordinate), $"Block {coordinate} is outside the grid bounds.");
     }
 
+    [HotPath]
     private void RequireAlive() => ObjectDisposedException.ThrowIf(_disposed, this);
 }
 

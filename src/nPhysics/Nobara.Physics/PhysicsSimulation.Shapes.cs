@@ -130,6 +130,11 @@ internal sealed partial class PhysicsSimulation
             ReleaseShape(child.Shape);
         }
 
+        if (description.Kind == ShapeKind.Voxels)
+        {
+            ForgetVoxelShape(description, shape.Index);
+        }
+
         slot.Description = null;
         slot.Generation++;
         slot.NextFree = _shapeFree;
@@ -203,6 +208,8 @@ internal sealed partial class PhysicsSimulation
                 }
 
                 return compound;
+            case ShapeKind.Voxels:
+                return VoxelRadius(description);
             default:
                 float points = 0;
                 foreach (Vector3 point in description.Points.Span)

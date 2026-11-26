@@ -30,7 +30,7 @@ public interface IPhysicsBackend
     string Name { get; }
 
     /// <summary>Computes the inertia tensor of a shape of uniform density.</summary>
-    /// <param name="shape">A shape other than a mesh.</param>
+    /// <param name="shape">A shape other than a mesh or voxels.</param>
     /// <param name="mass">The mass, above 0.</param>
     /// <returns>The tensor, in the frame of the shape.</returns>
     [HotPath]
@@ -317,6 +317,14 @@ public abstract class PhysicsBackendWorld : IDisposable
     public abstract void SetKind(int body, BodyKind kind, float mass, in BodyInertia inertia);
 
     /// <summary>Changes the shape of a body, and wakes it.</summary>
+    /// <remarks>
+    /// A shape of kind <see cref="ShapeKind.Voxels"/> is the collision boxes of
+    /// the cells of <see cref="ShapeDescription.Cells"/>, from
+    /// <see cref="ShapeDescription.Origin"/>, read while the world steps. It
+    /// collides with bodies, never with a chunk of voxels nor with another
+    /// shape of voxels, and drops the contacts that
+    /// <see cref="VoxelChunkCells.IsInnerFace"/> sets apart.
+    /// </remarks>
     /// <param name="body">The number of the body.</param>
     /// <param name="shape">The new shape.</param>
     public abstract void SetShape(int body, PhysicsShape shape);
@@ -390,7 +398,8 @@ public abstract class PhysicsBackendWorld : IDisposable
     public abstract void RemoveVoxelChunk(int chunk);
 
     /// <summary>
-    /// Finds the closest bodies along a ray. The chunks of voxels are not
+    /// Finds the closest bodies along a ray. The chunks of voxels, and the
+    /// bodies whose shape is of kind <see cref="ShapeKind.Voxels"/>, are not
     /// part of the queries: nPhysics tests the voxels of every grid itself.
     /// </summary>
     /// <remarks>

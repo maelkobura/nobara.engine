@@ -50,6 +50,12 @@ internal struct Surface
     /// <summary>Whether the body uses continuous collision detection.</summary>
     public bool Continuous;
 
+    /// <summary>The handle of the cells of the grid of a body whose shape is the voxels of its grid, from <see cref="System.Runtime.InteropServices.GCHandle.ToIntPtr"/>; 0 for the others.</summary>
+    public nint GridCells;
+
+    /// <summary>Gets whether the collidable is made of voxels: a chunk, or the voxels of a grid.</summary>
+    public readonly bool IsVoxels => Cells != 0 || GridCells != 0;
+
     /// <summary>Gets the surface of a chunk of voxels: the default material, in the layer of the voxels, colliding with every layer.</summary>
     /// <param name="cells">The handle of the cells of the chunk.</param>
     /// <param name="chunk">The number of the chunk in the world.</param>
@@ -80,7 +86,13 @@ internal struct Surface
 /// A contact between a body and a box of a cell of voxels that goes through an
 /// inner face, one that the cell next to it covers whole, is dropped
 /// (<see cref="VoxelChunkCells.IsInnerContact"/>): a body that slides over a
-/// flat floor does not catch on the joints between its cells.
+/// flat floor does not catch on the joints between its cells. The same holds
+/// for the voxels of a grid that is a body.
+/// </para>
+/// <para>
+/// Two collidables made of voxels never collide: a chunk and the voxels of a
+/// grid, or the voxels of two grids. The collision of a grid with the voxels
+/// of another is not the backend's.
 /// </para>
 /// <para>
 /// The contacts are springs of <see cref="ContactFrequency"/>. A pair that
@@ -121,7 +133,7 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
             return false;
         }
 
-        return true;
+        return !(first.IsVoxels && second.IsVoxels);
     }
 
     /// <inheritdoc/>
@@ -177,7 +189,17 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
             return !IsInner(first.Cells, childIndexA, -manifold.Normal);
         }
 
+        if (first.GridCells != 0)
+        {
+            return !IsInnerOfGrid(first.GridCells, OrientationOf(pair.A), childIndexA, -manifold.Normal);
+        }
+
         ref Surface second = ref surfaces[pair.B];
+        if (second.GridCells != 0)
+        {
+            return !IsInnerOfGrid(second.GridCells, OrientationOf(pair.B), childIndexB, manifold.Normal);
+        }
+
         return second.Cells == 0 || !IsInner(second.Cells, childIndexB, manifold.Normal);
     }
 
@@ -185,6 +207,24 @@ internal struct NarrowPhaseCallbacks(CollidableProperty<Surface> surfaces, Bounc
     public readonly void Dispose()
     {
     }
+
+    /// <summary>Tells whether a contact with a child of the voxels of a grid goes through an inner face.</summary>
+    /// <param name="cells">The handle of the cells of the grid.</param>
+    /// <param name="orientation">The orientation of the body of the grid.</param>
+    /// <param name="child">The child of the grid: its chunk, its cell, and its box.</param>
+    /// <param name="normal">The normal, out of the box toward the other body, along the axes of the world.</param>
+    [HotPath]
+    private static bool IsInnerOfGrid(nint cells, Quaternion orientation, int child, Vector3 normal)
+    {
+        VoxelGridShape.Split(child, out int slot, out int cell, out int box);
+        return VoxelGridShape.CellsOf(cells).GetChunk(slot) is { } chunk && chunk.IsInnerFace(cell, box, Vector3.Transform(normal, Quaternion.Conjugate(orientation)));
+    }
+
+    /// <summary>Gets the orientation of a collidable, read while the narrow phase runs and no pose changes.</summary>
+    [HotPath]
+    private readonly Quaternion OrientationOf(CollidableReference collidable) => collidable.Mobility == CollidableMobility.Static
+        ? bounces.Simulation!.Statics[collidable.StaticHandle].Pose.Orientation
+        : bounces.Simulation!.Bodies[collidable.BodyHandle].Pose.Orientation;
 
     /// <summary>Tells whether a contact with a child of a chunk of voxels goes through an inner face.</summary>
     /// <param name="cells">The handle of the cells of the chunk.</param>

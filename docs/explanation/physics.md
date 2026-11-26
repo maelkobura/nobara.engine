@@ -195,6 +195,16 @@ while it steps.
   would otherwise fall through the missing blocks and be lost below the
   world. It moves again with the velocities it had once the chunk is active.
 
+A grid that moves cannot be a set of chunks fixed in a world. When a module
+makes a grid a body, it gives the body the
+[voxel shape](glossary.md#voxel-shape) of the grid: the same cells, read the
+same way, but carried by the body, centered on its center of mass. Bodies
+collide with it as with any shape but a mesh, and push it back when it is
+dynamic; a
+crate on a grid that moves is carried by friction. Two sets of voxels never
+collide in the backend: the collision of a grid with the terrain or with
+another grid needs other means than a body against a body.
+
 ## Characters
 
 Players and mobs do not move as crates do. A crate is a rigid body that the

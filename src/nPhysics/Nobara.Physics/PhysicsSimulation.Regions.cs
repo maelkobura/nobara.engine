@@ -84,6 +84,7 @@ internal sealed partial class PhysicsSimulation
     private void PlaceBodies(float delta)
     {
         _placeDelta = delta;
+        FollowPendingGridChunks();
         UpdateRegions();
         KeepTerrains();
         UpdateMembership();

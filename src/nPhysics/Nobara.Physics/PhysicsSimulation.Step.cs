@@ -306,7 +306,7 @@ internal sealed partial class PhysicsSimulation
 
         if (!body.ExplicitInertia && Get(shape).Kind != ShapeKind.Mesh)
         {
-            body.Inertia = _backend!.ComputeInertia(Get(shape), body.Mass);
+            body.Inertia = DefaultInertia(Get(shape), body.Mass);
             if (body.Kind == BodyKind.Dynamic)
             {
                 backend?.SetMass(body.BackendId, body.Mass, body.Inertia);

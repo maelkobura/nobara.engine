@@ -103,7 +103,7 @@ report them, and the boxes of the regions.
 
 | Member | Use |
 | --- | --- |
-| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `CreateVoxels`, `GetShape`, `DestroyShape`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
 | `QueryShape`, `QueryFilter`, `PhysicsHit`, `PhysicsHitKind`, `RayQuery`, `SweepQuery` | The shapes, filters, and results of the queries. |
 | `ContactReporting`, `ContactEvent`, `ContactEvents` | How a body reports its contacts, the events, and their fixed rules. |
 | `BodyDescription`, `BodyKind`, `BodyHandle`, `PhysicsMaterial`, `CollisionFilter`, `BodyInertia`, `BodyState` | What a body is made of, its handle, and its state. |
@@ -115,7 +115,7 @@ report them, and the boxes of the regions.
 | `IMediumProvider`, `MediumSample`, `MediumProviderHandle` | What fills a point, as a fluid module describes it. |
 | `PhysicsRegionInfo`, `PhysicsWorldInfo`, `PhysicsStatistics` | The regions, the physics worlds, and the counts after the last step. |
 | `PhysicsFrame` | The conversions between positions in the world and positions in a physics world. |
-| `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `VoxelChunkCells`, `BackendQuery`, `BackendQueryHit`, `BackendContact` | The interface of a backend, for the extensions that provide one. |
+| `IPhysicsBackends`, `IPhysicsBackend`, `IPhysicsShapeSource`, `PhysicsBackendWorld`, `PhysicsWorldOptions`, `PhysicsStepSettings`, `BackendBody`, `BackendBodyState`, `BackendJoint`, `VoxelChunkCollider`, `VoxelChunkCells`, `VoxelGridCells`, `BackendQuery`, `BackendQueryHit`, `BackendContact` | The interface of a backend, for the extensions that provide one. |
 | `PhysicsSettings` | The names of the configuration keys. |
 | `PhysicsModule` | The identifier of the module and the name of its tick system. |
 
@@ -183,6 +183,35 @@ holds convex shapes: spheres, capsules, boxes, cylinders, and convex hulls.
 `DestroyShape` refuses a shape that a body or a compound still uses. A
 backend reads the `ShapeDescription` of a shape the first time a body of a
 world uses it.
+
+The [voxel shape](../../docs/explanation/glossary.md#voxel-shape) of a grid,
+from `CreateVoxels`, is the shape of the body of that grid:
+
+```csharp
+Vector3 center = new(3.5f, 1.2f, 2f);   // the center of mass, in the frame of the grid
+BodyHandle ship = physics.AddBody(DimensionId.Default, grid.Entity, new BodyDescription
+{
+    Shape = physics.CreateVoxels(grid, center),
+    Center = center,
+    Mass = 1800,
+    Inertia = inertia,
+});
+```
+
+- It is the collision boxes of the blocks of the grid, read where nVoxel
+  keeps them as the voxel layer reads them: a block placed or broken is met at
+  the next step, with no geometry to rebuild.
+- Its origin is the point of the grid it is created with, the center of the
+  body: give the same point as `Center`. A module that moves the center of
+  mass creates a shape at the new center and gives both to `SetShape`.
+- Only the body of its own grid takes it. nPhysics keeps one table of cells
+  per grid, shared by its shapes, and follows the chunks of the grid in
+  memory; the table is forgotten with the last shape of the grid.
+- It collides with bodies, except those whose shape is a mesh, and not with
+  the voxels of the terrain nor of another grid. Characters meet the blocks
+  of the grid as they meet those of any grid.
+- Without an inertia, a dynamic body gets the one of the box of the blocks at
+  a uniform density.
 
 ### Commands
 
@@ -349,6 +378,9 @@ them, while the world steps.
   overlap the changed blocks, grown by one block, at the next step: a crate
   asleep on a block that breaks falls. Blocks filled as a chunk is generated
   wake nobody.
+- **Grids that are bodies.** The voxels of a grid that is a body are left out
+  of the voxel layer: the body carries them, when its shape is the
+  [voxel shape](#shapes) of the grid.
 - **Freezing.** A dynamic or kinematic body that reaches a chunk of the
   terrain that is not loaded or not active, within its bounds, its velocity
   over a step, and 1 block, is frozen as a body that no region holds is
@@ -586,8 +618,16 @@ public void Initialize(ModuleContext context) =>
   reads the collision boxes of each cell from `VoxelChunkCollider.Cells`
   while the world steps, and drops the contacts that
   `VoxelChunkCells.IsInnerContact` sets apart.
+- A body whose shape is of kind `Voxels` collides through the collision
+  boxes of the cells of `ShapeDescription.Cells`, a `VoxelGridCells`, read
+  while the world steps, from `ShapeDescription.Origin`. It never collides
+  with a chunk of voxels nor with another shape of voxels, and drops the
+  contacts that `VoxelChunkCells.IsInnerFace` sets apart. A backend that keeps
+  bounds computed from the box of the cells reads them again when
+  `VoxelGridCells.BoundsVersion` changes.
 - `RayCast`, `Sweep`, and `Overlap` meet the bodies of the world only, never
-  its chunks of voxels: nPhysics tests the voxels itself. They give hits by
+  its chunks of voxels nor the bodies of kind `Voxels`: nPhysics tests the
+  voxels itself. They give hits by
   `BackendBody.Slot`, which a ghost shares with its body, and keep the
   closest ones that fit the span. They are the only members called from
   several threads at once, each with its index below
@@ -651,6 +691,14 @@ the world; two worlds share nothing and can step at the same time.
   an inner face. The voxels have the default material. The chunk does not
   change during a step. Without `VoxelChunkCollider.Cells`, every cell that
   holds a block collides as a whole cube.
+- **Voxels of a grid.** The voxel shape of a grid is a compound of boxes
+  whose children are the collision boxes of the cells of every chunk of the
+  grid in memory, numbered by the slot of the chunk, the cell, and the box,
+  and found from the coordinates of the cells a query covers, with no tree.
+  It has the collision and sweep tasks of a chunk, and none against a chunk
+  or another grid. A static body of voxels reads its bounds again before a
+  step once the box of the blocks of its grid changed; a moving body computes
+  them at each step. Rays do not hit it.
 - **Queries.** Rays, sweeps, and overlaps are the queries of BEPUphysics,
   among the bodies and statics of the world, its chunks of voxels left out.
   Each thread that queries at once has a pool of memory of its own. An
@@ -713,7 +761,9 @@ None.
   nPhysics.Bepu); putting a character on a grid for the first time gives it
   the components of the hierarchy, a change of structure. The voxel layer allocates when a chunk enters a world, and
   nothing once the bodies rest on chunks the worlds hold (checked by a test
-  with bodies on the voxels).
+  with bodies on the voxels); bodies that rest on a voxel shape allocate
+  nothing (checked by a test with the backend of nPhysics.Bepu). A voxel
+  shape allocates when a chunk of its grid gets its first blocks.
 - Queries read the blocks and the transforms of the grids: a tick system
   that queries declares `IVoxelWorlds.ChunkAccess` and the data of
   `WorldTransform` among its reads. Call them outside the step of nPhysics,
@@ -774,12 +824,22 @@ None.
   not the impulse the solver applied.
 - A contact ends three steps after its parts part; a body that bounces off
   and comes back within them keeps it.
-- The debug drawing shows a cylinder, a convex hull, and a mesh by the box
-  that holds them, at most 2,000 bodies, and the contacts of the bodies that
+- The debug drawing shows a cylinder, a convex hull, a mesh, and a voxel
+  shape by the box that holds them, at most 2,000 bodies, and the contacts of the bodies that
   report them only.
-- Static and kinematic bodies do not collide with voxels, and grids do not
-  collide with anything yet: the voxels of a grid that is a body, and of a
-  scaled grid, are left out of the voxel layer.
+- Static and kinematic bodies do not collide with the voxel layer, and the
+  voxels of a grid never collide with the voxels of another: a grid whose
+  body has its voxel shape collides with bodies and characters only, and goes
+  through the terrain. The voxels of a scaled grid are left out of the voxel
+  layer, and a voxel shape ignores the scale of its grid.
+- A contact with a voxel shape is a contact with the body of the grid: the
+  event names no block.
+- A voxel shape goes through meshes: a grid falls through a static body whose
+  shape is a mesh.
+- A voxel shape holds at most 4,095 chunks with blocks; a grid that has more
+  stops the step with an `InvalidOperationException`.
+- A grid body that sleeps keeps the bounds it fell asleep with: a block placed
+  far outside them is met once the body wakes.
 - The voxels have the default material, whatever the block.
 - A cell keeps at most 16 collision boxes: the boxes of a shape past the 16th
   are merged into their bounds.

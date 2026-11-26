@@ -38,7 +38,7 @@ namespace Nobara.Physics.Bepu;
 /// during a step.
 /// </para>
 /// </remarks>
-internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
+internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>, IVoxelShape
 {
     /// <summary>The type identifier of the shape, outside the range of the shapes of BEPUphysics.</summary>
     public const int Id = 24;
@@ -258,7 +258,7 @@ internal unsafe struct VoxelChunkShape : IHomogeneousCompoundShape<Box, BoxWide>
     /// <summary>Tells whether a box of a cell overlaps local bounds.</summary>
     [HotPath]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static bool Overlaps(in CollisionBox box, Vector3 corner, Vector3 min, Vector3 max)
+    internal static bool Overlaps(in CollisionBox box, Vector3 corner, Vector3 min, Vector3 max)
     {
         Vector3 low = corner + box.Minimum;
         Vector3 high = corner + box.Maximum;

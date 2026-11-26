@@ -41,6 +41,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
 {
     private readonly BufferPool _pool = new();
     private readonly CollidableProperty<Surface> _surfaces;
+    private readonly List<int> _voxelStatics = [];
     private readonly IPhysicsShapeSource _shapeSource;
     private readonly JobThreadDispatcher? _dispatcher;
     private readonly BepuBackend _backend;
@@ -125,6 +126,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
             Chunk = -1,
             Reports = body.ReportsContacts,
             Continuous = body.Continuous,
+            GridCells = _shapeEntries[entry.Shape].GridCells,
         };
         var pose = new RigidPose(body.Position, Quaternion.Normalize(body.Rotation));
         var velocity = new BodyVelocity(body.LinearVelocity, body.AngularVelocity);
@@ -240,6 +242,9 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
         }
 
         ReleaseShape(previous);
+        entry.Surface.GridCells = _shapeEntries[entry.Shape].GridCells;
+        WriteSurface(entry);
+        TrackVoxelStatic(ref entry);
     }
 
     /// <inheritdoc/>
@@ -365,6 +370,7 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
             solver.VelocityIterationCount = settings.VelocityIterations;
         }
 
+        RefreshVoxelStatics();
         _bounces.Prepare(settings.Delta, settings.Substeps);
         _reports.Prepare(settings.Delta);
         if (settings.MaySpread && _dispatcher is not null && Simulation.Bodies.ActiveSet.Count >= _backend.SpreadThreshold)
@@ -483,6 +489,8 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
             entry.InBodies = false;
             _surfaces.Allocate(entry.StaticHandle) = entry.Surface;
         }
+
+        TrackVoxelStatic(ref entry);
     }
 
     /// <summary>Removes the body from the simulation.</summary>
@@ -496,6 +504,46 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
         else
         {
             Simulation.Statics.Remove(entry.StaticHandle);
+            _voxelStatics.Remove(entry.Surface.Body);
+        }
+    }
+
+    /// <summary>
+    /// Follows the statics whose shape is the voxels of a grid: BEPUphysics
+    /// keeps the bounds of a static from when it was added, so they are read
+    /// again before a step once the box of the cells of the grid has changed.
+    /// Bodies compute their bounds at each step.
+    /// </summary>
+    [HotPath]
+    private void TrackVoxelStatic(ref BodyEntry entry)
+    {
+        int id = entry.Surface.Body;
+        bool voxels = !entry.InBodies && entry.Surface.GridCells != 0;
+        int at = _voxelStatics.IndexOf(id);
+        if (voxels && at < 0)
+        {
+            _voxelStatics.Add(id);
+            entry.BoundsVersion = VoxelGridShape.CellsOf(entry.Surface.GridCells).BoundsVersion;
+        }
+        else if (!voxels && at >= 0)
+        {
+            _voxelStatics.RemoveAt(at);
+        }
+    }
+
+    /// <summary>Reads again the bounds of the statics of voxels whose box of cells changed since the last step.</summary>
+    [HotPath]
+    private void RefreshVoxelStatics()
+    {
+        for (int i = 0; i < _voxelStatics.Count; i++)
+        {
+            ref BodyEntry entry = ref _bodies[_voxelStatics[i]];
+            int version = VoxelGridShape.CellsOf(entry.Surface.GridCells).BoundsVersion;
+            if (version != entry.BoundsVersion)
+            {
+                entry.BoundsVersion = version;
+                Simulation.Statics.UpdateBounds(entry.StaticHandle);
+            }
         }
     }
 
@@ -563,6 +611,9 @@ internal sealed partial class BepuWorld : PhysicsBackendWorld
         public bool CanSleep;
         public int Joints;
         public Surface Surface;
+
+        /// <summary>The version of the box of the cells of the grid that the bounds of a static of voxels were read at.</summary>
+        public int BoundsVersion;
         public int NextFree;
     }
 

@@ -865,6 +865,11 @@ internal sealed partial class PhysicsSimulation
                 }
 
                 return;
+            case ShapeKind.Voxels:
+                VoxelGridCells cells = shape.Cells!;
+                minimum = cells.Minimum - shape.Origin;
+                maximum = cells.Maximum - shape.Origin;
+                return;
             default:
                 maximum = Vector3.Zero;
                 break;

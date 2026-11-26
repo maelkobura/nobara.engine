@@ -78,6 +78,7 @@ internal sealed partial class PhysicsSimulation
     {
         _voxelStep++;
         RemoveChunksOfDestroyedGrids();
+        ForgetDestroyedGridCells();
         WakeAroundChangedBlocks();
         if (_voxelsReset)
         {
@@ -437,6 +438,8 @@ internal sealed partial class PhysicsSimulation
             RemoveChunkEverywhere(new VoxelChunkKey(change.Grid, change.Chunk));
         }
 
+        FollowGridResidency(change);
+
         _voxelsRecompute = true;
         _chunksChanged = true;
     }
@@ -473,6 +476,8 @@ internal sealed partial class PhysicsSimulation
         {
             _voxelsRecompute = true;   // a chunk that gets its first blocks
         }
+
+        FollowGridBlocks(grid, notification.Chunk);
 
         if (notification.Cause == BlockCause.Generation)
         {
