@@ -66,9 +66,14 @@ internal sealed partial class PhysicsSimulation
             throw new ArgumentException($"The {entity} has no world transform: a body starts where its entity is.", nameof(entity));
         }
 
-        if (world.Has(entity, _parent))
+        if (!world.GetParent(entity).IsNull)
         {
             throw new ArgumentException($"The {entity} has a parent: a body is a root entity, placed in the world.", nameof(entity));
+        }
+
+        if (world.Has(entity, _characterComponent))
+        {
+            throw new ArgumentException($"The {entity} is a character: remove its character before making it a body.", nameof(entity));
         }
 
         if (world.Has(entity, _bodyComponent))
@@ -130,7 +135,15 @@ internal sealed partial class PhysicsSimulation
         world.Add(entity, _shapeComponent, new BodyShape { Shape = description.Shape });
         world.Add(entity, _materialComponent, new BodyMaterial { Material = description.Material });
         world.Add(entity, _massComponent, MassOf(body));
-        world.Add(entity, _velocityComponent, new BodyVelocity { Linear = body.Linear, Angular = body.Angular });
+        if (world.Has(entity, _velocityComponent))
+        {
+            world.Set(entity, _velocityComponent, new BodyVelocity { Linear = body.Linear, Angular = body.Angular });   // kept from a character
+        }
+        else
+        {
+            world.Add(entity, _velocityComponent, new BodyVelocity { Linear = body.Linear, Angular = body.Angular });
+        }
+
         return handle;
     }
 

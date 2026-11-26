@@ -596,6 +596,7 @@ internal sealed partial class PhysicsSimulation
         }
     }
 
+    [HotPath]
     private void FindTerrain(DimensionId dimension)
     {
         if (!_voxels!.TryGetTerrain(dimension, out Grid? terrain) || terrain is null)
@@ -700,7 +701,15 @@ internal sealed partial class PhysicsSimulation
     }
 
     /// <summary>A chunk of a grid.</summary>
-    private readonly record struct VoxelChunkKey(Grid Grid, ChunkCoordinate Chunk);
+    private readonly record struct VoxelChunkKey
+    {
+        [HotPath]
+        public VoxelChunkKey(Grid grid, ChunkCoordinate chunk) => (Grid, Chunk) = (grid, chunk);
+
+        public Grid Grid { get; }
+
+        public ChunkCoordinate Chunk { get; }
+    }
 
     /// <summary>Changed cells of a chunk, around which bodies wake at the next step, in the frame of the chunk.</summary>
     private readonly record struct PendingWake(Grid Grid, ChunkCoordinate Chunk, Vector3 Minimum, Vector3 Maximum);

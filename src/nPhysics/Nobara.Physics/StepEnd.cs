@@ -20,7 +20,7 @@ namespace Nobara.Physics;
 [HotPath]
 public readonly record struct BodyPose(BodyHandle Body, DimensionId Dimension, EntityId Entity, WorldTransform Transform, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
-/// <summary>The end of a step: the bodies whose transform it wrote.</summary>
+/// <summary>The end of a step: the bodies whose transform it wrote, and what the characters did.</summary>
 public readonly ref struct PhysicsStepEnd
 {
     [HotPath]
@@ -39,6 +39,12 @@ public readonly ref struct PhysicsStepEnd
 
     /// <summary>Gets the bodies whose transform the step wrote: those that moved or are awake, and those moved by a command. Valid during the call only.</summary>
     public ReadOnlySpan<BodyPose> Bodies { get; }
+
+    /// <summary>Gets the characters that walked on the ground during the step, with the distance and the ground: the start of footstep sounds. Valid during the call only.</summary>
+    public ReadOnlySpan<CharacterStep> CharacterSteps { get; init; }
+
+    /// <summary>Gets the characters that landed during the step, with their speed and the ground: the start of landing sounds and fall damage. Valid during the call only.</summary>
+    public ReadOnlySpan<CharacterLanding> CharacterLandings { get; init; }
 }
 
 /// <summary>Receives the end of each step, on the loop thread: a module that keeps a history of positions per tick starts here.</summary>

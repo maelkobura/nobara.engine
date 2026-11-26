@@ -96,6 +96,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         Recenters = _recenters,
         VoxelChunks = _voxelChunkCount,
         VoxelWakes = _wakes,
+        Characters = _characterCount,
     };
 
     /// <summary>Resolves the services of the dependencies, registers the components, the tick system, and the counters of world state, and follows the chunks and their blocks.</summary>
@@ -114,12 +115,16 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         _materialComponent = entities.RegisterComponent<BodyMaterial>(_context, "nobara.physics.material");
         _massComponent = entities.RegisterComponent<BodyMass>(_context, "nobara.physics.mass");
         _velocityComponent = entities.RegisterComponent<BodyVelocity>(_context, "nobara.physics.velocity");
+        RegisterCharacters(entities);
         _step = schedule.AddSystem(_context, StepSystem, TickStages.Physics, this, new TickSystemOptions
         {
-            Reads = [entities.Structure, voxels.ChunkAccess],
+            Reads = [voxels.ChunkAccess, Data(_characterComponent), Data(_intentComponent)],
             Writes =
             [
+                entities.Structure,   // characters change parents and leave
                 Data(_transform),
+                Data(_localTransform),
+                Data(_characterStateComponent),
                 Data(_bodyComponent),
                 Data(_shapeComponent),
                 Data(_materialComponent),
@@ -136,6 +141,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "physics worlds", () => _worlds.Count + _retiring.Count));
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "ghosts", () => _ghostCount));
         _counters.Add(sessions.RegisterWorldStateCounter(_context, "voxel chunks", () => _voxelChunkCount));
+        _counters.Add(sessions.RegisterWorldStateCounter(_context, "characters", () => _characterCount));
     }
 
     /// <summary>Chooses the backend from <c>physics.backend</c> and reads the settings of the step.</summary>
@@ -226,6 +232,7 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
     /// <summary>Forgets every body, joint, ghost, and region, and disposes every world, at the end of a world session: the entities are gone with it.</summary>
     private void Reset()
     {
+        ResetCharacters();
         for (int i = 0; i < _ghostHigh; i++)
         {
             if (_ghosts[i].Alive)

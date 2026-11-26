@@ -14,7 +14,7 @@ the physics library can change:
 | Layer | Content | Where |
 | --- | --- | --- |
 | Neutral API | Shapes, [bodies](glossary.md#body), materials, [collision layers](glossary.md#collision-layer), joints, commands, the end of each step | nPhysics, namespace `Nobara.Physics` |
-| Engine layer | Bodies as entities, the queue of commands, the writing of transforms, [physics worlds](glossary.md#physics-world) and their origins, the providers of medium | nPhysics |
+| Engine layer | Bodies as entities, the queue of commands, the writing of transforms, [physics worlds](glossary.md#physics-world) and their origins, the collision with voxels, the [character controller](glossary.md#character-controller), the providers of medium | nPhysics |
 | Backend | Rigid bodies against each other, their broad phase, the solver, joints, sleep | a backend extension |
 
 ```mermaid
@@ -29,8 +29,9 @@ Modules depend on nPhysics, never on a backend. No type of the physics
 library appears in the neutral API: a need that it does not cover enriches
 the neutral API, with a concept that every serious physics library offers.
 Collisions with voxels belong to the engine layer too (see [Collision with
-voxels](#collision-with-voxels)); so will the character controller, queries,
-and contact events, which this version does not have yet.
+voxels](#collision-with-voxels)), and so does the character controller (see
+[Characters](#characters)); so will queries and contact events, which this
+version does not have yet.
 
 ## The movement authority
 
@@ -48,8 +49,10 @@ being synchronized at each tick.
   `voxel.grid.transform`, and nPhysics reserves it. When a grid entity is a
   body, nPhysics moves the grid through that writer, which also updates the
   spatial index of the grids.
-- Entities that are not bodies are not simulated: their module writes their
-  transform, as before.
+- A character is moved by the character controller of nPhysics, which
+  writes its position (see [Characters](#characters)).
+- Entities that are neither bodies nor characters are not simulated: their
+  module writes their transform, as before.
 
 Without a module that makes grids bodies, grids do not move.
 
@@ -190,6 +193,56 @@ while it steps.
   loaded, or not active, is frozen, as a body outside every region is: it
   would otherwise fall through the missing blocks and be lost below the
   world. It moves again with the velocities it had once the chunk is active.
+
+## Characters
+
+Players and mobs do not move as crates do. A crate is a rigid body that the
+solver pushes around; a character obeys the game: it stops when the player
+lets go of the keys, climbs a step without tipping over, and stands still on
+a slope. nPhysics moves characters with a controller of its own, an upright
+box resolved axis by axis, as many voxel games do, rather than with bodies of
+the backend.
+
+- **Same code on both sides.** The controller needs no backend and keeps no
+  state that the backend would hold: each step starts from the transform of
+  the character and its velocity. The client will predict the movement of its
+  player with the same code as the server, and correct it when the server
+  disagrees; small differences between the two are absorbed by that
+  correction, so the controller is not deterministic to the bit.
+- **Layers of a player controller.** The controller reads no input and knows
+  no walking speed. A game writes a [movement intent](glossary.md#movement-intent)
+  (a velocity and a jump) from the input of its player, or from the
+  decisions of a mob, with its own rules; nPhysics turns intents into
+  movement. A game can replace its rules, its input, or its camera without
+  touching the physics.
+- **Axis by axis.** The box moves along the vertical, then along X, then
+  along Z, and each motion stops at the first box in its way. A wall stops
+  only the part of the motion that goes into it, so the character slides
+  along it; a step is climbed by trying the motion from a step higher. The
+  boxes are those of the voxel layer, so a slab or a model collides as it
+  does for bodies.
+- **Support grids.** A character on a moving ship should stay where it
+  stands on the deck, whatever the ship does. When the character stands on a
+  grid, nPhysics makes it a child of the grid entity, with the hierarchy of
+  nEntity, and resolves it in the frame of the grid: it does not move in that
+  frame, so it turns with the grid for any time without drifting. It passes
+  from one grid to another, or to the terrain, by a change of frame that keeps
+  its velocity in the world, and leaves a grid a few steps after it left its
+  floor, with the velocity of the grid at its feet: a character that jumps on
+  a moving ship lands where it jumped.
+- **Dynamic bodies.** A character pushes the crates it walks into with an
+  impulse, and the crates never push it: what a client predicts for its
+  player then never depends on bodies it does not simulate the same way as
+  the server.
+
+```mermaid
+flowchart LR
+    I[Input of the game] --> R[Movement rules of the game]
+    A[Mob behavior] --> R
+    R -->|MovementIntent| C[Character controller]
+    C -->|transform, CharacterState, BodyVelocity| E[nEntity]
+    C -->|steps and landings| O[Observers: sounds, damage]
+```
 
 ## Backends
 
