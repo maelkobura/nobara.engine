@@ -131,9 +131,17 @@ internal sealed unsafe class GridVoxelCollisionTask<TOther> : CollisionTask
         BufferPool pool = batcher.Pool;
         var keys = new QuickList<int>(16, pool);
         var ranks = new QuickList<int>(16, pool);
-        FindCells(collision, cells, tested.Origin, ref other, frame, low, high, margin, budget > 0, ref keys, ref ranks, pool);
-        if (budget > 0)
+        FindCells(collision, cells, low, high, ref keys, pool);
+        if (budget > 0 && keys.Count * RankedShare > budget)
         {
+            // Enough cells to run out of budget: the deepest go first.
+            for (int i = 0; i < keys.Count; i++)
+            {
+                int slot = keys[i] / Chunk.Volume;
+                Vector3 corner = cells.CornerOf(slot) + VoxelChunkShape.CornerOf(keys[i] - (slot * Chunk.Volume)) - tested.Origin;
+                ranks.Allocate(pool) = Rank(ref other, frame, corner, margin);
+            }
+
             Order(ref keys, ref ranks, collision.Cursor, pool);
         }
 
@@ -163,15 +171,9 @@ internal sealed unsafe class GridVoxelCollisionTask<TOther> : CollisionTask
         ranks.Dispose(pool);
     }
 
-    /// <summary>
-    /// Lists the surface cells of the tested grid with a collision box in the
-    /// given bounds of the grid; when asked, with their rank: how many corners
-    /// of the cell, pushed out by the margin, and of its middle lie in the
-    /// other voxels, from 0 to <see cref="Ranks"/> − 1.
-    /// </summary>
+    /// <summary>Lists the surface cells of the tested grid with a collision box in the given bounds of the grid.</summary>
     [HotPath]
-    private static void FindCells<TO>(GridVoxelCollision collision, VoxelGridCells cells, Vector3 origin, ref TO other, in Frame frame, Vector3 low, Vector3 high, float margin, bool rank, ref QuickList<int> keys, ref QuickList<int> ranks, BufferPool pool)
-        where TO : unmanaged, IVoxelShape
+    private static void FindCells(GridVoxelCollision collision, VoxelGridCells cells, Vector3 low, Vector3 high, ref QuickList<int> keys, BufferPool pool)
     {
         int x0 = (int)MathF.Floor(low.X);
         int y0 = (int)MathF.Floor(low.Y);
@@ -215,10 +217,6 @@ internal sealed unsafe class GridVoxelCollisionTask<TOther> : CollisionTask
                                 }
 
                                 keys.Allocate(pool) = (slot * Chunk.Volume) + cell;
-                                if (rank)
-                                {
-                                    ranks.Allocate(pool) = Rank(ref other, frame, new Vector3(bx + x, by + y, bz + z) - origin, margin);
-                                }
                             }
                         }
                     }
@@ -229,6 +227,9 @@ internal sealed unsafe class GridVoxelCollisionTask<TOther> : CollisionTask
 
     /// <summary>The number of ranks a cell can have.</summary>
     private const int Ranks = 10;
+
+    /// <summary>A pair ranks its cells once they number more than its budget divided by this: about the tests that a cell makes.</summary>
+    private const int RankedShare = 4;
 
     /// <summary>Counts the corners of a cell, pushed out by the margin, and its middle, that lie in the other voxels.</summary>
     [HotPath]
