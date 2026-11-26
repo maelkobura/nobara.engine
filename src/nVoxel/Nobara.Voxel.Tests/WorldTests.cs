@@ -58,6 +58,31 @@ public sealed class WorldTests
     }
 
     [Fact]
+    public void TheStorageListsItsResidentChunksWithoutAllocatingOnceTheListHasGrown()
+    {
+        using var harness = new VoxelHarness();
+        using var engine = harness.Start();
+        harness.Tick(engine, 2);
+        GridStorage storage = harness.Owner.CreatedGrids[1].Storage;
+        Chunk first = storage.GetOrCreateChunk(new ChunkCoordinate(0, 0, 0));
+        Chunk second = storage.GetOrCreateChunk(new ChunkCoordinate(1, 0, 0));
+        var chunks = new List<Chunk>();
+        storage.GetResidentChunks(chunks);
+
+        Assert.Equal(storage.ChunkCount, chunks.Count);
+        Assert.Contains(first, chunks);
+        Assert.Contains(second, chunks);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+        {
+            chunks.Clear();
+            storage.GetResidentChunks(chunks);
+        }
+
+        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+    }
+
+    [Fact]
     public void ASecondSessionCreatesItsGridsInTheNewEntityWorld()
     {
         using var harness = new VoxelHarness();

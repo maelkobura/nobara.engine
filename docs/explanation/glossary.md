@@ -1542,6 +1542,14 @@ One play of a [sound event](#sound-event) in nAudio, from its start to its
 end: real when the audio device mixes it, virtual otherwise. A
 `SoundInstance` is the handle of one voice.
 
+### Voxel shape
+
+The shape of the body of a grid made of the voxels of that grid: the
+collision boxes of its blocks, read where nVoxel keeps them, around the
+center of the body. It collides with other bodies, not with the voxels of
+the terrain or of other grids. See [the nPhysics module
+sheet](../../src/nPhysics/README.md#shapes).
+
 ### Window
 
 The surface of the operating system where the game shows its frames and

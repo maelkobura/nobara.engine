@@ -171,6 +171,19 @@ public interface IPhysicsSystem
     /// <exception cref="ArgumentException">There is no triangle, the number of indices is not a multiple of 3, an index names no vertex, or a vertex is not finite.</exception>
     PhysicsShape CreateMesh(ReadOnlySpan<Vector3> vertices, ReadOnlySpan<int> triangles);
 
+    /// <summary>
+    /// Creates the shape of the voxels of a grid, for the body of that grid:
+    /// the collision boxes of its blocks, read where nVoxel keeps them, as the
+    /// voxel layer reads them, with no geometry to rebuild when a block
+    /// changes. It collides with bodies, not with the voxels of other grids.
+    /// </summary>
+    /// <param name="grid">The grid, not destroyed.</param>
+    /// <param name="origin">Where the origin of the shape lies in the frame of the grid, in blocks: the center of the body, its center of mass.</param>
+    /// <returns>The shape.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">The grid is destroyed, or <paramref name="origin"/> is not finite.</exception>
+    PhysicsShape CreateVoxels(Grid grid, Vector3 origin);
+
     /// <summary>Gets the description of a shape.</summary>
     /// <param name="shape">The shape.</param>
     /// <returns>The description.</returns>

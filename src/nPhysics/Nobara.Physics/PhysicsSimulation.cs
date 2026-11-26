@@ -277,6 +277,13 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
         }
 
         _cells.Clear();
+        _gridFollow.Clear();
+        foreach (VoxelGridCells cells in _gridCells.Values)
+        {
+            cells.Clear();
+            RefreshVoxelRadii(cells);
+        }
+
         _wakeQueue.Clear();
         Array.Clear(_terrains);
         _terrainCount = 0;

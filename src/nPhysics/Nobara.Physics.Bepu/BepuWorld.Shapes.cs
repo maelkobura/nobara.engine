@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 using System.Numerics;
+using System.Runtime.InteropServices;
 using BepuPhysics.Collidables;
 using BepuUtilities.Memory;
 using Nobara.Core;
@@ -85,6 +86,11 @@ internal sealed partial class BepuWorld
             Simulation.Shapes.RemoveAndDispose(entry.Inner, _pool);
         }
 
+        if (entry.GridCells != 0)
+        {
+            GCHandle.FromIntPtr(entry.GridCells).Free();
+        }
+
         if (entry.Children.Allocated)
         {
             for (int i = 0; i < entry.Children.Length; i++)
@@ -118,6 +124,8 @@ internal sealed partial class BepuWorld
                 return BuildHull(description);
             case ShapeKind.Compound:
                 return BuildCompound(description);
+            case ShapeKind.Voxels:
+                return BuildVoxels(description);
             default:
                 return BuildMesh(description);
         }
@@ -164,6 +172,14 @@ internal sealed partial class BepuWorld
     }
 
     [HotPath]
+    private ShapeEntry BuildVoxels(ShapeDescription description)
+    {
+        nint cells = GCHandle.ToIntPtr(GCHandle.Alloc(description.Cells!));
+        TypedIndex index = Simulation.Shapes.Add(new VoxelGridShape(cells, description.Origin));
+        return new ShapeEntry { Index = index, Raw = index, GridCells = cells };
+    }
+
+    [HotPath]
     private ShapeEntry BuildMesh(ShapeDescription description)
     {
         ReadOnlySpan<Vector3> vertices = description.Points.Span;
@@ -203,6 +219,9 @@ internal sealed partial class BepuWorld
 
         /// <summary>The slots of the children of a compound, in the pool of the world.</summary>
         public Buffer<int> Children;
+
+        /// <summary>The handle of the cells of the grid of a shape of voxels, freed with the shape; 0 for the others.</summary>
+        public nint GridCells;
 
         /// <summary>The next free slot.</summary>
         public int NextFree;

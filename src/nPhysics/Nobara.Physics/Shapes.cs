@@ -4,6 +4,7 @@
 
 using System.Numerics;
 using Nobara.Core;
+using Nobara.Voxel;
 
 namespace Nobara.Physics;
 
@@ -30,6 +31,9 @@ public enum ShapeKind : byte
 
     /// <summary>A mesh of triangles, for static bodies only.</summary>
     Mesh,
+
+    /// <summary>The voxels of a grid, read where nVoxel keeps them, for the body of that grid only.</summary>
+    Voxels,
 }
 
 /// <summary>
@@ -111,6 +115,15 @@ public sealed class ShapeDescription
     /// <summary>Gets the children of a compound.</summary>
     public ReadOnlyMemory<CompoundChild> Children { get; internal init; }
 
+    /// <summary>Gets the grid whose voxels a shape of kind <see cref="ShapeKind.Voxels"/> is made of.</summary>
+    public Grid? Grid { get; internal init; }
+
+    /// <summary>Gets where the origin of a shape of kind <see cref="ShapeKind.Voxels"/> lies in the frame of its grid, in blocks: the center of its body.</summary>
+    public Vector3 Origin { get; internal init; }
+
+    /// <summary>Gets the cells of the grid of a shape of kind <see cref="ShapeKind.Voxels"/>, which a backend reads while a world steps.</summary>
+    public VoxelGridCells? Cells { get; internal init; }
+
     /// <summary>Gets whether the shape is convex, so that a compound can hold it.</summary>
-    public bool IsConvex => Kind is not (ShapeKind.Compound or ShapeKind.Mesh);
+    public bool IsConvex => Kind is not (ShapeKind.Compound or ShapeKind.Mesh or ShapeKind.Voxels);
 }

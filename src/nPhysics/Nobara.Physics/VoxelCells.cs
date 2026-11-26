@@ -116,7 +116,20 @@ public sealed class VoxelChunkCells
     /// <param name="normal">The normal of the contact, out of the box toward the body, along the axes of the physics world.</param>
     /// <returns><see langword="true"/> when the contact goes through an inner face.</returns>
     [HotPath]
-    public bool IsInnerContact(int cell, int box, Vector3 normal)
+    public bool IsInnerContact(int cell, int box, Vector3 normal) => IsInnerFace(cell, box, Vector3.Transform(normal, Quaternion.Conjugate(Rotation)));
+
+    /// <summary>
+    /// Tells whether a contact goes through an inner face, as
+    /// <see cref="IsInnerContact"/> does, from a normal along the axes of the
+    /// grid: for a grid that moves, whose rotation <see cref="Rotation"/> does
+    /// not follow.
+    /// </summary>
+    /// <param name="cell">The local index of the cell.</param>
+    /// <param name="box">The index of the box in <see cref="GetBoxes"/>.</param>
+    /// <param name="local">The normal of the contact, out of the box toward the body, along the axes of the grid.</param>
+    /// <returns><see langword="true"/> when the contact goes through an inner face.</returns>
+    [HotPath]
+    public bool IsInnerFace(int cell, int box, Vector3 local)
     {
         ReadOnlySpan<CollisionBox> boxes = GetBoxes(cell);
         if ((uint)box >= (uint)boxes.Length)
@@ -124,7 +137,6 @@ public sealed class VoxelChunkCells
             return false;
         }
 
-        Vector3 local = Vector3.Transform(normal, Quaternion.Conjugate(Rotation));
         float x = MathF.Abs(local.X);
         float y = MathF.Abs(local.Y);
         float z = MathF.Abs(local.Z);

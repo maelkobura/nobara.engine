@@ -166,6 +166,10 @@ a grid through the API of the physics module.
 box. Hot path code passes its own list to `Query(box, results)`, which adds to
 it without allocating once the list has grown.
 
+`GridStorage.GetResidentChunks(chunks)` adds the chunks of a grid that are in
+memory to a list, in no particular order, without allocating once the list
+has grown.
+
 nVoxel joins the `World` stage with four tick systems, in this order:
 `nobara.voxel.loading`, `nobara.voxel.batches`,
 `nobara.voxel.scheduled_ticks`, and `nobara.voxel.random_ticks`.

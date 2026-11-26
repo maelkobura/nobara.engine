@@ -174,7 +174,7 @@ internal sealed partial class BepuWorld
         public readonly bool AllowTest(CollidableReference collidable)
         {
             ref Surface surface = ref _surfaces[collidable];
-            return surface.Cells == 0 && (surface.Layers & _mask) != 0 && surface.Slot != _ignored;
+            return surface.Cells == 0 && surface.GridCells == 0 && (surface.Layers & _mask) != 0 && surface.Slot != _ignored;
         }
 
         [HotPath]

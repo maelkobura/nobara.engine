@@ -92,7 +92,8 @@ internal sealed partial class PhysicsSimulation
             grid = found;
         }
 
-        BodyInertia inertia = description.Inertia ?? (shape.Kind == ShapeKind.Mesh ? default : _backend!.ComputeInertia(shape, description.Mass));
+        RequireOwnGrid(shape, grid, nameof(description));
+        BodyInertia inertia = description.Inertia ?? DefaultInertia(shape, description.Mass);
         Quaternion rotation = Quaternion.Normalize(transform.Rotation);
         bool moves = description.Kind != BodyKind.Static;
         UpdateRegions();
@@ -280,6 +281,7 @@ internal sealed partial class PhysicsSimulation
             throw new ArgumentException("A mesh is the shape of a static body only.", nameof(shape));
         }
 
+        RequireOwnGrid(Get(shape), record.Grid, nameof(shape));
         RequireFiniteVector(center);
         AcquireShape(shape);   // held by the command until it applies
         ref PhysicsCommand command = ref Enqueue(CommandKind.SetShape, body);
