@@ -97,6 +97,13 @@ A node of the mixing tree of nAudio, declared in data with the resource type
 [sound event](#sound-event) plays on one bus, its category. The root is
 `bus:nobara.audio.master`. See [the `Bus` reference](../reference/formats/bus.md).
 
+### Center of mass
+
+The point of a [grid body](#grid-body) around which it turns, in the frame of
+its grid: the average of the centers of its blocks, weighted by their mass.
+Motion centers the body there and moves it as blocks change. See [grids that
+move](moving-grids.md).
+
 ### Change version
 
 A counter of an [entity world](#entity-world) that a write to a tracked
@@ -633,6 +640,12 @@ See [the meshing of chunks](chunk-meshing.md#greedy-meshing-of-cubes).
 
 A set of voxels organized in chunks, such as a world dimension. A grid is an
 entity. The word *grid* is used for every voxel grid, terrain included.
+
+### Grid body
+
+A [grid](#grid) that Motion makes a [body](#body) of nPhysics: its mass,
+[center of mass](#center-of-mass), and inertia come from its blocks, and it
+moves dynamically or kinematically. See [grids that move](moving-grids.md).
 
 ### Grid merge
 
@@ -1341,6 +1354,13 @@ The light channel that tells how much a block is exposed to the sky, from 0
 to 15: 15 above the highest opaque block of its column, and spread from there
 under it. It does not follow the time of day. See [voxel
 lighting](voxel-lighting.md#the-sky).
+
+### Small grid
+
+A [grid body](#grid-body) with few blocks, whose shape is a compound of the
+collision boxes of its blocks instead of its [voxel shape](#voxel-shape),
+built again at each change: many small grids then cost little. See [the Motion
+module sheet](../../src/Motion/README.md#grid-bodies).
 
 ### Smooth lighting
 
