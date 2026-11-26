@@ -4,6 +4,7 @@
 
 using System.Diagnostics;
 using Nobara.Core;
+using Nobara.Game;
 using Nobara.Physics;
 using Nobara.Voxel;
 
@@ -199,9 +200,9 @@ internal sealed partial class MotionSystem : IPhysicsStepObserver
         record.Collision!.SetSurface(cell, _surfaces!.IsSurface(record.Grid, cell, chunk));
     }
 
-    /// <summary>Notes the start of the tick, and sets the mode of every grid: corners for a heavy grid, or for all while the tick is over its load.</summary>
+    /// <summary>Notes the start of the tick and its duration, from which the load of the tick is measured.</summary>
     [HotPath]
-    private void StartTick(in Nobara.Game.TickTime time)
+    private void StartTick(in TickTime time)
     {
         _tickStart = Stopwatch.GetTimestamp();
         _tickSeconds = Math.Max(time.Delta.TotalSeconds, 1e-6);

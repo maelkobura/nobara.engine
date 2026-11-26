@@ -244,7 +244,7 @@ Motion reads the free property `Weight` of the blocks, and its qualified form
   step, and updates the spatial index of the grids of nVoxel.
 - Once the grids rest, a tick of Motion allocates no managed memory (checked
   by tests with 500 small grids, and with 500 grids of mixed sizes on the
-  terrain and on each other). A change of blocks allocates when it builds a
+  terrain). A change of blocks allocates when it builds a
   new shape, and the first surface cell of a chunk allocates its words.
 - Grid bodies belong to the world session: Motion forgets them when it ends.
 - Motion keeps no static state.
