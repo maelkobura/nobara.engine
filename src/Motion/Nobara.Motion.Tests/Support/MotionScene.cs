@@ -185,7 +185,9 @@ internal sealed class MotionScene : IDisposable
         }
 
         ChunkArea area = Harness.ActiveArea!.Value;
-        for (int tick = 0; tick < 200; tick++)
+        // Chunks load in jobs: wait on the clock, not on a number of ticks, and let the workers run.
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int tick = 0; watch.Elapsed < TimeSpan.FromSeconds(30); tick++)
         {
             bool loaded = true;
             for (int y = -area.Height; y <= area.Height && loaded; y++)
@@ -208,6 +210,10 @@ internal sealed class MotionScene : IDisposable
             }
 
             Tick();
+            if (tick % 16 == 15)
+            {
+                Thread.Sleep(1);
+            }
         }
 
         throw new InvalidOperationException("The terrain did not load.");
