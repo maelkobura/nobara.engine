@@ -427,9 +427,11 @@ public sealed class LoadingTests : IDisposable
         }
     }
 
-    internal static void RunUntil(VoxelHarness harness, Engine engine, Func<bool> condition, int frames = 4000)
+    internal static void RunUntil(VoxelHarness harness, Engine engine, Func<bool> condition)
     {
-        for (int i = 0; i < frames; i++)
+        // Chunks load in jobs: wait on the clock, not on a number of frames.
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; watch.Elapsed < TimeSpan.FromSeconds(30); i++)
         {
             if (condition()) return;
             harness.Tick(engine);
