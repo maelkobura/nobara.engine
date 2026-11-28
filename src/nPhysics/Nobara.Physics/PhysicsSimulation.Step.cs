@@ -16,7 +16,8 @@ namespace Nobara.Physics;
 /// removed, commands apply in order, the regions follow the tickets, bodies
 /// move to the world of their region and leave ghosts next to it, every
 /// world steps, then nPhysics writes the transforms of the bodies that moved,
-/// moves the characters, and publishes the end of the step.
+/// lets the kinematic grids push the characters in their way, moves the
+/// characters, and publishes the end of the step.
 /// </summary>
 internal sealed partial class PhysicsSimulation
 {
@@ -38,6 +39,7 @@ internal sealed partial class PhysicsSimulation
         StepWorlds(delta);
         int written = WriteTransforms();
         GatherContacts(time.Tick, delta);
+        PushCharacters();
         MoveCharacters(delta);
         Publish(time, written);
         _steps++;
@@ -390,6 +392,7 @@ internal sealed partial class PhysicsSimulation
         int written = 0;
         int sleeping = 0;
         int frozen = 0;
+        _pusherCount = 0;
         for (int i = 0; i < _bodyHigh; i++)
         {
             ref BodyRecord body = ref _bodies[i];
@@ -440,11 +443,17 @@ internal sealed partial class PhysicsSimulation
             }
 
             Quaternion rotation = Quaternion.Normalize(state.Rotation);
+            WorldPosition before = body.Position;
+            Quaternion turnedFrom = body.Rotation;
             body.Position = PhysicsFrame.ToWorld(body.World.Origin, state.Position);
             body.Rotation = rotation;
             body.Linear = asleep ? Vector3.Zero : state.LinearVelocity;
             body.Angular = asleep ? Vector3.Zero : state.AngularVelocity;
             written = Write(i, ref body, body.Position, rotation, body.Linear, body.Angular, written);
+            if (body.Kind == BodyKind.Kinematic && body.Grid is not null)
+            {
+                AddPusher(i, before, turnedFrom, written - 1);
+            }
         }
 
         _sleepingBodies = sleeping;

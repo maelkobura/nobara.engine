@@ -523,4 +523,15 @@ public interface IPhysicsSystem
     /// <param name="entity">The entity.</param>
     /// <returns><see langword="true"/> when the character controller moves it.</returns>
     bool IsCharacter(DimensionId dimension, EntityId entity);
+
+    /// <summary>
+    /// Sets the resolver that decides what happens when a kinematic grid
+    /// pushes a character against something it cannot get out through.
+    /// Without one, the grid goes back to where it was before the step.
+    /// </summary>
+    /// <param name="module">The module of the resolver.</param>
+    /// <param name="resolver">The resolver.</param>
+    /// <returns>The registration; dispose it to remove the resolver.</returns>
+    /// <exception cref="InvalidOperationException">Another resolver is set.</exception>
+    CrushResolverHandle SetCrushResolver(ModuleContext module, ICrushResolver resolver);
 }
