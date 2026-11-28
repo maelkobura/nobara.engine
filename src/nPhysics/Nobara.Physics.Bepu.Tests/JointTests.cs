@@ -132,4 +132,57 @@ public sealed class JointTests
         Assert.Equal(5f, scene.Local(crate).Y, 0.05f);   // on the slab, a static of the backend again
         Assert.True(scene.Height(pendulum) < 0);        // falls, free, beside the slab
     }
+
+    [Fact]
+    public void AHingeStaysAtItsPlaceOnTheEntityWhenTheCenterOfTheBodyMoves()
+    {
+        using var scene = new BepuScene();
+        BodyHandle post = scene.Add(WorldPosition.FromBlocks(16, 10, 16), scene.Physics.CreateSphere(0.1f), BodyKind.Static);
+        PhysicsShape door = scene.Physics.CreateBox(new Vector3(1.6f, 2, 0.1f));
+        BodyHandle body = scene.Add(WorldPosition.FromBlocks(17, 10, 16), door, mass: 20);
+        scene.Physics.CreateJoint(post, body, new JointDescription(
+            JointKind.Hinge,
+            AnchorA: Vector3.Zero,
+            AnchorB: new Vector3(-1, 0, 0),
+            AxisA: Vector3.UnitY,
+            AxisB: Vector3.UnitY,
+            Motor: new JointMotor(TargetVelocity: 1, MaxForce: 2000)));
+        scene.Tick(10);
+
+        scene.Physics.SetShape(body, door, new Vector3(0.5f, 0, 0));   // the center moves along the door, as when blocks change
+        float drift = 0;
+        for (int i = 0; i < 60; i++)
+        {
+            scene.Tick();
+            WorldTransform transform = scene.State(body).Transform;
+            Vector3 anchor = transform.Position.Local + Vector3.Transform(new Vector3(-1, 0, 0), transform.Rotation);
+            drift = MathF.Max(drift, new Vector2(anchor.X - 16, anchor.Z - 16).Length() + MathF.Abs(anchor.Y - 10));
+        }
+
+        Assert.True(drift < 0.02f, $"The point of the hinge on the entity moved {drift} blocks off the axis.");
+        Assert.Equal(1f, scene.State(body).AngularVelocity.Y, 0.05f);
+    }
+
+    [Fact]
+    public void AFixedJointKeepsTheEntitiesTogetherWhenTheCenterOfABodyMoves()
+    {
+        using var scene = new BepuScene();
+        PhysicsShape crate = scene.Physics.CreateBox(Vector3.One);
+        BodyHandle first = scene.Add(WorldPosition.FromBlocks(16, 3, 16), crate);
+        BodyHandle second = scene.Add(WorldPosition.FromBlocks(17, 3, 16), crate);
+        scene.Physics.CreateJoint(first, second, new JointDescription(JointKind.Fixed, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero));
+        scene.Ground();
+        scene.Tick(5);
+
+        scene.Physics.SetShape(second, crate, new Vector3(0.25f, 0, 0));
+        scene.Physics.SetShape(first, crate, new Vector3(0, 0.25f, 0));
+        scene.Tick(90);
+
+        WorldTransform a = scene.State(first).Transform;
+        WorldTransform b = scene.State(second).Transform;
+        Vector3 offset = Vector3.Transform(b.Position.Local - a.Position.Local, Quaternion.Conjugate(a.Rotation));
+        Assert.Equal(1f, offset.X, 0.02f);
+        Assert.Equal(0f, offset.Y, 0.02f);
+        Assert.Equal(0f, offset.Z, 0.02f);
+    }
 }

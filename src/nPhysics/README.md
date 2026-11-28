@@ -316,7 +316,10 @@ joint between bodies of two regions takes effect at the next step, once the
 second body has moved there. Anchors and axes are in the frame of each body,
 from its center. A fixed joint keeps the place and
 the rotation the bodies had relative to each other when it was made, and has
-no motor. Removing a body destroys its joints.
+no motor. Removing a body destroys its joints. When `SetShape` moves the
+center of a body, its joints keep their place on its entity: their anchors
+on the body shift with the center, and a fixed joint keeps the entities
+where they are relative to each other.
 
 ### The step
 

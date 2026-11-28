@@ -81,7 +81,7 @@ internal sealed partial class PhysicsSimulation
                 case CommandKind.SetShape:
                     if (IsAlive(command.Body))
                     {
-                        ApplyShape(ref _bodies[command.Body.Index], command.Shape, command.A);
+                        ApplyShape(command.Body.Index, command.Shape, command.A);
                     }
                     else
                     {
@@ -283,8 +283,9 @@ internal sealed partial class PhysicsSimulation
     }
 
     [HotPath]
-    private void ApplyShape(ref BodyRecord body, PhysicsShape shape, Vector3 center)
+    private void ApplyShape(int slot, PhysicsShape shape, Vector3 center)
     {
+        ref BodyRecord body = ref _bodies[slot];
         PhysicsBackendWorld? backend = body.World?.Backend;
         if (backend is not null && !body.Teleported)
         {
@@ -294,6 +295,7 @@ internal sealed partial class PhysicsSimulation
         }
 
         WorldPosition entity = body.Position.Offset(-Vector3.Transform(body.Center, body.Rotation));
+        Vector3 shift = body.Center - center;
         ReleaseShape(body.Shape);
         body.Shape = shape;   // the command acquired it
         body.Center = center;
@@ -313,10 +315,52 @@ internal sealed partial class PhysicsSimulation
             }
         }
 
+        if (shift != Vector3.Zero)
+        {
+            MoveJointAnchors(new BodyHandle(slot, body.Generation), shift);
+        }
+
         EntityWorld world = body.EntityWorld!;
         world.Set(body.Entity, _shapeComponent, new BodyShape { Shape = shape });
         world.Write(body.Entity, _bodyComponent).Center = center;
         world.Set(body.Entity, _massComponent, MassOf(body));
+    }
+
+    /// <summary>
+    /// Keeps the joints of a body at their place on its entity when its center
+    /// moves: their anchors on the body shift by the opposite of the move, and
+    /// a world builds them again from the new poses, so that a fixed joint
+    /// keeps the entities where they are relative to each other.
+    /// </summary>
+    [HotPath]
+    private void MoveJointAnchors(BodyHandle body, Vector3 shift)
+    {
+        for (int i = 0; i < _jointHigh; i++)
+        {
+            ref JointRecord joint = ref _joints[i];
+            if (!joint.Alive || (joint.First != body && joint.Second != body))
+            {
+                continue;
+            }
+
+            if (joint.First == body)
+            {
+                joint.Description.AnchorA += shift;
+            }
+
+            if (joint.Second == body)
+            {
+                joint.Description.AnchorB += shift;
+            }
+
+            if (joint.World is { } world)
+            {
+                world.Backend.RemoveJoint(joint.BackendId);
+                world.Joints--;
+                joint.World = null;
+                AddJointToWorld(ref joint);
+            }
+        }
     }
 
     [HotPath]
