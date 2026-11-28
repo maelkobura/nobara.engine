@@ -215,6 +215,10 @@ internal sealed class MotionHarness : IDisposable
                     break;
                 case MotionModule.ModuleId:
                     manifest.Settings.Add(Setting(MotionSettings.SmallGridBlocks, F.SettingDeclaration.Types.Type.Int, harness.Value(MotionSettings.SmallGridBlocks, "8")));
+                    manifest.Settings.Add(Setting(MotionSettings.CornerMass, F.SettingDeclaration.Types.Type.Float, harness.Value(MotionSettings.CornerMass, "500000")));
+                    manifest.Settings.Add(Setting(MotionSettings.LoadShare, F.SettingDeclaration.Types.Type.Float, harness.Value(MotionSettings.LoadShare, "0")));
+                    manifest.Settings.Add(Setting(MotionSettings.PairBudget, F.SettingDeclaration.Types.Type.Int, harness.Value(MotionSettings.PairBudget, "1024")));
+                    manifest.Settings.Add(Setting(MotionSettings.ImpactSpeed, F.SettingDeclaration.Types.Type.Float, harness.Value(MotionSettings.ImpactSpeed, "2")));
                     break;
                 case PhysicsModule.ModuleId:
                     manifest.Reserves.Add(GridTransformWriter.Reservation);

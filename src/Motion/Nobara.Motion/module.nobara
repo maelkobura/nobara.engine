@@ -22,5 +22,9 @@
 
   <Settings>
     <Setting key="motion.smallGridBlocks" scope="distribution" type="int" min="0" max="4096" default="8" />
+    <Setting key="motion.cornerMass" scope="distribution" type="float" min="0" max="1000000000000" default="500000" />
+    <Setting key="motion.loadShare" scope="distribution" type="float" min="0" max="1" default="0.5" />
+    <Setting key="motion.pairBudget" scope="distribution" type="int" min="0" max="1000000" default="1024" />
+    <Setting key="motion.impactSpeed" scope="distribution" type="float" min="0" max="1000" default="2" />
   </Settings>
 </NobaraModule>
