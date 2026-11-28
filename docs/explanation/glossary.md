@@ -120,6 +120,13 @@ and stand on a [support grid](#support-grid). It needs no backend, runs the
 same code on both sides, and reads no input: the player controller of a game
 decides the intent. See [Make a character walk](../guides/make-a-character-walk.md).
 
+### Crush
+
+What happens when a kinematic grid pushes a character against voxels or a
+static body and the character has nowhere to go. nPhysics asks the resolver
+of crushes what to do: block the grid, the default, let it pass, or move the
+character elsewhere. See [Physics](physics.md#characters).
+
 ### Chunk
 
 A fixed-size section of a grid of voxels. The voxel module stores the chunks of a grid

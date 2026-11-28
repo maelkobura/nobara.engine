@@ -103,7 +103,7 @@ report them, and the boxes of the regions.
 
 | Member | Use |
 | --- | --- |
-| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `CreateVoxels`, `GetShape`, `DestroyShape`), the voxel collision of grid bodies (`SetVoxelCollision`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
+| `IPhysicsSystem` | Shapes (`CreateSphere`, `CreateCapsule`, `CreateBox`, `CreateCylinder`, `CreateConvexHull`, `CreateCompound`, `CreateMesh`, `CreateVoxels`, `GetShape`, `DestroyShape`), the voxel collision of grid bodies (`SetVoxelCollision`), bodies (`AddBody`, `RemoveBody`, `IsAlive`, `TryGetBody`, `GetState`), commands, joints (`CreateJoint`, `SetMotor`, `DestroyJoint`), characters (`AddCharacter`, `RemoveCharacter`, `IsCharacter`, `SetCrushResolver`), queries (`RayCast`, `RayCastAll`, `Sweep`, `SweepAll`, `Overlap`, and the batches `RayCast` and `Sweep`), providers of medium, the end of the steps (`SubscribeStepEnd`), and the counts (`Regions`, `Worlds`, `Statistics`, `BackendName`, `Substeps`, `Gravity`). |
 | `QueryShape`, `QueryFilter`, `PhysicsHit`, `PhysicsHitKind`, `RayQuery`, `SweepQuery` | The shapes, filters, and results of the queries. |
 | `ContactReporting`, `ContactEvent`, `ContactEvents` | How a body reports its contacts, the events, and their fixed rules. |
 | `GridVoxelCollision`, `VoxelContactMode`, `VoxelContactCounts` | How the body of a grid collides with the voxels of other grids: its surface cells, what they test, the budget of a pair, and the work done. |
@@ -112,6 +112,7 @@ report them, and the boxes of the regions.
 | `PhysicsShape`, `ShapeKind`, `ShapeDescription`, `CompoundChild` | Shapes, shared by the bodies that use them. |
 | `JointDescription`, `JointKind`, `JointHandle`, `JointMotor` | Hinges, sliders, and fixed joints, with an optional motor. |
 | `CharacterBody`, `MovementIntent`, `CharacterState`, `CharacterGround`, `CharacterGroundKind`, `CharacterController` | The components of a character, what it stands on, and the fixed rules of the character controller. |
+| `ICrushResolver`, `CharacterCrush`, `CrushResponse`, `CrushResponseKind`, `CrushResolverHandle` | What happens when a kinematic grid crushes a character. |
 | `IPhysicsStepObserver`, `PhysicsStepEnd`, `BodyPose`, `CharacterStep`, `CharacterLanding`, `PhysicsStepSubscription` | The end of each step, with the bodies whose transform it wrote, the contact events, and the steps and landings of the characters. |
 | `IMediumProvider`, `MediumSample`, `MediumProviderHandle` | What fills a point, as a fluid module describes it. |
 | `PhysicsRegionInfo`, `PhysicsWorldInfo`, `PhysicsStatistics` | The regions, the physics worlds, and the counts after the last step. |
@@ -336,9 +337,11 @@ Each tick, in the stage `Physics`, `nobara.physics.step`:
    and the flag `Asleep` when it changes;
 7. reads the contacts of the bodies that report them (see
    [Contact events](#contact-events));
-8. moves the characters, on the grids where the step has just put them (see
+8. lets the kinematic grids that moved push the characters in their way, and
+   resolves the crushes (see [Crushes](#crushes));
+9. moves the characters, on the grids where the step has just put them (see
    [Characters](#characters));
-9. publishes the end of the step to the observers.
+10. publishes the end of the step to the observers.
 
 The duration of a step is the duration of the tick. While the game is
 paused, the phase `Simulation` does not run, and nothing steps; under a time
@@ -515,6 +518,35 @@ the ground, with the distance and the ground, and in `CharacterLandings`
 those that landed at `CharacterController.LandingSpeed` (1 block per second)
 or faster, with their speed, their steps in the air, and the ground.
 `Statistics.Characters` counts the characters.
+
+### Crushes
+
+A kinematic grid that moves into a character that does not stand on it
+pushes the character along its own motion, as far as the character has to go
+to leave the voxels of the grid. The push stops at the other voxels and at the
+static bodies, as a step of the character would. A character that cannot get
+out of the way is crushed: the resolver of crushes decides what happens.
+
+```csharp
+CrushResolverHandle resolver = physics.SetCrushResolver(context, new LiftPolicy());
+```
+
+`ICrushResolver.Resolve` receives a `CharacterCrush` (the character, the grid
+and its body, the way the grid pushes in the world, and how far the character
+would have to go) and returns a `CrushResponse`:
+
+| Response | Effect |
+| --- | --- |
+| `CrushResponse.Block` | The grid goes back to where it was before the step, with its velocities: it tries again at the next step, and goes on once the way is free. The character stays where it is. |
+| `CrushResponse.Pass` | The grid keeps its place, in the character, which stays where it is. |
+| `CrushResponse.MoveTo(feet)` | The grid keeps its place, and the character goes to a position of the world, off its support grid. |
+
+Without a resolver, a crush blocks the grid. One module sets the resolver;
+another gets `InvalidOperationException` until the handle is disposed. The
+resolver runs on the loop thread during the step: it may read the entities
+and call the commands of nPhysics, which apply at the next step, and does not
+change the structure of an entity world. An exception it throws is reported
+as a fault of its module, and the grid is blocked.
 
 ### Queries
 
@@ -925,10 +957,19 @@ None.
 - A character collides with static bodies by the box that holds each shape,
   along the axes of its frame: a sphere, a turned box, or a capsule stops it
   before its surface. It goes through meshes and kinematic bodies.
-- A grid that moves into a character that does not stand on it does not push
-  it: the character can end up inside the grid. The voxels of a grid turned
-  relative to the frame of the character collide by the box that holds each
-  of their boxes in that frame.
+- A dynamic grid that moves into a character that does not stand on it does
+  not push it: the character can end up inside the grid. The voxels of a grid
+  turned relative to the frame of the character collide by the box that holds
+  each of their boxes in that frame.
+- A kinematic grid pushes a character along its own motion, and the character
+  does not step up or slide aside to get out of the way: a grid that pushes it
+  sideways into a step crushes it. A grid that a crush puts back during a step
+  has already pushed the characters looked at before, by its motion of that
+  step. A character crushed by two grids at once is crushed by the first only
+  during that step. A grid put back by a crush has already stepped: the
+  bodies it pushed, or that a joint ties to it, saw it move forward, and may
+  spring back at the next step. A kinematic grid teleported by a command does
+  not push characters on its jump.
 - A character pushes a dynamic body by the sphere that holds its shape,
   starting before their surfaces touch for a box.
 - Each character looks at every body of the context for static bodies to

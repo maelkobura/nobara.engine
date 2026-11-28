@@ -190,20 +190,7 @@ internal sealed partial class PhysicsSimulation
         }
 
         WorldTransform transform = world.Read(entity, _transform);
-        Frame frame;
-        Vector3 feet;
-        if (support is not null)
-        {
-            WorldTransform grid = support.Transform;
-            frame = new Frame(grid.Position, Quaternion.Normalize(grid.Rotation));
-            feet = world.Read(entity, _localTransform).Position;
-        }
-        else
-        {
-            WorldPosition position = transform.Position;
-            frame = new Frame(new WorldPosition(position.ChunkX, position.ChunkY, position.ChunkZ, Vector3.Zero), Quaternion.Identity);
-            feet = position.Local;
-        }
+        FrameOf(world, entity, support, out Frame frame, out Vector3 feet);
 
         var half = new Vector3(body.Size.X / 2, 0, body.Size.Z / 2);
         Vector3 v = record.Velocity;
@@ -344,6 +331,24 @@ internal sealed partial class PhysicsSimulation
         }
 
         Push(record.Dimension, frame, feet, half, body, velocity);
+    }
+
+    /// <summary>Gets the frame in which a character is resolved, and its feet in that frame: the frame of its support grid, or the corner of its chunk.</summary>
+    [HotPath]
+    private void FrameOf(EntityWorld world, EntityId entity, Grid? support, out Frame frame, out Vector3 feet)
+    {
+        if (support is not null)
+        {
+            WorldTransform grid = support.Transform;
+            frame = new Frame(grid.Position, Quaternion.Normalize(grid.Rotation));
+            feet = world.Read(entity, _localTransform).Position;
+        }
+        else
+        {
+            WorldPosition position = world.Read(entity, _transform).Position;
+            frame = new Frame(new WorldPosition(position.ChunkX, position.ChunkY, position.ChunkZ, Vector3.Zero), Quaternion.Identity);
+            feet = position.Local;
+        }
     }
 
     /// <summary>Moves a box axis by axis, vertical first, so that it slides along what it meets.</summary>
@@ -498,7 +503,7 @@ internal sealed partial class PhysicsSimulation
             for (int g = 0; g < _characterGrids.Count; g++)
             {
                 Grid grid = _characterGrids[g];
-                if (!grid.IsDestroyed && grid.Dimension == dimension && grid.Transform.Scale == Vector3.One)
+                if (!grid.IsDestroyed && grid.Dimension == dimension && grid.Transform.Scale == Vector3.One && grid != _ignoredGrid)
                 {
                     GatherCells(grid, frame, center, extent, centerInWorld);
                 }

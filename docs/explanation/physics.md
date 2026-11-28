@@ -256,6 +256,17 @@ the backend.
   impulse, and the crates never push it: what a client predicts for its
   player then never depends on bodies it does not simulate the same way as
   the server.
+- **Kinematic grids and crushes.** A lift or a piston is a kinematic grid:
+  it moves as its module says, whatever lies in its way. When it moves into
+  a character, nPhysics pushes the character along with it, as far as the
+  character has to go to leave its voxels, without going through other
+  voxels. When the character has nowhere to go, it is
+  [crushed](glossary.md#crush), and what happens is a choice of the game,
+  not of the physics: one module sets a resolver that blocks the grid, lets
+  it pass, or moves the character elsewhere. Without one, the grid goes back
+  to where it was before the step, and tries again at each step until the
+  way is free; it is the safe default, since no game wants a lift that
+  swallows its players.
 
 ```mermaid
 flowchart LR
