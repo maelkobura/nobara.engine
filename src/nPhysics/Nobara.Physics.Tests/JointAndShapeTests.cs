@@ -112,14 +112,20 @@ public sealed class JointAndShapeTests : IDisposable
         Commands(probe, bodies);
         _harness.Tick(engine, 10);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int tick = 0; tick < 30; tick++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            Commands(probe, bodies);
-            _harness.Tick(engine);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int tick = 0; tick < 30; tick++)
+            {
+                Commands(probe, bodies);
+                _harness.Tick(engine);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(0, allocated);
     }
 

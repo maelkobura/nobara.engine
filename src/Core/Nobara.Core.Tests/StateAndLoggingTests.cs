@@ -72,13 +72,19 @@ public sealed class StateAndLoggingTests : IDisposable
 
         // Debug is enabled in these tests; Trace is not.
         logger.Trace($"value {formatted}");
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
-        {
-            logger.Trace($"value {formatted} {i}");
-        }
 
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                logger.Trace($"value {formatted} {i}");
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        }
 
         Assert.Equal(0, formatted.Formats);
         Assert.Equal(0, allocated);

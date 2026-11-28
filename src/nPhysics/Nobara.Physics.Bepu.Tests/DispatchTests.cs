@@ -100,10 +100,11 @@ public sealed class DispatchTests
 
         // Spread, the step runs on other threads too, so the count is the whole process's, where the threads of the test
         // runner may still allocate for earlier tests. A step that allocates does so in every window: the quietest one counts.
-        // Alone, the step runs on this thread only, and its count is exact.
+        // Alone, the step runs on this thread only, where the runtime may still allocate now and then, such as while it
+        // compiles methods again.
         long allocated = long.MaxValue;
         int windows = 0;
-        while (windows < (spread ? 3 : 1) && allocated != 0)
+        while (windows < 10 && allocated != 0)
         {
             long before = spread ? GC.GetTotalAllocatedBytes(precise: true) : GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 60; i++)

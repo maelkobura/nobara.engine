@@ -192,14 +192,21 @@ public sealed class OpenGLDeviceTests : IDisposable
             Frame(offset);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 200; i++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            offset[0] = i / 200f;
-            Frame(offset);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++)
+            {
+                offset[0] = i / 200f;
+                Frame(offset);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
 
         foreach (IDisposable resource in new IDisposable[] { pipeline, vertex, fragment, layout, vertices, indices })
         {

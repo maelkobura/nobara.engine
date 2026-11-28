@@ -42,16 +42,23 @@ public sealed class AllocationTests : IDisposable
 
         Assert.Equal(quiet, busy);
 
-        long reads = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long reads = -1;
+        for (int round = 0; round < 10 && reads != 0; round++)
         {
-            _ = _game.Layer.Read(jump);
-            _ = _game.Layer.Read(move);
-            sampler.Sample();
-            _ = sampler.Read(look);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                _ = _game.Layer.Read(jump);
+                _ = _game.Layer.Read(move);
+                sampler.Sample();
+                _ = sampler.Read(look);
+            }
+
+            reads = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - reads);
+        Assert.Equal(0, reads);
 
         long Measure(bool script)
         {

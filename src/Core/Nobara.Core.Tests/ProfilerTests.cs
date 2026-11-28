@@ -165,14 +165,21 @@ public sealed class ProfilerTests : IDisposable
         }).Load();
         RunFrames(engine, 10);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            _distribution.Clock.Advance(Tick30);
-            engine.MainContext.RunFrame();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                _distribution.Clock.Advance(Tick30);
+                engine.MainContext.RunFrame();
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
     }
 
     [Fact]

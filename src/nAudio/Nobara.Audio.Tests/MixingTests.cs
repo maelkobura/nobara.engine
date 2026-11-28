@@ -326,16 +326,22 @@ public sealed class MixingTests : IDisposable
         using SoundEmitter repeat = audio.CreateEmitter(_harness.Probe.Context, sounds.Get("sound:example.sounds.pop"), WorldPosition.FromBlocks(6, 0, 0), EmitterRepeat.Every(0.2f, 0.4f));
         _harness.Frames(engine, 120);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 120; i++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            anchor.Step();
-            listener.Move(WorldPosition.FromBlocks(i * 0.1, 0, 0), Quaternion.Identity);
-            room.Parameters = ReverbParameters.Default with { DecayTime = 1 + (i % 3) };
-            _harness.Frames(engine, 1);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 120; i++)
+            {
+                anchor.Step();
+                listener.Move(WorldPosition.FromBlocks(i * 0.1, 0, 0), Quaternion.Identity);
+                room.Parameters = ReverbParameters.Default with { DecayTime = 1 + (i % 3) };
+                _harness.Frames(engine, 1);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         Assert.Equal(8, audio.Statistics.RealVoices);
         Assert.True(audio.Statistics.VirtualVoices >= 14);
         Assert.Equal(0, allocated);

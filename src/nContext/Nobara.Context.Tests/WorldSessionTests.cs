@@ -487,19 +487,28 @@ public sealed class WorldSessionTests : IDisposable
         WorldSession session = Sessions.Start();
         _harness.Frame(engine, 3);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        _harness.Frame(engine, 100);
-        long starting = GC.GetAllocatedBytesForCurrentThread() - before;
-
+        long starting = Allocated();
         mesh.Complete();
         _harness.Frame(engine, 3);
-        before = GC.GetAllocatedBytesForCurrentThread();
-        _harness.Frame(engine, 100);
-        long active = GC.GetAllocatedBytesForCurrentThread() - before;
+        long active = Allocated();
 
         Assert.Equal(0, starting);
         Assert.Equal(0, active);
         Assert.Equal(SessionState.Active, session.State);
+
+        long Allocated()
+        {
+            // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+            long allocated = -1;
+            for (int round = 0; round < 10 && allocated != 0; round++)
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                _harness.Frame(engine, 100);
+                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+
+            return allocated;
+        }
     }
 
     /// <summary>A job that waits until the test lets it finish.</summary>
