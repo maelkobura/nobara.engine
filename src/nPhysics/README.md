@@ -966,7 +966,10 @@ None.
   sideways into a step crushes it. A grid that a crush puts back during a step
   has already pushed the characters looked at before, by its motion of that
   step. A character crushed by two grids at once is crushed by the first only
-  during that step.
+  during that step. A grid put back by a crush has already stepped: the
+  bodies it pushed, or that a joint ties to it, saw it move forward, and may
+  spring back at the next step. A kinematic grid teleported by a command does
+  not push characters on its jump.
 - A character pushes a dynamic body by the sphere that holds its shape,
   starting before their surfaces touch for a box.
 - Each character looks at every body of the context for static bodies to

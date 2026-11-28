@@ -532,6 +532,7 @@ public interface IPhysicsSystem
     /// <param name="module">The module of the resolver.</param>
     /// <param name="resolver">The resolver.</param>
     /// <returns>The registration; dispose it to remove the resolver.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="module"/> or <paramref name="resolver"/> is <see langword="null"/>.</exception>
     /// <exception cref="InvalidOperationException">Another resolver is set.</exception>
     CrushResolverHandle SetCrushResolver(ModuleContext module, ICrushResolver resolver);
 }
