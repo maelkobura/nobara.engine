@@ -125,12 +125,15 @@ internal sealed class LightingHarness : IDisposable
         }
     }
 
-    public void RunUntil(Engine engine, Func<bool> condition, int frames = 2000)
+    public void RunUntil(Engine engine, Func<bool> condition)
     {
-        for (int i = 0; i < frames; i++)
+        // Chunks load and light in jobs: wait on the clock, not on a number of frames, and let the workers run.
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; watch.Elapsed < TimeSpan.FromSeconds(30); i++)
         {
             if (condition()) return;
             Tick(engine);
+            if (i % 16 == 15) Thread.Sleep(1);
         }
 
         Assert.True(condition(), "The condition was not met in time.");
