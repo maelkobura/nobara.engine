@@ -14,10 +14,15 @@ broken. A grid body is dynamic, moved by gravity, forces, and collisions, or
 kinematic, moved along the velocities or the targets a module gives it, and
 its mode changes at any time. Motion delegates the whole simulation to
 nPhysics, which alone writes the transform of a grid; it is the API through
-which modules move grids: a ship, a lift, a piston. A grid that no module
-gives to Motion stays still. How a grid body fits with nPhysics is described
-in [Grids that move](../../docs/explanation/moving-grids.md), and the guide
-[Move a grid](../../docs/guides/move-a-grid.md) moves an airship and a lift.
+which modules move grids: a ship, a lift, a piston. It links grids to each
+other, or to the terrain, by hinges, sliders, and fixed joints with motors,
+and lets the game decide what happens when a kinematic grid crushes a
+character. A grid that no module gives to Motion stays still. How a grid body
+fits with nPhysics is described in
+[Grids that move](../../docs/explanation/moving-grids.md); the guide
+[Move a grid](../../docs/guides/move-a-grid.md) moves an airship and a lift,
+and the guide [Link two grids](../../docs/guides/link-two-grids.md) turns the
+sails of a windmill and slides a gate.
 
 ## Status
 
@@ -51,14 +56,18 @@ dependency on nDebug is used by one isolation class, `MotionDebugWindow`: the
 mode, mass, center of mass, blocks, whether they are small grids, and whether
 they sleep or are frozen; and, for their collision with other voxels, the
 mode of their surface cells, the pairs, tests, and deferred cells of the last
-step, the load of the tick, and the switches of mode.
+step, the load of the tick, and the switches of mode; the joints, with their
+carrier, kind, and motor; and the crushes of the last step, with the response
+of the handlers.
 
 ## Entry points
 
 | Member | Use |
 | --- | --- |
-| `IMotionSystem` | Grid bodies (`Add`, `Remove`, `Contains`, `GetBody`, `GetState`, `Grids`), their mode (`SetMode`, `Freeze`, `Release`), the commands (`ApplyForce`, `ApplyForceAt`, `ApplyImpulse`, `ApplyImpulseAt`, `ApplyTorque`, `ApplyAngularImpulse`, `SetGravityScale`, `SetVelocity`, `SetTarget`), and `Split`. |
+| `IMotionSystem` | Grid bodies (`Add`, `Remove`, `Contains`, `GetBody`, `GetState`, `Grids`), their mode (`SetMode`, `Freeze`, `Release`), the commands (`ApplyForce`, `ApplyForceAt`, `ApplyImpulse`, `ApplyImpulseAt`, `ApplyTorque`, `ApplyAngularImpulse`, `SetGravityScale`, `SetVelocity`, `SetTarget`), `Split`, the joints (`Link`, `SetMotor`, `Unlink`, `IsLinked`, `GetJoint`), and the crush handlers (`AddCrushHandler`). |
 | `GridMotionMode`, `GridMotionState` | How a grid moves, and what Motion knows of it after the last step. |
+| `GridJointDescription`, `GridJointHandle`, `GridJointState` | A joint between a grid and its carrier. |
+| `ICrushHandler`, `CrushHandlerHandle` | What happens when a kinematic grid crushes a character. |
 | `MotionSettings` | The names of the configuration keys. |
 | `MotionModule` | The identifier of the module and the name of its tick system. |
 
@@ -198,13 +207,74 @@ tick; it then gets the velocity that the source had at its new center of
 mass. A grid split through nVoxel directly is not a body: its module gives it
 to Motion.
 
+### Joints
+
+```csharp
+GridJointHandle hinge = motion.Link(sails, terrain, new GridJointDescription(
+    JointKind.Hinge,
+    Anchor: new Vector3(0.5f, 0.5f, 0.5f),   // in the frame of the sails
+    Axis: Vector3.UnitZ,
+    Motor: new JointMotor(TargetVelocity: 0.5f, MaxForce: 5e6f)));
+motion.SetMotor(hinge, null);   // free, at the next step
+```
+
+- `Link` joins a grid that Motion moves to its carrier: another grid that
+  Motion moves, of the same dimension, or the terrain. A hinge turns the grid
+  about the axis, a slider slides it along the axis without turning, a fixed
+  joint keeps it where it is on the carrier.
+- The anchor and the axis are in the frame of the grid, the frame of its
+  blocks. The joint holds them where they are on the carrier when it is
+  made: a grid is linked where it stands.
+- The motor drives the grid relative to its carrier: radians per second about
+  the axis, counterclockwise seen from its tip, with at most `MaxForce` of
+  torque, for a hinge; blocks per second along the axis, with at most
+  `MaxForce` of force, for a slider. A fixed joint has no motor.
+- A joint goes through nPhysics, as a joint whose first body is the carrier.
+  A joint to the terrain holds a static body that Motion places at the point
+  of the joint, which collides with nothing and leaves with the joint.
+- When blocks move the center of mass of a grid, its joints stay where they
+  are on its blocks.
+- A joint lasts until `Unlink`, or until one of its grids stops being a body,
+  removed or destroyed: `IsLinked` then says `false`, and Motion forgets it
+  at the next tick. `GetJoint` gives its grids, its description, and its
+  motor.
+- A kinematic or a frozen grid ignores its joints: its module moves it. A
+  dynamic grid linked to it follows.
+
+### Crushes
+
+A kinematic grid that moves into a character pushes it; when the character
+has nowhere to go, it is crushed (see the
+[crushes of nPhysics](../nPhysics/README.md#crushes)). Motion asks its crush
+handlers what happens:
+
+```csharp
+CrushHandlerHandle handle = motion.AddCrushHandler(context, new FerryRule(), priority: 10);
+```
+
+- `ICrushHandler.TryResolve` receives the grid, the character, and the way
+  the grid pushes, and returns `true` with a `CrushResponse` to decide:
+  `Block`, `Pass`, or `MoveTo` a position of the world.
+- The handlers are asked from the highest priority down, then in the order
+  they were added; the first that decides wins. A handler that throws is
+  reported as a fault of its module, and the next one is asked.
+- When none decides, the grid is blocked: it goes back to where it was
+  before the step, keeps its velocities, and goes on once the way is free.
+- Handlers run on the loop thread during the step of nPhysics: they may read
+  the entities and call the commands of Motion and nPhysics, which apply at
+  the next step, and do not change the structure of an entity world.
+- Motion is the resolver of crushes of nPhysics: no other module sets one.
+
 ### The tick
 
 The tick system `nobara.motion.grids` runs in the stage `Physics`, before
 `nobara.physics.step`. For each grid whose blocks changed, it gives nPhysics
 the new mass, inertia, and shape; it applies the forces of the gravity
-scales; and it destroys the shapes that the last step stopped using. A
-system that moves grids runs before it.
+scales; it destroys the shapes that the last step stopped using; and it
+forgets the joints that nPhysics destroyed with one of their bodies, with
+their anchor in the terrain. A system that moves grids runs before it.
+It declares the structure of the entity worlds among its writes, for the
+anchors it removes.
 
 ## Events
 
@@ -238,15 +308,19 @@ Motion reads the free property `Weight` of the blocks, and its qualified form
 ## Constraints
 
 - Call the service on the loop thread of the context, from its start on,
-  once a world session runs. `Add`, `Remove`, and `Split` change the structure
-  of the entity world: call them outside entity systems.
+  once a world session runs. `Add`, `Remove`, `Split`, `Link`, and `Unlink`
+  change the structure of the entity world: call them outside entity
+  systems.
 - Motion never writes the transform of a grid: nPhysics does, after each
   step, and updates the spatial index of the grids of nVoxel.
 - Once the grids rest, a tick of Motion allocates no managed memory (checked
   by tests with 500 small grids, and with 500 grids of mixed sizes on the
   terrain). A change of blocks allocates when it builds a
   new shape, and the first surface cell of a chunk allocates its words.
-- Grid bodies belong to the world session: Motion forgets them when it ends.
+- Motorized joints and a grid held by a crush allocate no managed memory per
+  tick once they run (checked by tests).
+- Grid bodies and joints belong to the world session: Motion forgets them
+  when it ends.
 - Motion keeps no static state.
 
 ## Known limitations
@@ -271,3 +345,10 @@ Motion reads the free property `Weight` of the blocks, and its qualified form
 - A small grid scans the chunks of its grid in memory each time it changes.
 - Motion moves the grids on both sides, each context its own world: there is
   no replication, no prediction, and no API for the client alone yet.
+- Joints have no limits: a hinge turns all the way round, and a slider goes
+  on until something stops its grid. They do not break under a force.
+- A joint between grids of two regions takes effect at the next step, once
+  nPhysics has moved them to one world; after such a move, a fixed joint
+  keeps the pose of that moment.
+- Only a kinematic grid pushes and crushes characters: a dynamic grid that
+  moves into a character can end up around it.

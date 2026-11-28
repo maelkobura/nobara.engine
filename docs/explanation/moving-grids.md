@@ -72,6 +72,33 @@ A character that stands on a grid becomes a child of the grid entity, and the
 character controller of nPhysics moves it in the frame of the grid: it turns
 and moves with the grid, kinematic or dynamic, with no drift.
 
+A kinematic grid that moves into a character that does not stand on it
+pushes the character along with it. When the character has nowhere to go, it
+is [crushed](glossary.md#crush), and the game decides what happens through
+the crush handlers of Motion: by default, the grid stops where it was before
+the step, and goes on once the way is free.
+
+## Joints
+
+A windmill turns its sails on its tower, a ferry carries a crane whose boom
+turns, a gate slides along its rail. Motion links a grid to a carrier, another
+grid it moves or the terrain, by a hinge, a slider, or a fixed joint of
+nPhysics, with an optional motor that drives the grid toward a speed with a
+bounded effort.
+
+- **Anchored on the blocks.** A joint is given in the frame of the grid, where
+  a game places blocks; Motion finds the same point and axis on the carrier
+  where they are when the joint is made. nPhysics anchors joints from the
+  center of each body, which moves with the blocks: it shifts the anchors with
+  the center, so that a hinge stays on its axis when the grid grows.
+- **The terrain carries.** The terrain is not a body, and nPhysics joins
+  bodies only: a joint to the terrain holds a static body that Motion places
+  at the point of the joint, and that collides with nothing.
+- **One region.** Joined bodies are simulated in one physics world, so two
+  linked grids never step apart, wherever their centers are.
+- **No limits.** The joints of nPhysics have no limits yet: a slider goes on
+  until something stops its grid, a wall of the terrain or another grid.
+
 ## Grids against voxels
 
 A crate against the terrain is one body against many cells; a grid against
