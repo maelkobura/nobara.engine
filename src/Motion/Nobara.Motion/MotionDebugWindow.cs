@@ -17,7 +17,8 @@ namespace Nobara.Motion;
 /// mode, mass, center of mass, blocks, whether they are small grids, and
 /// whether they sleep or are frozen; and their collision with other voxels:
 /// the mode of their surface cells, the pairs, tests, and deferred cells of
-/// the last step, the load of the tick, and the switches.
+/// the last step, the load of the tick, and the switches; the joints, with
+/// their motor; and the crushes of the last step.
 /// </summary>
 [UsesOptionalDependency(DebugModuleId)]
 internal sealed class MotionDebugWindow : IDisposable
@@ -27,6 +28,9 @@ internal sealed class MotionDebugWindow : IDisposable
 
     /// <summary>The most grids the window lists.</summary>
     private const int ListedGrids = 200;
+
+    /// <summary>The most joints the window lists.</summary>
+    private const int ListedJoints = 100;
 
     private readonly MotionSystem _system;
     private DebugWindow? _window;
@@ -74,6 +78,41 @@ internal sealed class MotionDebugWindow : IDisposable
             Text($"#{grid.Identifier}: {state.Mode}, {state.Mass:0.#} kg, center {state.CenterOfMass}, {state.Blocks} blocks{(state.IsSmall ? ", small" : string.Empty)}, {status}");
             (VoxelContactMode mode, VoxelContactCounts counts, int surface) = _system.CollisionOf(grid);
             Text($"    {mode}, {surface} surface cells; last step: {counts.Pairs} pairs, {counts.Tests} tests, {counts.Deferred} deferred");
+        }
+
+        DrawJoints();
+        DrawCrushes();
+    }
+
+    private void DrawJoints()
+    {
+        Text($"Joints: {_system.JointCount}");
+        int listed = 0;
+        for (int slot = 0; slot < _system.JointSlots; slot++)
+        {
+            if (!_system.TryGetJoint(slot, out GridJointState joint))
+            {
+                continue;
+            }
+
+            if (listed++ == ListedJoints)
+            {
+                Text($"... and {_system.JointCount - ListedJoints} more");
+                break;
+            }
+
+            string carrier = joint.Carrier.IsTerrain ? "the terrain" : $"#{joint.Carrier.Identifier}";
+            string motor = joint.Description.Motor is { } value ? $"motor {value.TargetVelocity:0.###} at most {value.MaxForce:0.#}" : "free";
+            Text($"#{joint.Grid.Identifier} on {carrier}: {joint.Description.Kind}, {motor}");
+        }
+    }
+
+    private void DrawCrushes()
+    {
+        Text($"Crushes: {_system.LastCrushCount} at the last step, {_system.Crushes} in all");
+        foreach (MotionSystem.CrushRecord crush in _system.LastCrushes)
+        {
+            Text($"    #{crush.Grid.Identifier} on {crush.Character}, toward {crush.Direction}: {crush.Response}");
         }
     }
 

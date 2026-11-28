@@ -654,6 +654,13 @@ A [grid](#grid) that Motion makes a [body](#body) of nPhysics: its mass,
 [center of mass](#center-of-mass), and inertia come from its blocks, and it
 moves dynamically or kinematically. See [grids that move](moving-grids.md).
 
+### Grid joint
+
+A hinge, a slider, or a fixed joint that Motion makes between a grid and its
+carrier, another grid that Motion moves or the terrain, with an optional
+motor. It is given in the frame of the grid. See
+[grids that move](moving-grids.md#joints).
+
 ### Grid merge
 
 The technical operation that rotates and moves every occupied cell of one

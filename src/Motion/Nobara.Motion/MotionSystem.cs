@@ -90,7 +90,9 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         {
             Before = [PhysicsModule.StepSystem],
             Reads = [voxels.ChunkAccess, entities.GetComponent(entities.WorldTransform).Data, VelocityData(entities)],
+            Writes = [entities.Structure],   // the anchors of the joints whose grid is gone
         });
+        InitializeJoints(entities);
         _notifications = batches.Subscribe(_context, OnBlocksChanged);
         _residency = loading.SubscribeResidency(_context, OnResidency);
         _sessionEnded = sessions.SubscribeEnded(_context, _ => Reset());
@@ -106,6 +108,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         SmallGridBlocks = _context.Settings.GetInt(MotionSettings.SmallGridBlocks);
         _masses = BlockMasses.Build(_blocks!, _shapes!, _multiBlocks!, _blocks!.ResolveProperty(_context, _weight), message => _context.Logger.Warning(message));
         StartCollision();
+        StartCrushes();
     }
 
     public BodyHandle Add(Grid grid, GridMotionMode mode = GridMotionMode.Dynamic)
@@ -166,6 +169,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
 
         RemoveCollision(record);
         Forget(record);
+        ReleaseBrokenJoints();   // nPhysics destroyed the joints of the body
     }
 
     public bool Contains(Grid grid) => grid is not null && _records.ContainsKey(grid);
@@ -331,7 +335,9 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
     public void Run(in TickTime time)
     {
         StartTick(time);
+        ClearCrushes();
         DestroyRetired();
+        ReleaseBrokenJoints();
         Vector3 gravity = _physics!.Gravity;
         for (int i = _list.Count - 1; i >= 0; i--)
         {
@@ -374,6 +380,7 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
         _residency?.Dispose();
         _sessionEnded?.Dispose();
         _stepEnd?.Dispose();
+        _crushResolver?.Dispose();
     }
 
     /// <summary>Gets the sums of a grid, as the notifications left them.</summary>
@@ -622,6 +629,8 @@ internal sealed partial class MotionSystem : IMotionSystem, ITickSystem, IDispos
 
         _records.Clear();
         _list.Clear();
+        ResetJoints();
+        ClearCrushes();
     }
 
     /// <summary>Gets the coordinates of a cell in its grid.</summary>

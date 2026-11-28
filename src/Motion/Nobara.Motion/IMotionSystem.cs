@@ -185,4 +185,56 @@ public interface IMotionSystem
     /// <returns>The new grid.</returns>
     /// <exception cref="ArgumentException">Motion does not move the source grid.</exception>
     Grid Split(ModuleContext owner, Grid source, IReadOnlyCollection<BlockCoordinate> selection);
+
+    /// <summary>
+    /// Joins a grid to a carrier, another grid that Motion moves or the
+    /// terrain, by a hinge, a slider, or a fixed joint of nPhysics. The joint
+    /// lasts until <see cref="Unlink"/>, or until one of the grids stops being
+    /// a body; it follows the center of mass of each grid as blocks change.
+    /// </summary>
+    /// <param name="grid">A grid that Motion moves.</param>
+    /// <param name="carrier">Another grid that Motion moves, of the same dimension, or the terrain of that dimension.</param>
+    /// <param name="description">The kind of joint, its point and its axis in the frame of the grid, and its motor.</param>
+    /// <returns>The joint.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> or <paramref name="carrier"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Motion does not move the grid, the carrier is the grid itself, neither the terrain nor a grid that Motion moves, or of another dimension, or the description is not valid.</exception>
+    /// <exception cref="InvalidOperationException">An entity system runs on the entity world of the dimension.</exception>
+    GridJointHandle Link(Grid grid, Grid carrier, in GridJointDescription description);
+
+    /// <summary>Changes the motor of a hinge or a slider, at the next step.</summary>
+    /// <param name="joint">A joint that Motion made.</param>
+    /// <param name="motor">The speed and effort, or <see langword="null"/> to free the joint.</param>
+    /// <exception cref="ArgumentException">The joint is gone, or is fixed and <paramref name="motor"/> is not <see langword="null"/>, or the motor is not valid.</exception>
+    void SetMotor(GridJointHandle joint, JointMotor? motor);
+
+    /// <summary>Removes a joint at once.</summary>
+    /// <param name="joint">A joint that Motion made.</param>
+    /// <exception cref="ArgumentException">The joint is gone.</exception>
+    /// <exception cref="InvalidOperationException">An entity system runs on the entity world of the dimension.</exception>
+    void Unlink(GridJointHandle joint);
+
+    /// <summary>Tells whether a joint still holds.</summary>
+    /// <param name="joint">A joint that Motion made.</param>
+    /// <returns><see langword="true"/> while it holds.</returns>
+    bool IsLinked(GridJointHandle joint);
+
+    /// <summary>Gets a joint: its grids, how it was made, and its motor.</summary>
+    /// <param name="joint">A joint that Motion made.</param>
+    /// <returns>The joint.</returns>
+    /// <exception cref="ArgumentException">The joint is gone.</exception>
+    GridJointState GetJoint(GridJointHandle joint);
+
+    /// <summary>
+    /// Adds a handler that decides what happens when a kinematic grid pushes a
+    /// character against something it cannot get out through. The handlers
+    /// are asked from the highest priority down, then in the order they were
+    /// added; the first that decides wins. When none does, the grid goes back
+    /// to where it was before the step, and goes on once the way is free.
+    /// </summary>
+    /// <param name="module">The module of the handler.</param>
+    /// <param name="handler">The handler.</param>
+    /// <param name="priority">Its priority: higher is asked first.</param>
+    /// <returns>The registration; dispose it to remove the handler.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="module"/> or <paramref name="handler"/> is <see langword="null"/>.</exception>
+    CrushHandlerHandle AddCrushHandler(ModuleContext module, ICrushHandler handler, int priority = 0);
 }
