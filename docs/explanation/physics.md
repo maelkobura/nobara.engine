@@ -201,9 +201,18 @@ makes a grid a body, it gives the body the
 same way, but carried by the body, centered on its center of mass. Bodies
 collide with it as with any shape but a mesh, and push it back when it is
 dynamic; a
-crate on a grid that moves is carried by friction. Two sets of voxels never
-collide in the backend: the collision of a grid with the terrain or with
-another grid needs other means than a body against a body.
+crate on a grid that moves is carried by friction.
+
+Two sets of voxels meet only when the module that moves the grid asks for
+it, with a voxel collision: the cells of the grid with an open side, its
+surface cells, are tested against the voxels of the terrain or of another
+grid. A body against a body would be the wrong tool: the shape of a grid has
+as many children as its blocks have boxes, and two such shapes would test
+every pair of them. Only the surface cells that lie where the other voxels
+are get tested: either each of their boxes, exact to the block, or each of
+their corners, cheaper but rough on the edges. A budget bounds the tests of
+a pair in a step: the cells that go deepest come first, and the others
+wait.
 Motion is the module that makes grids bodies: see [grids that
 move](moving-grids.md).
 

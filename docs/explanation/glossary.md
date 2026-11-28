@@ -1442,6 +1442,14 @@ turns with the grid, and resolves its collisions in the frame of the grid. It
 changes the support grid when the ground belongs to another grid, and takes
 it away a few steps after the character leaves the ground.
 
+### Surface cell
+
+A cell of a [grid body](#grid-body) that the voxels of the terrain or of
+another grid can touch: a block with an open side. The collision of the
+grid with other voxels tests these cells only, by their collision boxes or
+by their corners. See [the nPhysics module
+sheet](../../src/nPhysics/README.md#voxel-collision-of-grid-bodies).
+
 ### Swapchain
 
 The images shown in the window: the back buffer that a render pass draws to,
@@ -1566,8 +1574,9 @@ end: real when the audio device mixes it, virtual otherwise. A
 
 The shape of the body of a grid made of the voxels of that grid: the
 collision boxes of its blocks, read where nVoxel keeps them, around the
-center of the body. It collides with other bodies, not with the voxels of
-the terrain or of other grids. See [the nPhysics module
+center of the body. It collides with other bodies, and with the voxels of
+the terrain and of other grids once its grid has a voxel collision, through
+its [surface cells](#surface-cell). See [the nPhysics module
 sheet](../../src/nPhysics/README.md#shapes).
 
 ### Window

@@ -37,7 +37,7 @@ internal sealed partial class PhysicsSimulation
     internal const int VoxelGrace = 30;
 
     private readonly Dictionary<VoxelChunkKey, VoxelChunkCells> _cells = [];
-    private readonly List<Grid> _candidates = [];
+    private readonly List<Grid> _voxelGrids = [];
     private readonly List<PendingWake> _wakeQueue = [];
     private int[] _footprint = new int[16];
     private Grid[] _terrains = new Grid[2];
@@ -79,12 +79,14 @@ internal sealed partial class PhysicsSimulation
         _voxelStep++;
         RemoveChunksOfDestroyedGrids();
         ForgetDestroyedGridCells();
+        ForgetDestroyedCollisions();
         WakeAroundChangedBlocks();
         if (_voxelsReset)
         {
             ResetFootprints();
         }
 
+        GatherVoxelGrids();
         bool all = _voxelsReset || _voxelsRecompute;
         _voxelsReset = false;
         _voxelsRecompute = false;
@@ -96,7 +98,7 @@ internal sealed partial class PhysicsSimulation
                 continue;
             }
 
-            if (body.World is null || body.Kind != BodyKind.Dynamic || body.Grid is not null)
+            if (body.World is null || body.Kind != BodyKind.Dynamic || (body.Grid is not null && !CollidesWithVoxels(body.Grid)))
             {
                 Release(ref body.Voxels);
                 continue;
@@ -117,7 +119,7 @@ internal sealed partial class PhysicsSimulation
             }
 
             ref BodyRecord body = ref _bodies[ghost.Source];
-            if (ghost.Kind != BodyKind.Dynamic || body.Grid is not null)
+            if (ghost.Kind != BodyKind.Dynamic || (body.Grid is not null && !CollidesWithVoxels(body.Grid)))
             {
                 Release(ref ghost.Voxels);
                 continue;
@@ -130,6 +132,27 @@ internal sealed partial class PhysicsSimulation
         }
 
         RemoveUnusedChunks();
+    }
+
+    /// <summary>
+    /// Lists the grids whose voxels make the voxel layer at this step: every
+    /// grid that is not destroyed, not scaled, and not a body. A body looks for
+    /// the chunks it reaches among them only: the grids that are bodies, often
+    /// many and unbounded, are never candidates.
+    /// </summary>
+    [HotPath]
+    private void GatherVoxelGrids()
+    {
+        _voxelGrids.Clear();
+        IReadOnlyList<Grid> grids = _voxels!.Grids;
+        for (int i = 0; i < grids.Count; i++)
+        {
+            Grid grid = grids[i];
+            if (!grid.IsDestroyed && grid.Transform.Scale == Vector3.One && !IsBody(grid))
+            {
+                _voxelGrids.Add(grid);
+            }
+        }
     }
 
     /// <summary>Gets how far from its center a body reaches during a step: its bounding radius plus its velocity over the step, in blocks.</summary>
@@ -146,13 +169,10 @@ internal sealed partial class PhysicsSimulation
 
         float half = reach + VoxelMargin;
         int count = 0;
-        _candidates.Clear();
-        _voxels!.SpatialIndex.Query(WorldBox.Around(center, new Vector3(half)), _candidates);
-        for (int g = 0; g < _candidates.Count; g++)
+        for (int g = 0; g < _voxelGrids.Count; g++)
         {
-            Grid grid = _candidates[g];
-            if (grid.IsDestroyed || grid.Dimension != dimension || grid.Transform.Scale != Vector3.One || IsBody(grid)
-                || !ChunkRange(grid, center, half, out ChunkCoordinate minimum, out ChunkCoordinate maximum))
+            Grid grid = _voxelGrids[g];
+            if (grid.Dimension != dimension || !ChunkRange(grid, center, half, out ChunkCoordinate minimum, out ChunkCoordinate maximum))
             {
                 continue;
             }

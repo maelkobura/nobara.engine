@@ -11,6 +11,7 @@ using BepuPhysics.CollisionDetection.CollisionTasks;
 using BepuPhysics.CollisionDetection.SweepTasks;
 using BepuUtilities;
 using BepuUtilities.Memory;
+using Nobara.Core;
 
 namespace Nobara.Physics.Bepu;
 
@@ -21,15 +22,36 @@ internal interface IVoxelShape
     /// <param name="childIndex">The index of the child.</param>
     /// <param name="box">The box.</param>
     /// <param name="center">Its center.</param>
+    [HotPath]
     void GetChild(int childIndex, out Box box, out Vector3 center);
+
+    /// <summary>Gets the box of every child, in the frame of the shape.</summary>
+    /// <param name="min">The lowest corner.</param>
+    /// <param name="max">The highest corner.</param>
+    [HotPath]
+    void GetLocalBounds(out Vector3 min, out Vector3 max);
+
+    /// <summary>Tells whether a contact whose normal leaves a child through a face covered by the neighbor cell would go through an inner face.</summary>
+    /// <param name="childIndex">The index of the child.</param>
+    /// <param name="normal">The normal, out of the box, in the frame of the shape.</param>
+    /// <returns><see langword="true"/> when the contact goes through an inner face.</returns>
+    [HotPath]
+    bool IsInnerFace(int childIndex, Vector3 normal);
+
+    /// <summary>Tells whether a point lies in a collision box of its cell.</summary>
+    /// <param name="point">The point, in the frame of the shape.</param>
+    /// <returns><see langword="true"/> when it lies in a box.</returns>
+    [HotPath]
+    bool IsSolidAt(Vector3 point);
 }
 
 /// <summary>
 /// The collision and sweep tasks that teach the narrow phase of BEPUphysics to
 /// collide every shape of the neutral API with <see cref="VoxelChunkShape"/>
 /// and <see cref="VoxelGridShape"/>: the point where the contacts of the
-/// voxels enter the solver. No task joins two shapes of voxels: the voxels of
-/// two grids do not collide in the backend.
+/// voxels enter the solver. Two shapes of voxels meet through
+/// <see cref="GridVoxelCollisionTask{TOther}"/>, when the voxels of a grid body
+/// collide with other voxels.
 /// </summary>
 internal static class VoxelCollisionTasks
 {
@@ -39,6 +61,30 @@ internal static class VoxelCollisionTasks
     {
         Register<VoxelChunkShape>(simulation);
         Register<VoxelGridShape>(simulation);
+        CollisionTaskRegistry tasks = simulation.NarrowPhase.CollisionTaskRegistry;
+        tasks.Register(new GridVoxelCollisionTask<VoxelChunkShape>());
+        tasks.Register(new GridVoxelCollisionTask<VoxelGridShape>());
+
+        // The task of the voxels of grid bodies hands boxes to the batcher, which sizes their data from the batch of boxes of the simulation: it must exist.
+        simulation.Shapes.Add(new Box(1, 1, 1));
+    }
+
+    /// <summary>Tells whether a point lies in a box of a cell, the corner of the cell at the origin.</summary>
+    [HotPath]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool Contains(ReadOnlySpan<Nobara.Voxel.CollisionBox> boxes, Vector3 point)
+    {
+        for (int i = 0; i < boxes.Length; i++)
+        {
+            Vector3 low = boxes[i].Minimum;
+            Vector3 high = boxes[i].Maximum;
+            if (point.X >= low.X && point.X <= high.X && point.Y >= low.Y && point.Y <= high.Y && point.Z >= low.Z && point.Z <= high.Z)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Gives a box of a shape of voxels, posed in the frame of the pair; the voxels are the second shape of the pair.</summary>

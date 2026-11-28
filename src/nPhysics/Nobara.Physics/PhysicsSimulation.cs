@@ -278,8 +278,10 @@ internal sealed partial class PhysicsSimulation : IPhysicsSystem, IPhysicsBacken
 
         _cells.Clear();
         _gridFollow.Clear();
+        _voxelCollisions.Clear();
         foreach (VoxelGridCells cells in _gridCells.Values)
         {
+            cells.Collision = null;
             cells.Clear();
             RefreshVoxelRadii(cells);
         }

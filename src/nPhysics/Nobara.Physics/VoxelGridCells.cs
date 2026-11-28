@@ -66,6 +66,9 @@ public sealed class VoxelGridCells
     /// <summary>Gets a number that changes each time the box of the cells changes, for a backend that keeps bounds computed from it.</summary>
     public int BoundsVersion { get; private set; }
 
+    /// <summary>Gets how the body of the grid collides with the voxels of other grids, or <see langword="null"/> when it goes through them (<see cref="IPhysicsSystem.SetVoxelCollision"/>).</summary>
+    public GridVoxelCollision? Collision { get; internal set; }
+
     /// <summary>Gets the shapes of the grid alive, by their slot in nPhysics.</summary>
     internal List<int> Shapes { get; } = [];
 

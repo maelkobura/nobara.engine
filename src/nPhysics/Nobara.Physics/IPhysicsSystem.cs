@@ -185,6 +185,25 @@ public interface IPhysicsSystem
     /// <exception cref="ArgumentException">The grid is destroyed, or <paramref name="origin"/> is not finite.</exception>
     PhysicsShape CreateVoxels(Grid grid, Vector3 origin);
 
+    /// <summary>
+    /// Sets how the body of a grid collides with the voxels of other grids:
+    /// the terrain, the grids that are not bodies, and the other grid bodies.
+    /// Without it, the body of a grid goes through them.
+    /// </summary>
+    /// <param name="grid">The grid, not the terrain.</param>
+    /// <param name="collision">How it collides, or <see langword="null"/> to stop.</param>
+    /// <remarks>
+    /// A body of the grid whose shape is its voxels (<see cref="CreateVoxels"/>)
+    /// tests the surface cells of <paramref name="collision"/> against the
+    /// voxels of the other grids; a body whose shape is a compound collides
+    /// with them as any compound does, through the voxel layer. The setting
+    /// holds for every body and every shape of the grid, until the grid is
+    /// destroyed or the world session ends.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">The grid is the terrain, or is destroyed.</exception>
+    void SetVoxelCollision(Grid grid, GridVoxelCollision? collision);
+
     /// <summary>Gets the description of a shape.</summary>
     /// <param name="shape">The shape.</param>
     /// <returns>The description.</returns>
