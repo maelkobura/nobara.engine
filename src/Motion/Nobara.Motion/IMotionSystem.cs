@@ -196,6 +196,7 @@ public interface IMotionSystem
     /// <param name="carrier">Another grid that Motion moves, of the same dimension, or the terrain of that dimension.</param>
     /// <param name="description">The kind of joint, its point and its axis in the frame of the grid, and its motor.</param>
     /// <returns>The joint.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="grid"/> or <paramref name="carrier"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Motion does not move the grid, the carrier is the grid itself, neither the terrain nor a grid that Motion moves, or of another dimension, or the description is not valid.</exception>
     /// <exception cref="InvalidOperationException">An entity system runs on the entity world of the dimension.</exception>
     GridJointHandle Link(Grid grid, Grid carrier, in GridJointDescription description);
@@ -234,5 +235,6 @@ public interface IMotionSystem
     /// <param name="handler">The handler.</param>
     /// <param name="priority">Its priority: higher is asked first.</param>
     /// <returns>The registration; dispose it to remove the handler.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="module"/> or <paramref name="handler"/> is <see langword="null"/>.</exception>
     CrushHandlerHandle AddCrushHandler(ModuleContext module, ICrushHandler handler, int priority = 0);
 }
