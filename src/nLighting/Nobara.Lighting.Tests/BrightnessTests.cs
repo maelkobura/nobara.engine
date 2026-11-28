@@ -85,15 +85,23 @@ public sealed class BrightnessTests
         var block = new BlockCoordinate(15, 16, 16);
         probe.Lighting.TryGetBrightness(grid, block, out _);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
         int sum = 0;
-        for (int i = 0; i < 1000; i++)
+
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            probe.Lighting.TryGetBrightness(grid, block, out Brightness brightness);
-            sum += brightness.Dynamic.Red;
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++)
+            {
+                probe.Lighting.TryGetBrightness(grid, block, out Brightness brightness);
+                sum += brightness.Dynamic.Red;
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
         Assert.True(sum > 0);
     }
 

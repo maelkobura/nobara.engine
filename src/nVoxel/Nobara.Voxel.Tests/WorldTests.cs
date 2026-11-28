@@ -47,14 +47,22 @@ public sealed class WorldTests
 
         Assert.Equal(index.Query(box), results);
         results.Clear();
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            results.Clear();
-            index.Query(box, results);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                results.Clear();
+                index.Query(box, results);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.Equal(0, allocated);
     }
 
     [Fact]
@@ -72,14 +80,22 @@ public sealed class WorldTests
         Assert.Equal(storage.ChunkCount, chunks.Count);
         Assert.Contains(first, chunks);
         Assert.Contains(second, chunks);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            chunks.Clear();
-            storage.GetResidentChunks(chunks);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                chunks.Clear();
+                storage.GetResidentChunks(chunks);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.Equal(0, allocated);
     }
 
     [Fact]

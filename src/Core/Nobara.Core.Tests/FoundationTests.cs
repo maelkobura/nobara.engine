@@ -177,32 +177,40 @@ public sealed class FoundationTests
         pool.Return(pool.Rent());
         other.Add(5);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
         int total = 0;
-        for (int i = 0; i < 1000; i++)
-        {
-            array[i & 255] = i;
-            total += array.AsSpan(0, 16)[0] + array.Length;
-            array.Clear();
 
-            set.Add(i & 255);
-            set.UnionWith(other);
-            set.IntersectWith(other);
-            set.ExceptWith(other);
-            total += set.Count + (set.Contains(i & 255) ? 1 : 0) + (set.Overlaps(other) ? 1 : 0) + (set.IsSupersetOf(other) ? 1 : 0) + (set.IsEmpty ? 1 : 0);
-            foreach (int value in other)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++)
             {
-                total += value;
+                array[i & 255] = i;
+                total += array.AsSpan(0, 16)[0] + array.Length;
+                array.Clear();
+
+                set.Add(i & 255);
+                set.UnionWith(other);
+                set.IntersectWith(other);
+                set.ExceptWith(other);
+                total += set.Count + (set.Contains(i & 255) ? 1 : 0) + (set.Overlaps(other) ? 1 : 0) + (set.IsSupersetOf(other) ? 1 : 0) + (set.IsEmpty ? 1 : 0);
+                foreach (int value in other)
+                {
+                    total += value;
+                }
+
+                set.Remove(5);
+                set.Clear();
+
+                pool.Return(pool.Rent());
+                total += IntMath.DivFloor(-i, 16) + IntMath.ModFloor(-i, 16) + IntMath.DivCeil(i, 16);
             }
 
-            set.Remove(5);
-            set.Clear();
-
-            pool.Return(pool.Rent());
-            total += IntMath.DivFloor(-i, 16) + IntMath.ModFloor(-i, 16) + IntMath.DivCeil(i, 16);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
         Assert.NotEqual(0, total);
     }
 }

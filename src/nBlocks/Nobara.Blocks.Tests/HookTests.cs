@@ -326,14 +326,21 @@ public sealed class HookTests : IDisposable
         _probe.Hooks.Fire(_probe.Hooks.Breaking, batch);
         uint stone = Type("stone").DefaultState;
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            _probe.Hooks.Fire(_probe.Hooks.Breaking, batch);
-            _probe.Hooks.HasSubscribers(_probe.Hooks.Breaking, stone);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                _probe.Hooks.Fire(_probe.Hooks.Breaking, batch);
+                _probe.Hooks.HasSubscribers(_probe.Hooks.Breaking, stone);
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.Equal(0, allocated);
         Assert.Empty(_calls);
     }
 

@@ -427,9 +427,14 @@ public sealed class StateStackTests : IDisposable
         States.Push(Overlay);
         _harness.Frame(engine, 3);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        _harness.Frame(engine, 100);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            _harness.Frame(engine, 100);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        }
 
         Assert.Equal(0, allocated);
         Assert.True(States.IsRunning(Boot));

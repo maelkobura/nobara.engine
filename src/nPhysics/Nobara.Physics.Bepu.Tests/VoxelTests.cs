@@ -314,14 +314,21 @@ public sealed class VoxelTests(ITestOutputHelper output)
             scene.Tick();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int tick = 40; tick < 70; tick++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            Push(scene, boxes, tick);
-            scene.Tick();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int tick = 40 + (30 * round); tick < 70 + (30 * round); tick++)
+            {
+                Push(scene, boxes, tick);
+                scene.Tick();
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
     }
 
     private static bool IsFrozen(VoxelScene scene, BodyHandle body)

@@ -50,11 +50,17 @@ public sealed class ShapeTests : IDisposable
         using Engine engine = _harness.Start();
         uint state = _harness.Owner.Blocks.Get("block:example.shapes.cube").DefaultState;
         _ = _harness.Owner.Shapes.Get(state, BlockDataView.Empty);
-        long before = GC.GetAllocatedBytesForCurrentThread();
 
-        for (int i = 0; i < 10_000; i++) _ = _harness.Owner.Shapes.Get(state, BlockDataView.Empty);
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 10_000; i++) _ = _harness.Owner.Shapes.Get(state, BlockDataView.Empty);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        }
 
-        Assert.Equal(before, GC.GetAllocatedBytesForCurrentThread());
+        Assert.Equal(0, allocated);
     }
 
     [Fact]

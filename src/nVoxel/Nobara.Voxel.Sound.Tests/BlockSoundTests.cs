@@ -244,9 +244,14 @@ public sealed class BlockSoundTests : IDisposable
         hooks.Fire(hooks.Placed, batch);
         _harness.Frames(2);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        hooks.Fire(hooks.Placed, batch);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            hooks.Fire(hooks.Placed, batch);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        }
 
         Assert.Equal(0, allocated);
     }

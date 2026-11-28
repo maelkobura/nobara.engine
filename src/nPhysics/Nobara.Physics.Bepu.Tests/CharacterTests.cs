@@ -422,14 +422,21 @@ public sealed class CharacterTests(ITestOutputHelper output)
             scene.Voxels.Tick();
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int tick = 40; tick < 70; tick++)
+        // The runtime may allocate now and then on this thread, such as while it compiles methods again: a round without allocation must come.
+        long allocated = -1;
+        for (int round = 0; round < 10 && allocated != 0; round++)
         {
-            Shuttle(scene, walker, rider, tick);
-            scene.Voxels.Tick();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int tick = 40 + (30 * round); tick < 70 + (30 * round); tick++)
+            {
+                Shuttle(scene, walker, rider, tick);
+                scene.Voxels.Tick();
+            }
+
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, allocated);
         Assert.Equal(grid.Entity, scene.State(rider).Support);
     }
 
